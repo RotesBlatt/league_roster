@@ -4,14 +4,25 @@ import postgres from 'postgres'
 import { env } from '../env.ts'
 import * as schema from './schema.ts'
 
-/** Shared connection pool — one per process (the API is the only writer). */
-export const client = postgres(env.databaseUrl, {
-  max: 10,
-  idle_timeout: 20,
-  onnotice: () => {}, // NOTICE spam from migrations is noise
-})
+export type Db = ReturnType<typeof createDb>['db']
 
-export const db = drizzle({ client, schema })
+/**
+ * No hidden singletons: the app receives a Db, tests build their own.
+ * postgres-js connects lazily, so creating this does not require a server.
+ */
+export function createDb(url: string) {
+  const client = postgres(url, { max: 10, idle_timeout: 20, onnotice: () => {} })
+  const db = drizzle({ client, schema })
+  return { db, client, close: () => client.end({ timeout: 5 }) }
+}
+
+const defaultDb = createDb(env.databaseUrl)
+
+export const db = defaultDb.db
+export const client = defaultDb.client
+export const closeDb = defaultDb.close
 export { schema }
 
-export const authDatabase = drizzleAdapter(db, { provider: 'pg', schema })
+/** Better Auth adapter for an arbitrary Db (used by createAuth). */
+export const createAuthDatabase = (database: Db) =>
+  drizzleAdapter(database, { provider: 'pg', schema })

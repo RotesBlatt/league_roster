@@ -1,5 +1,5 @@
 import { and, count, eq } from 'drizzle-orm'
-import { db } from '../db/index.ts'
+import type { Db } from '../db/index.ts'
 import { account, user } from '../db/schema.ts'
 import type { Me } from '../db/schema.types.ts'
 import { env } from '../env.ts'
@@ -22,19 +22,24 @@ function toMe(row: {
   }
 }
 
-export async function getMe(userId: string): Promise<Me | null> {
+export async function getMe(db: Db, userId: string): Promise<Me | null> {
   const [row] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
   return row ? toMe(row) : null
 }
 
 /**
- * Bootstrap + allowlist logic, cheap enough to run on every authenticated request:
- *  - a Discord id in CAPTAIN_DISCORD_IDS is always captain + active
+ * Bootstrap + allowlist policy, cheap enough to run on every authenticated request:
+ *  - a Discord id in the captain allowlist is always captain + active
  *  - if nobody is active yet, the first account to show up becomes captain (fresh install)
+ *  - disabled accounts stay disabled, even when allowlisted
  * Everyone else lands in `pending` until a captain approves them or they claim an invite.
  */
-export async function ensureAccess(userId: string): Promise<Me> {
-  const me = await getMe(userId)
+export async function ensureAccess(
+  db: Db,
+  userId: string,
+  allowlist: readonly string[] = env.captainDiscordIds,
+): Promise<Me> {
+  const me = await getMe(db, userId)
   if (!me) throw new Error(`user ${userId} not found`)
   if (me.status === 'disabled') return me
 
@@ -44,7 +49,7 @@ export async function ensureAccess(userId: string): Promise<Me> {
     .where(and(eq(account.userId, userId), eq(account.providerId, 'discord')))
     .limit(1)
 
-  const allowlisted = discord ? env.captainDiscordIds.includes(discord.accountId) : false
+  const allowlisted = discord ? allowlist.includes(discord.accountId) : false
   let promote = allowlisted
 
   if (!promote && me.status !== 'active') {
