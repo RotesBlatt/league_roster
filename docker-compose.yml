@@ -1,0 +1,73 @@
+name: lol-team
+
+services:
+  # Postgres + named volume. Also used by `bun run dev` (127.0.0.1:5432).
+  db:
+    image: postgres:17-alpine
+    container_name: lol-team-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      # localhost only: usable for dev, never exposed to the internet
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+    image: lol-team:latest
+    container_name: lol-team
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # public origin the browser uses (drives cookies + OAuth redirect_uri)
+      BETTER_AUTH_URL: ${PUBLIC_URL:-http://localhost:3001}
+      WEB_ORIGIN: ${PUBLIC_URL:-http://localhost:3001}
+      # talks to the db service over the compose network
+      DATABASE_URL: postgres://${POSTGRES_USER:-lol}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lol} # yamllint disable-line rule:line-length
+    ports:
+      # host:container — put nginx/Caddy in front of this if you want TLS
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3001/api/health')
+          .then((r) => process.exit(r.ok ? 0 : 1))
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pg-data:
