@@ -24,11 +24,15 @@
     "react-router": "^8.5.1"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^21.0.4",
     "@lol/api": "workspace:*",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.3.0",
     "elysia": "^1.4.32",
+    "happy-dom": "^21.0.4",
     "postcss": "^8.5.33",
     "postcss-preset-mantine": "^1.18.0",
     "postcss-simple-vars": "^7.0.1",

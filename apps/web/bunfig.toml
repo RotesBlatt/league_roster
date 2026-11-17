@@ -1,0 +1,3 @@
+# same preload for `bun test` run from inside apps/web
+[test]
+preload = ["./test/setup.ts"]
