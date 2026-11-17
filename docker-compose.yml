@@ -71,5 +71,33 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # logical backups into their own volume; `docker compose run --rm backup once`
+  backup:
+    image: postgres:17-alpine
+    container_name: lol-team-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-lol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+    volumes:
+      - pg-backups:/backups
+      - ./docker/backup.sh:/usr/local/bin/backup.sh:ro
+    # root only to write into the fresh volume; pg_dump needs no more
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   pg-data:
+  pg-backups:
