@@ -36,7 +36,9 @@ services:
     container_name: lol-team
     restart: unless-stopped
     env_file:
-      - .env
+      # optional: CI has no .env, it passes the same values via environment
+      - path: .env
+        required: false
     environment:
       NODE_ENV: production
       PORT: 3001
