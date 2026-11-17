@@ -15,7 +15,9 @@
     "db:migrate": "bun run apps/api/src/db/migrate.ts",
     "db:studio": "bunx drizzle-kit studio",
     "check": "biome check --write .",
-    "test": "bun test packages/shared/test apps/web/test apps/api/test/unit"
+    "test": "bun test packages/shared/test apps/web/test apps/api/test/unit",
+    "test:db": "bun run scripts/test-db.ts",
+    "test:all": "bun run test && bun run test:db"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
