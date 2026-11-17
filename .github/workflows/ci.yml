@@ -186,6 +186,9 @@ jobs:
 
           curl -fsS http://127.0.0.1:3001/roster | grep -q 'id="root"'
 
+      - name: backup and restore round trip
+        run: sh scripts/ci-backup-roundtrip.sh
+
       - name: container logs on failure
         if: failure()
         run: docker logs lol-team || true
