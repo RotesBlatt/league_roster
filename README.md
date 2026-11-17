@@ -91,17 +91,37 @@ lol.example.com {
 
 Update the Discord redirect URI to `https://lol.example.com/api/auth/callback/discord`.
 
-### Backup / restore
+### Backups
+
+The `backup` service dumps Postgres on a schedule into its own volume, so it
+needs no cron on the host and no extra tooling:
+
+| setting                 | default | meaning                           |
+| ----------------------- | ------- | --------------------------------- |
+| `BACKUP_INTERVAL_HOURS` | `24`    | one dump per interval             |
+| `BACKUP_KEEP_DAYS`      | `7`     | dumps older than this are deleted |
+
+Files are custom-format (`pg_dump -Fc`) and checked with `pg_restore --list`
+before they are kept, so a broken dump fails loudly instead of silently
+replacing good ones.
 
 ```bash
-# dump (keeps the db running)
-docker compose exec db pg_dump -U lol lol | gzip > backup-$(date +%F).sql.gz
+docker compose run --rm backup once          # dump now, no waiting
+docker compose logs -f backup                # what the service is doing
 
-# restore
-gunzip -c backup-2025-01-01.sql.gz | docker compose exec -T db psql -U lol -d lol
+# the dumps live in the volume pg-backups
+docker run --rm -v lol-team_pg-backups:/backups postgres:17-alpine ls -lt /backups
 ```
 
-The volume survives `docker compose down`; only `down -v` deletes data.
+Restore (into the running database, replacing its contents):
+
+```bash
+docker run --rm -v lol-team_pg-backups:/backups postgres:17-alpine   sh -c 'cat /backups/lol-<stamp>.dump'   | docker compose exec -T db pg_restore -U lol -d lol --clean --if-exists
+```
+
+A volume on the same disk is not a real backup: copy a dump somewhere else
+(`docker run --rm -v lol-team_pg-backups:/backups -v "$PWD:/out" postgres:17-alpine cp /backups/lol-<stamp>.dump /out/`) and/or sync it off the
+VPS. `pg-data` survives `docker compose down`; only `down -v` deletes data.
 
 ## Scripts (run from the repo root)
 
