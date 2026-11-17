@@ -1,9 +1,15 @@
 import { MEMBER_STATUSES, ROLES, USER_ROLES } from '@lol/shared'
 import { t } from 'elysia'
 
-export const roleSchema = t.UnionEnum(ROLES)
-export const memberStatusSchema = t.UnionEnum(MEMBER_STATUSES)
-export const userRoleSchema = t.UnionEnum(USER_ROLES)
+/**
+ * t.UnionEnum hardcodes `default: values[0]` ("needed for generating error messages"), which
+ * makes Elysia inject that default into any object that omits the field — a PATCH of
+ * `{ status: 'active' }` would silently write `role: 'captain'`. Overriding it with undefined
+ * keeps omitted properties omitted.
+ */
+export const roleSchema = t.UnionEnum(ROLES, { default: undefined })
+export const memberStatusSchema = t.UnionEnum(MEMBER_STATUSES, { default: undefined })
+export const userRoleSchema = t.UnionEnum(USER_ROLES, { default: undefined })
 
 /** Random url-safe invite code, ~8 chars. */
 export function inviteCode(length = 8): string {
@@ -11,4 +17,3 @@ export function inviteCode(length = 8): string {
   const bytes = crypto.getRandomValues(new Uint8Array(length))
   return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
 }
-// schemas shared by the API routes
