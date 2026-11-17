@@ -1,0 +1,38 @@
+{
+  "name": "@lol/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "@lol/shared": "workspace:*",
+    "@mantine/core": "^9.8.1",
+    "@mantine/form": "^9.8.1",
+    "@mantine/hooks": "^9.8.1",
+    "@mantine/notifications": "^9.8.1",
+    "@tabler/icons-react": "^3.52.0",
+    "@tanstack/react-query": "^5.108.0",
+    "better-auth": "^1.7.25",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^8.5.1"
+  },
+  "devDependencies": {
+    "@lol/api": "workspace:*",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "elysia": "^1.4.32",
+    "postcss": "^8.5.33",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}
