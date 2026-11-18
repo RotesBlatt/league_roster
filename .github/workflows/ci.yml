@@ -43,6 +43,9 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # Markdown is out of Biome's scope on purpose (biome.json):
+      # docs are hand-written prose, and the formatter rewrites tables, list
+      # markers and emphasis — which fails this gate for no gain.
       - name: lint + format (read only)
         run: bunx biome check .
 
