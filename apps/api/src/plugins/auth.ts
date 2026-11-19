@@ -1,8 +1,8 @@
 import { Elysia } from 'elysia'
 import type { Auth } from '../auth.ts'
 import type { Db } from '../db/index.ts'
-import { ensureAccess, meForTeam } from '../lib/access.ts'
 import type { Me } from '../db/schema.types.ts'
+import { ensureAccess, meForTeam } from '../lib/access.ts'
 import { getMembership, getTeamBySlug, type TeamRow } from '../lib/teams.ts'
 
 const NOT_SIGNED_IN = { message: 'Not signed in' }
@@ -32,7 +32,8 @@ async function resolveIdentity(
   deps: Deps,
   headers: Headers,
 ): Promise<
-  { kind: 'unauthorized' } | { kind: 'ok'; user: Session['user']; session: Session['session']; me: Me }
+  | { kind: 'unauthorized' }
+  | { kind: 'ok'; user: Session['user']; session: Session['session']; me: Me }
 > {
   const session = await deps.auth.api.getSession({ headers })
   if (!session) return { kind: 'unauthorized' }

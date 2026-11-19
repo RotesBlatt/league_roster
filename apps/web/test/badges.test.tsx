@@ -26,19 +26,37 @@ describe('RoleBadge', () => {
 })
 
 describe('StatusBadge', () => {
-  test('shows a pending account as pending', () => {
+  test('shows a team-less account as having no team', () => {
     ui(
       <StatusBadge
-        me={{ id: '1', name: 'x', email: '', image: null, role: 'member', status: 'pending' }}
+        me={{
+          id: '1',
+          name: 'x',
+          email: '',
+          image: null,
+          teamId: null,
+          teamSlug: null,
+          role: 'member',
+          status: null,
+        }}
       />,
     )
-    expect(screen.getByText('pending')).toBeDefined()
+    expect(screen.getByText('no team')).toBeDefined()
   })
 
   test('shows a disabled account as disabled', () => {
     ui(
       <StatusBadge
-        me={{ id: '1', name: 'x', email: '', image: null, role: 'member', status: 'disabled' }}
+        me={{
+          id: '1',
+          name: 'x',
+          email: '',
+          image: null,
+          teamId: null,
+          teamSlug: null,
+          role: 'member',
+          status: 'disabled',
+        }}
       />,
     )
     expect(screen.getByText('disabled')).toBeDefined()
@@ -47,7 +65,16 @@ describe('StatusBadge', () => {
   test('shows an active captain as captain', () => {
     ui(
       <StatusBadge
-        me={{ id: '1', name: 'x', email: '', image: null, role: 'captain', status: 'active' }}
+        me={{
+          id: '1',
+          name: 'x',
+          email: '',
+          image: null,
+          teamId: null,
+          teamSlug: null,
+          role: 'captain',
+          status: 'active',
+        }}
       />,
     )
     expect(screen.getByText('captain')).toBeDefined()
@@ -56,7 +83,16 @@ describe('StatusBadge', () => {
   test('shows an active non-captain as member', () => {
     ui(
       <StatusBadge
-        me={{ id: '1', name: 'x', email: '', image: null, role: 'member', status: 'active' }}
+        me={{
+          id: '1',
+          name: 'x',
+          email: '',
+          image: null,
+          teamId: null,
+          teamSlug: null,
+          role: 'member',
+          status: 'active',
+        }}
       />,
     )
     expect(screen.getByText('member')).toBeDefined()
@@ -65,7 +101,16 @@ describe('StatusBadge', () => {
   test('disabled wins over role', () => {
     ui(
       <StatusBadge
-        me={{ id: '1', name: 'x', email: '', image: null, role: 'captain', status: 'disabled' }}
+        me={{
+          id: '1',
+          name: 'x',
+          email: '',
+          image: null,
+          teamId: null,
+          teamSlug: null,
+          role: 'captain',
+          status: 'disabled',
+        }}
       />,
     )
 

@@ -29,7 +29,7 @@ function renderAt(pathname: string) {
           <Routes>
             <Route path="/login" element={<div>login screen</div>} />
             <Route element={<RequireMember />}>
-              <Route path="/roster" element={<div>roster screen</div>} />
+              <Route path="/t/:slug/roster" element={<div>roster screen</div>} />
             </Route>
           </Routes>
         </MemoryRouter>
@@ -41,7 +41,7 @@ function renderAt(pathname: string) {
 describe('RequireMember', () => {
   test('shows a loader while the session is loading', () => {
     meState = { isPending: true, isError: false, data: undefined, error: null }
-    const { container } = renderAt('/roster')
+    const { container } = renderAt('/t/alpha/roster')
 
     expect(screen.queryByText('roster screen')).toBeNull()
     expect(container.querySelector('[class*="Loader"], [class*="mantine-Loader"]')).not.toBeNull()
@@ -49,7 +49,7 @@ describe('RequireMember', () => {
 
   test('redirects to /login when the session is rejected with 401', () => {
     meState = { isPending: false, isError: true, data: undefined, error: { status: 401 } }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
     expect(screen.getByText('login screen')).toBeDefined()
     expect(screen.queryByText('roster screen')).toBeNull()
@@ -62,14 +62,14 @@ describe('RequireMember', () => {
       data: undefined,
       error: Object.assign(new Error('database is down'), { status: 500 }),
     }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
     expect(screen.getByText('Something broke')).toBeDefined()
     expect(screen.getByText('database is down')).toBeDefined()
     expect(screen.queryByText('login screen')).toBeNull()
   })
 
-  test('blocks a pending account with a waiting screen', () => {
+  test('an account in no team gets the no-team screen, not a roster', () => {
     meState = {
       isPending: false,
       isError: false,
@@ -79,13 +79,15 @@ describe('RequireMember', () => {
         name: 'Julius',
         email: 'j@x',
         image: null,
+        teamId: null,
+        teamSlug: null,
         role: 'member',
-        status: 'pending',
+        status: null,
       },
     }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
-    expect(screen.getByText('Waiting for approval')).toBeDefined()
+    expect(screen.getByText('No team yet')).toBeDefined()
     expect(screen.queryByText('roster screen')).toBeNull()
   })
 
@@ -99,11 +101,13 @@ describe('RequireMember', () => {
         name: 'Julius',
         email: 'j@x',
         image: null,
+        teamId: 't1',
+        teamSlug: 'alpha',
         role: 'member',
         status: 'disabled',
       },
     }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
     expect(screen.getByText('Access disabled')).toBeDefined()
     expect(screen.queryByText('roster screen')).toBeNull()
@@ -119,11 +123,13 @@ describe('RequireMember', () => {
         name: 'Julius',
         email: 'j@x',
         image: null,
+        teamId: 't1',
+        teamSlug: 'alpha',
         role: 'member',
         status: 'active',
       },
     }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
     expect(screen.getByText('roster screen')).toBeDefined()
   })
@@ -138,11 +144,13 @@ describe('RequireMember', () => {
         name: 'Captain',
         email: 'c@x',
         image: null,
+        teamId: 't1',
+        teamSlug: 'alpha',
         role: 'captain',
         status: 'active',
       },
     }
-    renderAt('/roster')
+    renderAt('/t/alpha/roster')
 
     expect(screen.getByText('Admin')).toBeDefined()
   })

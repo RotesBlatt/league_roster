@@ -169,5 +169,11 @@ export async function ensureAccess(
   const teamId = me.teamId ?? (await ensureDefaultTeam(db, userId))
   await grantCaptain(db, userId, teamId)
 
-  return { ...me, teamId, teamSlug: me.teamSlug ?? DEFAULT_TEAM_SLUG, role: 'captain', status: 'active' }
+  return {
+    ...me,
+    teamId,
+    teamSlug: me.teamSlug ?? DEFAULT_TEAM_SLUG,
+    role: 'captain',
+    status: 'active',
+  }
 }

@@ -11,23 +11,28 @@ export function useMe() {
   })
 }
 
-export function usePlayers() {
-  return useQuery({ queryKey: ['players'], queryFn: () => unwrap(api.players.get()) })
-}
-
-export function useInvites(enabled = true) {
+/** Team-scoped hooks take the slug from the route (/t/:slug/...). */
+export function usePlayers(slug: string) {
   return useQuery({
-    queryKey: ['invites'],
-    queryFn: () => unwrap(api.invites.get()),
-    enabled,
+    queryKey: ['players', slug],
+    queryFn: () => unwrap(api.teams({ slug }).players.get()),
+    enabled: slug.length > 0,
   })
 }
 
-export function useMembers(enabled = true) {
+export function useInvites(slug: string, enabled = true) {
   return useQuery({
-    queryKey: ['members'],
-    queryFn: () => unwrap(api.members.get()),
-    enabled,
+    queryKey: ['invites', slug],
+    queryFn: () => unwrap(api.teams({ slug }).invites.get()),
+    enabled: enabled && slug.length > 0,
+  })
+}
+
+export function useMembers(slug: string, enabled = true) {
+  return useQuery({
+    queryKey: ['members', slug],
+    queryFn: () => unwrap(api.teams({ slug }).members.get()),
+    enabled: enabled && slug.length > 0,
   })
 }
 
