@@ -57,8 +57,8 @@ deletes this branch entirely — so do **not** fix it separately, it's about to 
 
 | # | Finding | Note |
 | --- | --- | --- |
-| E1 | **No index on `user.status`**, and `ensureAccess` runs `count(*) where status='active'` for every non-active user. | Correct fix is a partial index `WHERE status = 'active'`, not a full one. Irrelevant at 10 rows; know it before it's a mystery at scale. |
-| E2 | **~3 queries per authenticated request**: `session ⋈ user` (getSession), `select from user` (getMe), `select from account` (allowlist). | Collapsing `getMe` into the session lookup is possible but couples you to better-auth's join. Measure first. |
+| E1 | ~~No index on `user.status`, `ensureAccess` runs `count(*) where status='active'` per request.~~ **Gone**: the query died with the bootstrap (`multi-team.md` §11.6). | Nothing to do. |
+| E2 | **~2 queries per authenticated request**: `session ⋈ user` (getSession), `select from user` (getMe). | The third one (`select from account`, the allowlist) is gone — §11.6. Collapsing `getMe` into the session lookup is possible but couples you to better-auth's join. Measure first. |
 | E3 | **No `session.cookieCache`**, so `getSession` always hits the DB. | Deliberate: the cache trades instant revocation for the query. Don't "optimise" this without deciding that tradeoff explicitly. |
 | E4 | **`player_role_idx` is probably unused** — nothing filters on `player.role` by equality, and `ORDER BY CASE role …` doesn't use it. | `EXPLAIN` before dropping. Low value either way. |
 

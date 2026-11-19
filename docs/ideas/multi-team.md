@@ -1,9 +1,9 @@
 # Idea — from "one team" to "a team per captain"
 
-**Status:** in progress — §8 steps 1–2, the `/t/:slug` web routes and step 3's API landed
-(migrations `0001`–`0004`): two accounts can each create a team and neither sees the other's roster.
-Still open: the create-team form that calls `POST /api/teams` (§8 step 4), removing the `default`
-team bootstrap (§10.4 — now dead code, it goes in its own patch), the team switcher, and step 5
+**Status:** in progress — §8 steps 1–3 landed (migrations `0001`–`0004`): two accounts can each
+create a team and neither sees the other's roster, and nothing is granted by signing in — the
+`default`-team bootstrap and the `CAPTAIN_DISCORD_IDS` allowlist are gone (§11.6). Still open: the
+create-team form that calls `POST /api/teams` and the team switcher (§8 step 4), then step 5
 (scoped `Db`, then RLS).
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
@@ -139,8 +139,8 @@ not something to assume.
 Worth saying out loud, since the change looks purely additive:
 
 - the "first account becomes captain" branch and its race disappear;
-- the `CAPTAIN_DISCORD_IDS` allowlist stops being a global escape hatch (it can become
-  "seed captain of a named team", or go away);
+- the `CAPTAIN_DISCORD_IDS` allowlist stops being a global escape hatch — it went away with the
+  bootstrap (§11.6);
 - `GET /members` stops being a "list every account on the server" endpoint.
 
 ## 10. Decided while implementing steps 1–2
@@ -159,9 +159,9 @@ defensible-but-not-obvious calls:
 3. **Cross-team and unknown-slug are the same answer: 404.** A team you are not a member of is
    indistinguishable from a team that does not exist — on reads and writes, including
    `PATCH /members/:id`.
-4. **The guards never bootstrap.** Only `/api/me` (`ensureAccess`) still creates the `default`
-   team for the first account, and the Discord allowlist still grants captain there. Until
-   `POST /api/teams` exists (step 3), that is the only way a fresh install becomes usable.
+4. **The guards never bootstrap.** Only `/api/me` (`ensureAccess`) still created the `default`
+   team for the first account. Kept as the only way a fresh install became usable until step 3
+   landed — `ensureAccess` and the `default` team are gone now (§11.6).
 5. **`/api/invites/claim` is global**, not under `/api/teams/:slug`: the code identifies the
    team, and the claimer is not a member yet, so a team guard would 404 them.
 
@@ -185,3 +185,9 @@ Still open from §7: whether team creation stays open or becomes gated (§7.1), 
    (`DBW`), optional, at most 8, trimmed, blank means NULL. Not unique — it is a label, not a key.
 5. **One account may create several teams.** Nothing counts or caps memberships; `createdBy` is the
    only trace of who made which team, and ownership transfer (§7.4) is still unwritten.
+6. **The bootstrap and the Discord allowlist are gone** (§9). `getMe` is a plain read; there is no
+   `ensureAccess` any more, no invented `default` team, and `CAPTAIN_DISCORD_IDS` is out of `env`.
+   Removing them was not cosmetic: with the `default` team gone the allowlist would have meant
+   "become captain of whichever team you are in", which is a cross-tenant privilege hole the
+   moment one account is in two teams. `fresh-install.test.ts` is the regression test — the first
+   account to sign in owns nothing, and the `team` table stays empty until someone creates one.

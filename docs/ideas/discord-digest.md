@@ -206,7 +206,6 @@ The user's Discord id is **already in the database**, for free:
 
 - `account.accountId` with `providerId = 'discord'` is the Discord user id (better-auth's row for the
   OAuth account). No new table, no linking flow.
-- `env.captainDiscordIds` (`CAPTAIN_DISCORD_IDS`) already exists as a bootstrap convenience.
 
 Consequences and traps:
 

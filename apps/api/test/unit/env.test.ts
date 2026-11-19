@@ -31,11 +31,6 @@ describe('readEnv', () => {
     expect(env.betterAuthUrl).toBe('https://lol.example.com')
   })
 
-  test('parses the captain allowlist, ignoring blanks', () => {
-    const env = readEnv({ ...base, CAPTAIN_DISCORD_IDS: '111, 222 ,,333' }, { warn: false })
-    expect(env.captainDiscordIds).toEqual(['111', '222', '333'])
-  })
-
   test('databaseTarget never leaks credentials', () => {
     const env = readEnv(base, { warn: false })
     expect(env.databaseTarget).toBe('db.example.com:5433/team')

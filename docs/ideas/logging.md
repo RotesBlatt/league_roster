@@ -136,8 +136,7 @@ follows it:
 - `createApp({ logger })` — default is a logger built from `env`, tests inject one with a memory sink
 - `createAuthPlugin({ auth, db, logger })`
 - `createPlayerRoutes(db, authPlugin, logger)` / invites / members
-- `claimInvite(db, { userId, code, log })`, `ensureAccess(db, userId, allowlist, log)` — optional,
-  default `noop`
+- `claimInvite(db, { userId, code, log })`, `getMe(db, userId, log)` — optional, default `noop`
 
 Composition roots (`index.ts`, `db/migrate.ts`) build the real logger; nothing else constructs one.
 

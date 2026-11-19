@@ -58,11 +58,11 @@ Env is read **once at process start** — restart the dev server after editing `
 
 ### Who is captain?
 
-- `CAPTAIN_DISCORD_IDS=123456789012345678` in `.env` → always captain + approved
-- otherwise the **first account to log in** becomes captain (fresh install)
-
-Everyone else who logs in is `pending` until a captain approves them in **Admin** or they
-open an invite link `/join/<code>` created in **Admin → Invites**.
+- **Creating a team is what makes you its captain** (`POST /api/teams`). One account may
+  create several teams; each one it created, it captains.
+- Everyone else joins through an invite link `/join/<code>`, created in **Admin → Invites**.
+- Being signed in grants nothing by itself: an account in no team sees no roster, and there is
+  no approval queue to land in — a team is entered by invite or by creating it.
 
 ## Deploy on a VPS
 

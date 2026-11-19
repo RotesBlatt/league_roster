@@ -2,7 +2,7 @@ import { Elysia } from 'elysia'
 import type { Auth } from '../auth.ts'
 import type { Db } from '../db/index.ts'
 import type { Me } from '../db/schema.types.ts'
-import { ensureAccess, meForTeam } from '../lib/access.ts'
+import { getMe, meForTeam } from '../lib/access.ts'
 import { getMembership, getTeamBySlug, type TeamRow } from '../lib/teams.ts'
 
 const NOT_SIGNED_IN = { message: 'Not signed in' }
@@ -27,7 +27,7 @@ type Access =
 
 const slugOf = (params: unknown): string | undefined => (params as { slug?: string }).slug
 
-/** Signed in, with `Me` (allowlist/bootstrap applied). No team involved. */
+/** Signed in, with `Me` read straight from the membership. No team involved. */
 async function resolveIdentity(
   deps: Deps,
   headers: Headers,
@@ -37,12 +37,12 @@ async function resolveIdentity(
 > {
   const session = await deps.auth.api.getSession({ headers })
   if (!session) return { kind: 'unauthorized' }
-  return {
-    kind: 'ok',
-    user: session.user,
-    session: session.session,
-    me: await ensureAccess(deps.db, session.user.id),
-  }
+
+  // a session whose user row is gone is not a usable identity
+  const me = await getMe(deps.db, session.user.id)
+  if (!me) return { kind: 'unauthorized' }
+
+  return { kind: 'ok', user: session.user, session: session.session, me }
 }
 
 /**

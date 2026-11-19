@@ -34,10 +34,6 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     databaseUrl,
     webDist: resolve(REPO_ROOT, source.WEB_DIST ?? 'apps/web/dist'),
     discord,
-    captainDiscordIds: (source.CAPTAIN_DISCORD_IDS ?? '')
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean),
 
     get discordConfigured() {
       return Boolean(discord.clientId && discord.clientSecret)
@@ -77,11 +73,6 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     }
     if (!source.BETTER_AUTH_SECRET) {
       console.warn('[env] Using an insecure dev BETTER_AUTH_SECRET — set it in .env for real use.')
-    }
-    if (!env.captainDiscordIds.length) {
-      console.info(
-        '[env] No CAPTAIN_DISCORD_IDS set — the first account to log in becomes captain.',
-      )
     }
   }
 
