@@ -48,7 +48,7 @@ export async function createTestContext(): Promise<TestContext> {
 
 /**
  * A user is only an identity: role/status live on `membership`, so a fresh user is
- * "signed in, not in any team". Use `createTeam` + `addMembership` to place them.
+ * "signed in, not in any team". Use `seedTeam` + `addMembership` to place them.
  */
 export async function createUser(
   ctx: TestContext,
@@ -80,7 +80,7 @@ export async function createUser(
   return id
 }
 
-export async function createTeam(
+export async function seedTeam(
   ctx: TestContext,
   input: { createdBy: string; name?: string; slug?: string; shortName?: string },
 ): Promise<string> {

@@ -4,9 +4,9 @@ import { memberships } from '../../src/db/schema.ts'
 import { ensureAccess, getMe } from '../../src/lib/access.ts'
 import {
   addMembership,
-  createTeam,
   createTestContext,
   createUser,
+  seedTeam,
   type TestContext,
 } from './helpers.ts'
 
@@ -72,7 +72,7 @@ describe('ensureAccess', () => {
 
   test('a disabled membership is never promoted, even when allowlisted', async () => {
     const userId = await createUser(ctx, { name: 'Disabled', discordId: '999999999999999999' })
-    const teamId = await createTeam(ctx, { createdBy: userId })
+    const teamId = await seedTeam(ctx, { createdBy: userId })
     await addMembership(ctx, { teamId, userId, role: 'member', status: 'disabled' })
 
     const me = await ensureAccess(ctx.db, userId, ['999999999999999999'])
@@ -83,7 +83,7 @@ describe('ensureAccess', () => {
 
   test('an active member is left untouched', async () => {
     const userId = await createUser(ctx, { name: 'Active member' })
-    const teamId = await createTeam(ctx, { createdBy: userId })
+    const teamId = await seedTeam(ctx, { createdBy: userId })
     await addMembership(ctx, { teamId, userId, role: 'member', status: 'active' })
 
     const me = await ensureAccess(ctx.db, userId, [])
@@ -99,7 +99,7 @@ describe('getMe', () => {
 
   test('maps identity from user and role/status/team from membership', async () => {
     const userId = await createUser(ctx, { name: 'Mapped' })
-    const teamId = await createTeam(ctx, { createdBy: userId, slug: 'mapped' })
+    const teamId = await seedTeam(ctx, { createdBy: userId, slug: 'mapped' })
     await addMembership(ctx, { teamId, userId, role: 'member', status: 'active' })
 
     const me = await getMe(ctx.db, userId)

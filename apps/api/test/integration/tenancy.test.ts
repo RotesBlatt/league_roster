@@ -2,10 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
   addMembership,
   createSessionCookie,
-  createTeam,
   createTestApp,
   createTestContext,
   createUser,
+  seedTeam,
   type TestContext,
   type TestServer,
 } from './helpers.ts'
@@ -33,8 +33,8 @@ beforeAll(async () => {
   captainA = await createUser(ctx, { name: 'Captain A' })
   captainB = await createUser(ctx, { name: 'Captain B' })
 
-  const teamA = await createTeam(ctx, { createdBy: owner, slug: 'alpha' })
-  const teamB = await createTeam(ctx, { createdBy: owner, slug: 'bravo' })
+  const teamA = await seedTeam(ctx, { createdBy: owner, slug: 'alpha' })
+  const teamB = await seedTeam(ctx, { createdBy: owner, slug: 'bravo' })
   await addMembership(ctx, { teamId: teamA, userId: captainA, role: 'captain', status: 'active' })
   await addMembership(ctx, { teamId: teamB, userId: captainB, role: 'captain', status: 'active' })
 

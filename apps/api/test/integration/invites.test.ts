@@ -4,9 +4,9 @@ import { invites, memberships } from '../../src/db/schema.ts'
 import { claimInvite } from '../../src/lib/invites.ts'
 import {
   addMembership,
-  createTeam,
   createTestContext,
   createUser,
+  seedTeam,
   type TestContext,
 } from './helpers.ts'
 
@@ -17,7 +17,7 @@ let teamId: string
 beforeAll(async () => {
   ctx = await createTestContext()
   creatorId = await createUser(ctx, { name: 'Creator' })
-  teamId = await createTeam(ctx, { createdBy: creatorId })
+  teamId = await seedTeam(ctx, { createdBy: creatorId })
   await addMembership(ctx, { teamId, userId: creatorId, role: 'captain', status: 'active' })
 })
 
@@ -122,7 +122,7 @@ describe('claimInvite', () => {
   })
 
   test('a captain keeps their role when joining a second team', async () => {
-    const otherTeam = await createTeam(ctx, { createdBy: creatorId, slug: 'second' })
+    const otherTeam = await seedTeam(ctx, { createdBy: creatorId, slug: 'second' })
     const invite = await createInvite({ maxUses: 1, inTeam: otherTeam })
 
     await claimInvite(ctx.db, { userId: creatorId, code: invite.code })
