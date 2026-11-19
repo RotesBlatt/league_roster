@@ -154,9 +154,10 @@ packages/shared       roles/statuses shared by both sides
 docker-compose.yml    db (postgres + volume) + app
 ```
 
-## Not built yet (next slices)
+## Ideas (not built yet)
 
-1. Google Sheets import so the old data lands in Postgres
-2. Availability per weekday + scrim/event calendar with attendance
-3. Riot API rank sync (League-V4) storing `rank_snapshots`
-4. SSE for live updates instead of refetch
+Everything planned lives in **[`docs/ideas.md`](docs/ideas.md)** — one-line summaries, each linking to
+its doc in `docs/ideas/` (design decisions, schema sketch, open questions). Read the register before
+proposing a feature; if it is already there, the doc says what was decided and what is still open.
+
+Not written up yet: a **Google Sheets import** so the old sheet's roster and matches land in Postgres.

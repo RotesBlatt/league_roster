@@ -71,6 +71,13 @@ Dependencies are injected, not imported as singletons, in the API:
 `createApp({ db, auth })`, route factories take `Db`. Keep it that way — it is
 what makes the tests possible.
 
+## Ideas
+
+`docs/ideas.md` is the register: one-line summaries, each linking to its doc in
+`docs/ideas/`. A new idea gets a doc **and** a row in the register, in the same
+commit. Read the register before proposing a feature — the doc already records
+what was decided and what is still open.
+
 ## Commands
 
 | command                              | meaning                                                  |
