@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { players } from '../db/schema.ts'
@@ -13,6 +13,7 @@ function toDto(row: typeof players.$inferSelect): PlayerDto {
     role: row.role,
     riotGameName: row.riotGameName,
     riotTagLine: row.riotTagLine,
+    teamId: row.teamId,
     note: row.note,
     isActive: row.isActive,
     userId: row.userId,
@@ -28,28 +29,34 @@ const playerBody = t.Object({
   isActive: t.Optional(t.Boolean()),
 })
 
+/** Mounted under /api/teams/:slug — `team` is the tenant resolved by the guard. */
 export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
   return new Elysia({ prefix: '/players' })
     .use(authPlugin)
     .get(
       '/',
-      async () => {
+      async ({ team }) => {
         // TOP -> JGL -> MID -> ADC -> SUP, not alphabetically
         const roleOrder = sql`CASE ${players.role}
           WHEN 'TOP' THEN 0 WHEN 'JGL' THEN 1 WHEN 'MID' THEN 2 WHEN 'ADC' THEN 3 ELSE 4 END`
-        const rows = await db.select().from(players).orderBy(roleOrder, players.displayName)
+        const rows = await db
+          .select()
+          .from(players)
+          .where(eq(players.teamId, team.id))
+          .orderBy(roleOrder, players.displayName)
         return rows.map(toDto)
       },
-      { member: true },
+      { teamMember: true },
     )
     .post(
       '/',
-      async ({ body, status }) => {
+      async ({ body, team, status }) => {
         const now = new Date()
         const [row] = await db
           .insert(players)
           .values({
             id: crypto.randomUUID(),
+            teamId: team.id,
             displayName: body.displayName,
             role: body.role,
             // empty form fields must land as NULL, not ''
@@ -65,11 +72,11 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
         if (!row) return status(500, { message: 'Could not create player' })
         return toDto(row)
       },
-      { captain: true, body: playerBody },
+      { teamCaptain: true, body: playerBody },
     )
     .patch(
       '/:id',
-      async ({ body, params: { id }, status }) => {
+      async ({ body, params: { id }, team, status }) => {
         const [row] = await db
           .update(players)
           .set({
@@ -81,25 +88,26 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
             ...(body.isActive !== undefined && { isActive: body.isActive }),
             updatedAt: new Date(),
           })
-          .where(eq(players.id, id))
+          // the team predicate is what keeps one team's captain out of another team's roster
+          .where(and(eq(players.id, id), eq(players.teamId, team.id)))
           .returning()
 
         if (!row) return status(404, { message: 'Player not found' })
         return toDto(row)
       },
       {
-        captain: true,
+        teamCaptain: true,
         params: t.Object({ id: t.String() }),
         body: t.Partial(playerBody),
       },
     )
     .delete(
       '/:id',
-      async ({ params: { id } }) => {
-        await db.delete(players).where(eq(players.id, id))
+      async ({ params: { id }, team }) => {
+        await db.delete(players).where(and(eq(players.id, id), eq(players.teamId, team.id)))
         return { ok: true }
       },
-      { captain: true, params: t.Object({ id: t.String() }) },
+      { teamCaptain: true, params: t.Object({ id: t.String() }) },
     )
 }
 
