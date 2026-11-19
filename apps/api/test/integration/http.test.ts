@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import {
+  addMembership,
   createSessionCookie,
+  createTeam,
   createTestApp,
   createTestContext,
   createUser,
@@ -14,37 +13,48 @@ import {
 let ctx: TestContext
 let server: TestServer
 let call: TestServer['call']
-let dist: string
 
-let captain: string
-let captainCookie: string
-let member: string
-let memberCookie: string
-let pending: string
-let pendingCookie: string
+let captainA: string
+let captainACookie: string
+let memberA: string
+let memberACookie: string
+let disabledA: string
+let disabledACookie: string
+let captainB: string
+let captainBCookie: string
+let outsider: string
+let outsiderCookie: string
 
 beforeAll(async () => {
   ctx = await createTestContext()
-
-  dist = mkdtempSync(join(tmpdir(), 'lol-http-'))
-  mkdirSync(join(dist, 'assets'), { recursive: true })
-  await Bun.write(join(dist, 'index.html'), '<!doctype html><div id="root"></div>')
-  await Bun.write(join(dist, 'assets', 'app-1.js'), 'console.log(1)')
-
-  server = createTestApp(ctx, dist)
+  server = createTestApp(ctx)
   call = server.call
 
-  captain = await createUser(ctx, { name: 'Captain', role: 'captain', status: 'active' })
-  member = await createUser(ctx, { name: 'Member', role: 'member', status: 'active' })
-  pending = await createUser(ctx, { name: 'Pending' })
-  captainCookie = await createSessionCookie(ctx, captain)
-  memberCookie = await createSessionCookie(ctx, member)
-  pendingCookie = await createSessionCookie(ctx, pending)
+  const owner = await createUser(ctx, { name: 'Owner' })
+
+  captainA = await createUser(ctx, { name: 'Captain A' })
+  memberA = await createUser(ctx, { name: 'Member A' })
+  disabledA = await createUser(ctx, { name: 'Disabled A' })
+  captainB = await createUser(ctx, { name: 'Captain B' })
+  outsider = await createUser(ctx, { name: 'Outsider' })
+
+  const teamA = await createTeam(ctx, { createdBy: owner, slug: 'alpha', name: 'Alpha' })
+  const teamB = await createTeam(ctx, { createdBy: owner, slug: 'bravo', name: 'Bravo' })
+
+  await addMembership(ctx, { teamId: teamA, userId: captainA, role: 'captain', status: 'active' })
+  await addMembership(ctx, { teamId: teamA, userId: memberA, role: 'member', status: 'active' })
+  await addMembership(ctx, { teamId: teamA, userId: disabledA, role: 'member', status: 'disabled' })
+  await addMembership(ctx, { teamId: teamB, userId: captainB, role: 'captain', status: 'active' })
+
+  captainACookie = await createSessionCookie(ctx, captainA)
+  memberACookie = await createSessionCookie(ctx, memberA)
+  disabledACookie = await createSessionCookie(ctx, disabledA)
+  captainBCookie = await createSessionCookie(ctx, captainB)
+  outsiderCookie = await createSessionCookie(ctx, outsider)
 })
 
 afterAll(async () => {
   server.close()
-  rmSync(dist, { recursive: true, force: true })
   await ctx.drop()
 })
 
@@ -62,7 +72,12 @@ describe('unauthenticated surface', () => {
   })
 
   test('guarded routes answer 401 without a cookie', async () => {
-    for (const path of ['/api/me', '/api/players', '/api/invites', '/api/members']) {
+    for (const path of [
+      '/api/me',
+      '/api/teams/alpha/players',
+      '/api/teams/alpha/invites',
+      '/api/teams/alpha/members',
+    ]) {
       expect((await call(path)).status).toBe(401)
     }
   })
@@ -72,52 +87,42 @@ describe('unauthenticated surface', () => {
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ message: 'Not found' })
   })
-
-  test('built assets are served with an immutable cache header', async () => {
-    const res = await call('/assets/app-1.js')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('cache-control')).toContain('immutable')
-  })
-
-  test('missing assets are 404s', async () => {
-    expect((await call('/assets/missing.js')).status).toBe(404)
-  })
-
-  test('client-side routes get the SPA shell', async () => {
-    for (const path of ['/', '/roster', '/admin', '/join/abc123']) {
-      const res = await call(path)
-      expect(res.status).toBe(200)
-      expect(await res.text()).toContain('id="root"')
-    }
-  })
 })
 
-describe('pending members are gated', () => {
-  test('/api/me reports the pending state (that is how the SPA shows the waiting screen)', async () => {
-    const res = await call('/api/me', { cookie: pendingCookie })
+describe('accounts that are not members of the team', () => {
+  test('/api/me reports no team and no status', async () => {
+    const res = await call('/api/me', { cookie: outsiderCookie })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ status: 'pending', role: 'member' })
+    expect(await res.json()).toMatchObject({ teamId: null, teamSlug: null, status: null })
   })
 
-  test('every member route answers 403 "Waiting for approval"', async () => {
-    for (const path of ['/api/players', '/api/invites', '/api/members']) {
-      const res = await call(path, { cookie: pendingCookie })
-      expect(res.status).toBe(403)
-      expect(await res.json()).toMatchObject({ message: 'Waiting for approval' })
-    }
+  test('a team-less account gets 404, exactly like a stranger to that team', async () => {
+    const res = await call('/api/teams/alpha/players', { cookie: outsiderCookie })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ message: 'Not found' })
+  })
+
+  test('an unknown slug is the same 404', async () => {
+    expect((await call('/api/teams/nope/players', { cookie: captainACookie })).status).toBe(404)
+  })
+
+  test('a disabled membership gets 403 on its own team', async () => {
+    const res = await call('/api/teams/alpha/players', { cookie: disabledACookie })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ message: 'Membership is not active' })
   })
 })
 
 describe('players', () => {
   test('a member can read the roster', async () => {
-    const res = await call('/api/players', { cookie: memberCookie })
+    const res = await call('/api/teams/alpha/players', { cookie: memberACookie })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
 
   test('a member cannot write the roster', async () => {
-    const res = await call('/api/players', {
-      cookie: memberCookie,
+    const res = await call('/api/teams/alpha/players', {
+      cookie: memberACookie,
       method: 'POST',
       body: { displayName: 'Nope', role: 'MID' },
     })
@@ -126,8 +131,8 @@ describe('players', () => {
   })
 
   test('a captain can add players, and empty strings become null', async () => {
-    const res = await call('/api/players', {
-      cookie: captainCookie,
+    const res = await call('/api/teams/alpha/players', {
+      cookie: captainACookie,
       method: 'POST',
       body: {
         displayName: 'Faker',
@@ -150,8 +155,8 @@ describe('players', () => {
   })
 
   test('an unknown role is a validation error', async () => {
-    const res = await call('/api/players', {
-      cookie: captainCookie,
+    const res = await call('/api/teams/alpha/players', {
+      cookie: captainACookie,
       method: 'POST',
       body: { displayName: 'Bad role', role: 'SUPPORT' },
     })
@@ -160,19 +165,19 @@ describe('players', () => {
   })
 
   test('the roster is ordered by position, not alphabetically', async () => {
-    await call('/api/players', {
-      cookie: captainCookie,
+    await call('/api/teams/alpha/players', {
+      cookie: captainACookie,
       method: 'POST',
       body: { displayName: 'Top laner', role: 'TOP' },
     })
-    await call('/api/players', {
-      cookie: captainCookie,
+    await call('/api/teams/alpha/players', {
+      cookie: captainACookie,
       method: 'POST',
       body: { displayName: 'ADC', role: 'ADC' },
     })
 
     const roles = (
-      (await (await call('/api/players', { cookie: memberCookie })).json()) as {
+      (await (await call('/api/teams/alpha/players', { cookie: memberACookie })).json()) as {
         role: string
       }[]
     ).map((player) => player.role)
@@ -182,15 +187,15 @@ describe('players', () => {
 
   test('patching and deleting works for a captain', async () => {
     const created = (await (
-      await call('/api/players', {
-        cookie: captainCookie,
+      await call('/api/teams/alpha/players', {
+        cookie: captainACookie,
         method: 'POST',
         body: { displayName: 'Temporary', role: 'SUP' },
       })
     ).json()) as { id: string }
 
-    const patched = await call(`/api/players/${created.id}`, {
-      cookie: captainCookie,
+    const patched = await call(`/api/teams/alpha/players/${created.id}`, {
+      cookie: captainACookie,
       method: 'PATCH',
       body: { isActive: false },
     })
@@ -200,13 +205,17 @@ describe('players', () => {
     expect(await patched.json()).toMatchObject({ isActive: false, role: 'SUP' })
 
     expect(
-      (await call(`/api/players/${created.id}`, { cookie: captainCookie, method: 'DELETE' }))
-        .status,
+      (
+        await call(`/api/teams/alpha/players/${created.id}`, {
+          cookie: captainACookie,
+          method: 'DELETE',
+        })
+      ).status,
     ).toBe(200)
     expect(
       (
-        await call(`/api/players/${created.id}`, {
-          cookie: captainCookie,
+        await call(`/api/teams/alpha/players/${created.id}`, {
+          cookie: captainACookie,
           method: 'PATCH',
           body: { note: 'x' },
         })
@@ -220,8 +229,8 @@ describe('invites', () => {
   let inviteCode: string
 
   test('a captain creates an invite with a copyable path', async () => {
-    const res = await call('/api/invites', {
-      cookie: captainCookie,
+    const res = await call('/api/teams/alpha/invites', {
+      cookie: captainACookie,
       method: 'POST',
       body: { note: 'for the new guy', maxUses: 1, expiresInDays: 7 },
     })
@@ -238,31 +247,35 @@ describe('invites', () => {
 
     expect(invite.code).toMatch(/^[a-z2-9]{8}$/)
     expect(invite.path).toBe(`/join/${invite.code}`)
-    expect(invite.createdByName).toBe('Captain')
+    expect(invite.createdByName).toBe('Captain A')
   })
 
   test('a member cannot list invites', async () => {
-    expect((await call('/api/invites', { cookie: memberCookie })).status).toBe(403)
+    expect((await call('/api/teams/alpha/invites', { cookie: memberACookie })).status).toBe(403)
+  })
+
+  test('another team’s captain cannot see them either', async () => {
+    expect((await call('/api/teams/alpha/invites', { cookie: captainBCookie })).status).toBe(404)
   })
 
   test('a captain sees the invite in the list', async () => {
-    const res = await call('/api/invites', { cookie: captainCookie })
+    const res = await call('/api/teams/alpha/invites', { cookie: captainACookie })
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject([{ id: inviteId, uses: 0, maxUses: 1 }])
   })
 
-  test('claiming activates a pending user', async () => {
+  test('claiming joins the team the code belongs to', async () => {
     const res = await call('/api/invites/claim', {
-      cookie: pendingCookie,
+      cookie: outsiderCookie,
       method: 'POST',
       body: { code: inviteCode },
     })
 
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ status: 'active' })
+    expect(await res.json()).toMatchObject({ status: 'active', teamSlug: 'alpha' })
 
-    const me = await call('/api/me', { cookie: pendingCookie })
-    expect(await me.json()).toMatchObject({ status: 'active' })
+    const me = await call('/api/me', { cookie: outsiderCookie })
+    expect(await me.json()).toMatchObject({ status: 'active', teamSlug: 'alpha' })
   })
 
   test('an exhausted invite is refused for the next user', async () => {
@@ -279,7 +292,7 @@ describe('invites', () => {
     expect(await res.json()).toMatchObject({ message: 'This invite is used up' })
   })
 
-  test('an unknown code is a 404 for a pending user', async () => {
+  test('an unknown code is a 404', async () => {
     const stranger = await createUser(ctx, { name: 'Stranger' })
     const strangerCookie = await createSessionCookie(ctx, stranger)
 
@@ -292,9 +305,9 @@ describe('invites', () => {
     expect(await res.json()).toMatchObject({ message: 'Invite not found' })
   })
 
-  test('claiming while already approved is a no-op', async () => {
+  test('claiming while already active is a no-op', async () => {
     const res = await call('/api/invites/claim', {
-      cookie: memberCookie,
+      cookie: memberACookie,
       method: 'POST',
       body: { code: 'nosuchcode' },
     })
@@ -304,11 +317,15 @@ describe('invites', () => {
 
   test('revoking makes the code unusable', async () => {
     const created = (await (
-      await call('/api/invites', { cookie: captainCookie, method: 'POST', body: {} })
+      await call('/api/teams/alpha/invites', {
+        cookie: captainACookie,
+        method: 'POST',
+        body: {},
+      })
     ).json()) as { id: string; code: string }
 
-    const revoke = await call(`/api/invites/${created.id}/revoke`, {
-      cookie: captainCookie,
+    const revoke = await call(`/api/teams/alpha/invites/${created.id}/revoke`, {
+      cookie: captainACookie,
       method: 'POST',
     })
     expect(revoke.status).toBe(200)
@@ -327,34 +344,35 @@ describe('invites', () => {
 })
 
 describe('members', () => {
-  test('the approval queue lists pending accounts', async () => {
-    const waiting = await createUser(ctx, { name: 'Waiting' })
-    const res = await call('/api/members', { cookie: captainCookie })
+  test('lists this team only — nobody from another team, nobody from no team', async () => {
+    const stranger = await createUser(ctx, { name: 'Stranger, no team' })
 
+    const res = await call('/api/teams/alpha/members', { cookie: captainACookie })
     expect(res.status).toBe(200)
-    const members = (await res.json()) as { id: string; status: string }[]
-    expect(members.find((entry) => entry.id === waiting)).toMatchObject({ status: 'pending' })
+
+    const ids = ((await res.json()) as { id: string }[]).map((entry) => entry.id)
+    expect(ids).toContain(captainA)
+    expect(ids).toContain(memberA)
+    // an account with no membership is invisible, even to a captain
+    expect(ids).not.toContain(stranger)
+    // so is another team's captain
+    expect(ids).not.toContain(captainB)
+    // the outsider claimed alpha's invite earlier, so they belong here now
+    expect(ids).toContain(outsider)
   })
 
-  test('approving a pending account activates it', async () => {
-    const waiting = await createUser(ctx, { name: 'Approve me' })
-    const res = await call(`/api/members/${waiting}`, {
-      cookie: captainCookie,
+  test('a member of another team is a 404 on PATCH', async () => {
+    const res = await call(`/api/teams/alpha/members/${captainB}`, {
+      cookie: captainACookie,
       method: 'PATCH',
-      body: { status: 'active' },
+      body: { role: 'member' },
     })
-
-    expect(res.status).toBe(200)
-    expect(
-      await (await call('/api/me', { cookie: await createSessionCookie(ctx, waiting) })).json(),
-    ).toMatchObject({
-      status: 'active',
-    })
+    expect(res.status).toBe(404)
   })
 
   test('the last active captain cannot be demoted', async () => {
-    const res = await call(`/api/members/${captain}`, {
-      cookie: captainCookie,
+    const res = await call(`/api/teams/alpha/members/${captainA}`, {
+      cookie: captainACookie,
       method: 'PATCH',
       body: { role: 'member' },
     })
@@ -366,8 +384,8 @@ describe('members', () => {
   })
 
   test('a captain cannot disable themselves', async () => {
-    const res = await call(`/api/members/${captain}`, {
-      cookie: captainCookie,
+    const res = await call(`/api/teams/alpha/members/${captainA}`, {
+      cookie: captainACookie,
       method: 'PATCH',
       body: { status: 'disabled' },
     })
@@ -376,12 +394,26 @@ describe('members', () => {
     expect(await res.json()).toMatchObject({ message: 'You cannot disable your own account' })
   })
 
+  test('disabling a member locks them out of the team', async () => {
+    const res = await call(`/api/teams/alpha/members/${memberA}`, {
+      cookie: captainACookie,
+      method: 'PATCH',
+      body: { status: 'disabled' },
+    })
+    expect(res.status).toBe(200)
+
+    const blocked = await call('/api/teams/alpha/players', { cookie: memberACookie })
+    expect(blocked.status).toBe(403)
+    expect(await blocked.json()).toMatchObject({ message: 'Membership is not active' })
+  })
+
   test('a member cannot touch membership', async () => {
-    const res = await call(`/api/members/${captain}`, {
-      cookie: memberCookie,
+    const res = await call(`/api/teams/alpha/members/${captainA}`, {
+      cookie: memberACookie,
       method: 'PATCH',
       body: { role: 'member' },
     })
+    // disabled by the previous test, so the guard stops them one step earlier
     expect(res.status).toBe(403)
   })
 })

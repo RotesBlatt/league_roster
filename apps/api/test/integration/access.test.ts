@@ -1,8 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { eq } from 'drizzle-orm'
-import { user } from '../../src/db/schema.ts'
+import { and, eq } from 'drizzle-orm'
+import { memberships } from '../../src/db/schema.ts'
 import { ensureAccess, getMe } from '../../src/lib/access.ts'
-import { createTestContext, createUser, type TestContext } from './helpers.ts'
+import {
+  addMembership,
+  createTeam,
+  createTestContext,
+  createUser,
+  type TestContext,
+} from './helpers.ts'
 
 let ctx: TestContext
 
@@ -16,26 +22,36 @@ afterAll(async () => {
 
 describe('ensureAccess', () => {
   test('throws for an unknown user', async () => {
-    await expect(ensureAccess(ctx.db, crypto.randomUUID())).rejects.toThrow(/not found/)
+    const error = await ensureAccess(ctx.db, crypto.randomUUID()).catch((caught) => caught)
+    expect(error).toBeInstanceOf(Error)
+    expect(String(error)).toMatch(/not found/)
   })
 
-  test('first account on an empty install becomes captain', async () => {
+  test('first account on an empty install becomes captain of a new team', async () => {
     const userId = await createUser(ctx)
     const me = await ensureAccess(ctx.db, userId, [])
 
     expect(me.role).toBe('captain')
     expect(me.status).toBe('active')
+    expect(me.teamSlug).toBe('default')
 
-    const row = await ctx.db.select().from(user).where(eq(user.id, userId))
+    const row = await ctx.db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, userId), eq(memberships.teamId, me.teamId!)))
     expect(row[0]?.role).toBe('captain')
+    expect(row[0]?.status).toBe('active')
   })
 
-  test('a later account stays pending while an active member exists', async () => {
+  test('a later account has no team, and no status at all', async () => {
     const userId = await createUser(ctx, { name: 'Late joiner' })
     const me = await ensureAccess(ctx.db, userId, [])
 
     expect(me.role).toBe('member')
-    expect(me.status).toBe('pending')
+    // null, not 'pending': a person without a membership is not a member
+    expect(me.status).toBeNull()
+    expect(me.teamId).toBeNull()
+    expect(me.teamSlug).toBeNull()
   })
 
   test('allowlisted discord id is promoted even when a captain exists', async () => {
@@ -43,6 +59,7 @@ describe('ensureAccess', () => {
     const me = await ensureAccess(ctx.db, userId, ['424242424242424242'])
 
     expect(me).toEqual(expect.objectContaining({ role: 'captain', status: 'active' }))
+    expect(me.teamSlug).not.toBeNull()
   })
 
   test('allowlist matches the discord account, not the local user id', async () => {
@@ -50,10 +67,14 @@ describe('ensureAccess', () => {
     const me = await ensureAccess(ctx.db, userId, [userId])
 
     expect(me.role).toBe('member')
+    expect(me.status).toBeNull()
   })
 
-  test('a disabled account is never promoted, even when allowlisted', async () => {
-    const userId = await createUser(ctx, { status: 'disabled', discordId: '999999999999999999' })
+  test('a disabled membership is never promoted, even when allowlisted', async () => {
+    const userId = await createUser(ctx, { name: 'Disabled', discordId: '999999999999999999' })
+    const teamId = await createTeam(ctx, { createdBy: userId })
+    await addMembership(ctx, { teamId, userId, role: 'member', status: 'disabled' })
+
     const me = await ensureAccess(ctx.db, userId, ['999999999999999999'])
 
     expect(me.status).toBe('disabled')
@@ -61,7 +82,10 @@ describe('ensureAccess', () => {
   })
 
   test('an active member is left untouched', async () => {
-    const userId = await createUser(ctx, { role: 'member', status: 'active' })
+    const userId = await createUser(ctx, { name: 'Active member' })
+    const teamId = await createTeam(ctx, { createdBy: userId })
+    await addMembership(ctx, { teamId, userId, role: 'member', status: 'active' })
+
     const me = await ensureAccess(ctx.db, userId, [])
 
     expect(me).toEqual(expect.objectContaining({ role: 'member', status: 'active' }))
@@ -73,8 +97,11 @@ describe('getMe', () => {
     expect(await getMe(ctx.db, crypto.randomUUID())).toBeNull()
   })
 
-  test('maps the row to the public shape without internal fields', async () => {
-    const userId = await createUser(ctx, { name: 'Mapped', status: 'active' })
+  test('maps identity from user and role/status/team from membership', async () => {
+    const userId = await createUser(ctx, { name: 'Mapped' })
+    const teamId = await createTeam(ctx, { createdBy: userId, slug: 'mapped' })
+    await addMembership(ctx, { teamId, userId, role: 'member', status: 'active' })
+
     const me = await getMe(ctx.db, userId)
 
     expect(me).toEqual({
@@ -82,8 +109,18 @@ describe('getMe', () => {
       name: 'Mapped',
       email: `${userId}@test.local`,
       image: null,
+      teamId,
+      teamSlug: 'mapped',
       role: 'member',
       status: 'active',
     })
+  })
+
+  test('a user without a membership is team-less and status-less', async () => {
+    const userId = await createUser(ctx, { name: 'No team' })
+
+    expect(await getMe(ctx.db, userId)).toEqual(
+      expect.objectContaining({ teamId: null, teamSlug: null, role: 'member', status: null }),
+    )
   })
 })

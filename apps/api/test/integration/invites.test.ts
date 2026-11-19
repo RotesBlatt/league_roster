@@ -1,15 +1,24 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
-import { eq } from 'drizzle-orm'
-import { invites, user } from '../../src/db/schema.ts'
+import { and, eq } from 'drizzle-orm'
+import { invites, memberships } from '../../src/db/schema.ts'
 import { claimInvite } from '../../src/lib/invites.ts'
-import { createTestContext, createUser, type TestContext } from './helpers.ts'
+import {
+  addMembership,
+  createTeam,
+  createTestContext,
+  createUser,
+  type TestContext,
+} from './helpers.ts'
 
 let ctx: TestContext
 let creatorId: string
+let teamId: string
 
 beforeAll(async () => {
   ctx = await createTestContext()
-  creatorId = await createUser(ctx, { role: 'captain', status: 'active' })
+  creatorId = await createUser(ctx, { name: 'Creator' })
+  teamId = await createTeam(ctx, { createdBy: creatorId })
+  await addMembership(ctx, { teamId, userId: creatorId, role: 'captain', status: 'active' })
 })
 
 afterEach(async () => {
@@ -21,7 +30,13 @@ afterAll(async () => {
 })
 
 async function createInvite(
-  input: { code?: string; maxUses?: number; expiresAt?: Date | null; revokedAt?: Date | null } = {},
+  input: {
+    code?: string
+    maxUses?: number
+    expiresAt?: Date | null
+    revokedAt?: Date | null
+    inTeam?: string
+  } = {},
 ) {
   const [row] = await ctx.db
     .insert(invites)
@@ -30,6 +45,7 @@ async function createInvite(
       code: input.code ?? `code${Math.random().toString(36).slice(2, 8)}`,
       note: null,
       createdBy: creatorId,
+      teamId: input.inTeam ?? teamId,
       maxUses: input.maxUses ?? 1,
       uses: 0,
       expiresAt: input.expiresAt ?? null,
@@ -85,7 +101,7 @@ describe('claimInvite', () => {
     })
   })
 
-  test('a valid invite activates the user and burns one use', async () => {
+  test('a valid invite joins *the invite’s* team and burns one use', async () => {
     const invite = await createInvite({ maxUses: 2 })
     const userId = await createUser(ctx)
 
@@ -97,9 +113,30 @@ describe('claimInvite', () => {
     const [after] = await ctx.db.select().from(invites).where(eq(invites.id, invite.id))
     expect(after?.uses).toBe(1)
 
-    const [claimed] = await ctx.db.select().from(user).where(eq(user.id, userId))
+    const [claimed] = await ctx.db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, userId), eq(memberships.teamId, teamId)))
     expect(claimed?.status).toBe('active')
     expect(claimed?.role).toBe('member')
+  })
+
+  test('a captain keeps their role when joining a second team', async () => {
+    const otherTeam = await createTeam(ctx, { createdBy: creatorId, slug: 'second' })
+    const invite = await createInvite({ maxUses: 1, inTeam: otherTeam })
+
+    await claimInvite(ctx.db, { userId: creatorId, code: invite.code })
+
+    const [own] = await ctx.db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, creatorId), eq(memberships.teamId, teamId)))
+    const [joined] = await ctx.db
+      .select()
+      .from(memberships)
+      .where(and(eq(memberships.userId, creatorId), eq(memberships.teamId, otherTeam)))
+    expect(own?.role).toBe('captain')
+    expect(joined?.role).toBe('member')
   })
 
   test('the same code works up to maxUses, then stops', async () => {

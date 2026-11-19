@@ -5,7 +5,7 @@ import postgres from 'postgres'
 import { createApp } from '../../src/app.ts'
 import { type Auth, createAuth } from '../../src/auth.ts'
 import { createDb, type Db } from '../../src/db/index.ts'
-import { account, session, user } from '../../src/db/schema.ts'
+import { account, memberships, session, teams, user } from '../../src/db/schema.ts'
 import { env } from '../../src/env.ts'
 
 const adminUrl = process.env.TEST_DATABASE_URL
@@ -46,14 +46,13 @@ export async function createTestContext(): Promise<TestContext> {
   }
 }
 
+/**
+ * A user is only an identity: role/status live on `membership`, so a fresh user is
+ * "signed in, not in any team". Use `createTeam` + `addMembership` to place them.
+ */
 export async function createUser(
   ctx: TestContext,
-  input: {
-    name?: string
-    role?: 'captain' | 'member'
-    status?: 'pending' | 'active' | 'disabled'
-    discordId?: string
-  } = {},
+  input: { name?: string; discordId?: string } = {},
 ): Promise<string> {
   const id = crypto.randomUUID()
   const now = new Date()
@@ -65,8 +64,6 @@ export async function createUser(
     image: null,
     createdAt: now,
     updatedAt: now,
-    role: input.role ?? 'member',
-    status: input.status ?? 'pending',
   })
 
   if (input.discordId) {
@@ -80,6 +77,44 @@ export async function createUser(
     })
   }
 
+  return id
+}
+
+export async function createTeam(
+  ctx: TestContext,
+  input: { createdBy: string; name?: string; slug?: string },
+): Promise<string> {
+  const id = crypto.randomUUID()
+  await ctx.db.insert(teams).values({
+    id,
+    name: input.name ?? `Team ${id.slice(0, 4)}`,
+    slug: input.slug ?? `team-${id.slice(0, 8)}`,
+    createdAt: new Date(),
+    createdBy: input.createdBy,
+  })
+  return id
+}
+
+export async function addMembership(
+  ctx: TestContext,
+  input: {
+    teamId: string
+    userId: string
+    role?: 'captain' | 'member'
+    status?: 'active' | 'disabled'
+  },
+): Promise<string> {
+  const id = crypto.randomUUID()
+  const now = new Date()
+  await ctx.db.insert(memberships).values({
+    id,
+    teamId: input.teamId,
+    userId: input.userId,
+    role: input.role ?? 'member',
+    status: input.status ?? 'active',
+    joinedAt: now,
+    updatedAt: now,
+  })
   return id
 }
 
