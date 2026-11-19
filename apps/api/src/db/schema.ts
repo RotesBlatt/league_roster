@@ -99,6 +99,8 @@ export const teams = pgTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
+    /** a few characters, for badges and the switcher: "DBW". Optional. */
+    shortName: text('shortName'),
     slug: text('slug').notNull().unique(),
     createdAt: createdAt.notNull(),
     createdBy: text('createdBy')

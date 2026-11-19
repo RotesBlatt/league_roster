@@ -82,12 +82,13 @@ export async function createUser(
 
 export async function createTeam(
   ctx: TestContext,
-  input: { createdBy: string; name?: string; slug?: string },
+  input: { createdBy: string; name?: string; slug?: string; shortName?: string },
 ): Promise<string> {
   const id = crypto.randomUUID()
   await ctx.db.insert(teams).values({
     id,
     name: input.name ?? `Team ${id.slice(0, 4)}`,
+    shortName: input.shortName ?? null,
     slug: input.slug ?? `team-${id.slice(0, 8)}`,
     createdAt: new Date(),
     createdBy: input.createdBy,
