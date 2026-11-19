@@ -20,6 +20,7 @@ import { notifications } from '@mantine/notifications'
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useParams } from 'react-router'
 import { api, unwrap } from '../api.ts'
 import { RoleBadge } from '../components/badges.tsx'
 import { useMe, usePlayers } from '../hooks.ts'
@@ -45,8 +46,9 @@ const emptyValues: FormValues = {
 }
 
 export function RosterPage() {
+  const { slug = '' } = useParams()
   const me = useMe()
-  const players = usePlayers()
+  const players = usePlayers(slug)
   const queryClient = useQueryClient()
   const isCaptain = me.data?.role === 'captain'
 
@@ -60,13 +62,13 @@ export function RosterPage() {
     },
   })
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['players'] })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['players', slug] })
 
   const save = useMutation({
     mutationFn: (values: FormValues) =>
       editing
-        ? unwrap(api.players({ id: editing.id }).patch(values))
-        : unwrap(api.players.post(values)),
+        ? unwrap(api.teams({ slug }).players({ id: editing.id }).patch(values))
+        : unwrap(api.teams({ slug }).players.post(values)),
     onSuccess: () => {
       void invalidate()
       notifications.show({ message: editing ? 'Player updated' : 'Player added', color: 'brand' })
@@ -76,7 +78,7 @@ export function RosterPage() {
   })
 
   const remove = useMutation({
-    mutationFn: (id: string) => unwrap(api.players({ id }).delete()),
+    mutationFn: (id: string) => unwrap(api.teams({ slug }).players({ id }).delete()),
     onSuccess: () => {
       void invalidate()
       notifications.show({ message: 'Player removed', color: 'brand' })

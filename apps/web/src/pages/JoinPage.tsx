@@ -24,8 +24,11 @@ export function JoinPage() {
 
     started.current = true
     unwrap(api.invites.claim.post({ code }))
-      .then(() => queryClient.invalidateQueries({ queryKey: ['me'] }))
-      .then(() => navigate('/roster', { replace: true }))
+      .then((claimed) => {
+        // the response is the new Me, already carrying the slug we just joined
+        queryClient.setQueryData(['me'], claimed)
+        navigate(claimed.teamSlug ? `/t/${claimed.teamSlug}/roster` : '/', { replace: true })
+      })
       .catch((err: Error) => {
         started.current = false
         setError(err.message)
@@ -75,7 +78,14 @@ export function JoinPage() {
             <Text size="sm" c="dimmed">
               You are signed in as {me.data.name}.
             </Text>
-            <Button leftSection={<IconUsersGroup size={18} />} onClick={() => navigate('/roster')}>
+            <Button
+              leftSection={<IconUsersGroup size={18} />}
+              onClick={() =>
+                navigate(me.data?.teamSlug ? `/t/${me.data.teamSlug}/roster` : '/', {
+                  replace: true,
+                })
+              }
+            >
               Go to roster
             </Button>
           </Stack>

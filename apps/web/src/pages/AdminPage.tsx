@@ -15,20 +15,21 @@ import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
 import { IconCheck, IconCopy, IconPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Navigate } from 'react-router'
+import { Navigate, useParams } from 'react-router'
 import { api, unwrap } from '../api.ts'
 import { useInvites, useMe, useMembers } from '../hooks.ts'
 
 type MemberPatch = {
   role?: 'captain' | 'member'
-  status?: 'active' | 'pending' | 'disabled'
+  status?: 'active' | 'disabled'
 }
 
 export function AdminPage() {
+  const { slug = '' } = useParams()
   const me = useMe()
   const isCaptain = me.data?.role === 'captain'
-  const invites = useInvites(isCaptain)
-  const members = useMembers(isCaptain)
+  const invites = useInvites(slug, isCaptain)
+  const members = useMembers(slug, isCaptain)
   const queryClient = useQueryClient()
 
   const form = useForm({
@@ -38,14 +39,14 @@ export function AdminPage() {
   const createInvite = useMutation({
     mutationFn: (values: typeof form.values) =>
       unwrap(
-        api.invites.post({
+        api.teams({ slug }).invites.post({
           note: values.note || undefined,
           maxUses: values.maxUses,
           expiresInDays: values.expiresInDays || undefined,
         }),
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['invites'] })
+      void queryClient.invalidateQueries({ queryKey: ['invites', slug] })
       form.setValues({ note: '', maxUses: 1, expiresInDays: 7 })
       notifications.show({ message: 'Invite created', color: 'brand' })
     },
@@ -53,16 +54,16 @@ export function AdminPage() {
   })
 
   const revoke = useMutation({
-    mutationFn: (id: string) => unwrap(api.invites({ id }).revoke.post()),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['invites'] }),
+    mutationFn: (id: string) => unwrap(api.teams({ slug }).invites({ id }).revoke.post()),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['invites', slug] }),
     onError: (error) => notifications.show({ message: error.message, color: 'red' }),
   })
 
   const updateMember = useMutation({
     mutationFn: ({ id, ...patch }: { id: string } & MemberPatch) =>
-      unwrap(api.members({ id }).patch(patch)),
+      unwrap(api.teams({ slug }).members({ id }).patch(patch)),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['members'] })
+      void queryClient.invalidateQueries({ queryKey: ['members', slug] })
       notifications.show({ message: 'Member updated', color: 'brand' })
     },
     onError: (error) => notifications.show({ message: error.message, color: 'red' }),
@@ -228,15 +229,7 @@ export function AdminPage() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Badge
-                        color={
-                          member.status === 'active'
-                            ? 'brand'
-                            : member.status === 'pending'
-                              ? 'orange'
-                              : 'red'
-                        }
-                      >
+                      <Badge color={member.status === 'active' ? 'brand' : 'red'}>
                         {member.status}
                       </Badge>
                     </Table.Td>
@@ -247,13 +240,13 @@ export function AdminPage() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4} justify="flex-end">
-                        {member.status !== 'active' && (
+                        {member.status === 'disabled' && (
                           <Button
                             size="xs"
                             variant="light"
                             onClick={() => updateMember.mutate({ id: member.id, status: 'active' })}
                           >
-                            Approve
+                            Re-enable
                           </Button>
                         )}
                         <Button

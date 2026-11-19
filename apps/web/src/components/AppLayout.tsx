@@ -25,6 +25,7 @@ function NavButton({ to, label, icon }: { to: string; label: string; icon: React
 export function AppLayout({ me }: { me: Me }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const base = me.teamSlug ? `/t/${me.teamSlug}` : ''
 
   const logout = async () => {
     await signOut()
@@ -37,12 +38,12 @@ export function AppLayout({ me }: { me: Me }) {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap={4}>
-            <Button component={Link} to="/roster" variant="subtle" fw={700}>
+            <Button component={Link} to={`${base}/roster`} variant="subtle" fw={700}>
               {me.role === 'captain' ? '★ Team' : 'Team'}
             </Button>
-            <NavButton to="/roster" label="Roster" icon={<IconUsersGroup size={16} />} />
+            <NavButton to={`${base}/roster`} label="Roster" icon={<IconUsersGroup size={16} />} />
             {me.role === 'captain' && (
-              <NavButton to="/admin" label="Admin" icon={<IconShieldCog size={16} />} />
+              <NavButton to={`${base}/admin`} label="Admin" icon={<IconShieldCog size={16} />} />
             )}
           </Group>
 

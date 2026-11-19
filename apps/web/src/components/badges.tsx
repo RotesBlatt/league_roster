@@ -20,7 +20,8 @@ export function RoleBadge({ role }: { role: Role }) {
 }
 
 export function StatusBadge({ me }: { me: Me }) {
+  // null status == no membership in any team (as opposed to 'disabled', a decision)
+  if (!me.status) return <Badge color="gray">no team</Badge>
   if (me.status === 'disabled') return <Badge color="red">disabled</Badge>
-  if (me.status === 'pending') return <Badge color="yellow">pending</Badge>
   return <Badge color="brand">{me.role === 'captain' ? 'captain' : 'member'}</Badge>
 }

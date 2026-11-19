@@ -7,7 +7,9 @@ import { useMe } from '../hooks.ts'
 export function LoginPage() {
   const me = useMe()
 
-  if (me.data?.status === 'active') return <Navigate to="/roster" replace />
+  // Already in a team: go straight there. Without one there is nothing to show, and
+  // only an invite link can change that — so the card stays.
+  if (me.data?.teamSlug) return <Navigate to={`/t/${me.data.teamSlug}/roster`} replace />
 
   return (
     <Center h="100vh" p="md">
@@ -21,12 +23,14 @@ export function LoginPage() {
             size="md"
             leftSection={<IconBrandDiscord size={20} />}
             loading={me.isPending}
-            onClick={() => void signInWithDiscord(`${window.location.origin}/roster`)}
+            onClick={() => void signInWithDiscord(`${window.location.origin}/`)}
           >
             Continue with Discord
           </Button>
           <Text size="xs" c="dimmed">
-            Ask a captain for an invite link if you are not on the team yet.
+            {me.data
+              ? `Signed in as ${me.data.name}. You are not on a team yet — open the invite link a captain sent you.`
+              : 'Ask a captain for an invite link if you are not on the team yet.'}
           </Text>
         </Stack>
       </Card>
