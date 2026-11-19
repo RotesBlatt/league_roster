@@ -54,4 +54,4 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
-| _(none yet)_ | `multi-team.md` is the first candidate, once `POST /api/teams` (§8 step 3) lands. | |
+| _(none yet)_ | `multi-team.md` is the first candidate: creation and tenancy are done, so what is left is the web half (§8 step 4) and hardening (step 5). | |

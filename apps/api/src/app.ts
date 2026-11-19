@@ -9,6 +9,7 @@ import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlayerRoutes } from './routes/players.ts'
+import { createTeamRoutes } from './routes/teams.ts'
 
 export type AppOptions = {
   /** inject a database (tests use a throwaway one) */
@@ -91,6 +92,9 @@ export function createApp(options: AppOptions = {}) {
           .use(createMeRoutes(authPlugin))
           // global: the code identifies the team being joined
           .use(createClaimRoutes(db, authPlugin))
+          // global: creating a team is the act that makes you its captain, so there is
+          // no tenant in the path yet
+          .use(createTeamRoutes(db, authPlugin))
           // tenant-scoped: everything below is addressed by /api/teams/<slug>/...
           .group('/teams/:slug', (team) =>
             team

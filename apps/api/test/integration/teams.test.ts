@@ -2,7 +2,16 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { memberships, teams } from '../../src/db/schema.ts'
 import { createTeam } from '../../src/lib/teams.ts'
-import { createTestContext, createUser, seedTeam, type TestContext } from './helpers.ts'
+import {
+  addMembership,
+  createSessionCookie,
+  createTestApp,
+  createTestContext,
+  createUser,
+  seedTeam,
+  type TestContext,
+  type TestServer,
+} from './helpers.ts'
 
 let ctx: TestContext
 
@@ -129,5 +138,123 @@ describe('createTeam', () => {
       shortName: 'DBWDBWDBWDBW',
     })
     expect(tooLong).toMatchObject({ ok: false, status: 422 })
+  })
+})
+
+describe('POST /api/teams', () => {
+  let server: TestServer
+  let call: TestServer['call']
+
+  beforeAll(async () => {
+    server = createTestApp(ctx)
+    call = server.call
+    // A team that already has an active captain: the retired bootstrap ("first account
+    // becomes captain") only fires when nobody is active, so it stays out of these tests.
+    const founder = await createUser(ctx, { name: 'Founder' })
+    const seeded = await seedTeam(ctx, { createdBy: founder, name: 'Seeded' })
+    await addMembership(ctx, { teamId: seeded, userId: founder, role: 'captain' })
+  })
+
+  afterAll(() => {
+    server.close()
+  })
+
+  test('an anonymous request is a 401', async () => {
+    const res = await call('/api/teams', { method: 'POST', body: { name: 'Anon' } })
+    expect(res.status).toBe(401)
+  })
+
+  test('the creator becomes captain, and can immediately open the roster', async () => {
+    const creator = await createUser(ctx, { name: 'Gruender' })
+    const cookie = await createSessionCookie(ctx, creator)
+
+    const res = await call('/api/teams', {
+      cookie,
+      method: 'POST',
+      body: { name: 'Grüne Hölle', shortName: 'GH' },
+    })
+    expect(res.status).toBe(200)
+
+    // the response is `Me` for the new team, so the SPA can navigate without a second call
+    const me = (await res.json()) as { teamSlug: string | null; role: string; status: string }
+    expect(me).toMatchObject({ teamSlug: 'gruene-hoelle', role: 'captain', status: 'active' })
+
+    const roster = await call('/api/teams/gruene-hoelle/players', { cookie })
+    expect(roster.status).toBe(200)
+    expect(await roster.json()).toEqual([])
+  })
+
+  test('two accounts create two teams that never see each other', async () => {
+    const alice = await createUser(ctx, { name: 'Alice' })
+    const bob = await createUser(ctx, { name: 'Bob' })
+    const aliceCookie = await createSessionCookie(ctx, alice)
+    const bobCookie = await createSessionCookie(ctx, bob)
+
+    const aliceTeam = await call('/api/teams', {
+      cookie: aliceCookie,
+      method: 'POST',
+      body: { name: 'Alice Ascending' },
+    })
+    const bobTeam = await call('/api/teams', {
+      cookie: bobCookie,
+      method: 'POST',
+      body: { name: 'Bob Battalion' },
+    })
+    expect(aliceTeam.status).toBe(200)
+    expect(bobTeam.status).toBe(200)
+
+    expect(
+      await (await call('/api/teams/alice-ascending/players', { cookie: aliceCookie })).json(),
+    ).toEqual([])
+    // the other team's slug answers like one that does not exist
+    const foreign = await call('/api/teams/bob-battalion/players', { cookie: aliceCookie })
+    const unknown = await call('/api/teams/no-such-team/players', { cookie: aliceCookie })
+    expect(foreign.status).toBe(404)
+    expect(await foreign.json()).toEqual(await unknown.json())
+  })
+
+  test('a name whose slug is taken is a 409, and the account stays team-less', async () => {
+    const first = await createUser(ctx)
+    const second = await createUser(ctx)
+    const firstCookie = await createSessionCookie(ctx, first)
+    const secondCookie = await createSessionCookie(ctx, second)
+
+    const created = await call('/api/teams', {
+      cookie: firstCookie,
+      method: 'POST',
+      body: { name: 'Doppelt Gemoppelt' },
+    })
+    expect(created.status).toBe(200)
+
+    const clash = await call('/api/teams', {
+      cookie: secondCookie,
+      method: 'POST',
+      body: { name: 'doppelt  gemoppelt!!' },
+    })
+    expect(clash.status).toBe(409)
+
+    const me = (await (await call('/api/me', { cookie: secondCookie })).json()) as {
+      teamSlug: string | null
+      status: string | null
+    }
+    expect(me).toMatchObject({ teamSlug: null, status: null })
+  })
+
+  test('an unusable or reserved name, or an over-long short name, is a 422', async () => {
+    const creator = await createUser(ctx)
+    const cookie = await createSessionCookie(ctx, creator)
+
+    const unusable = await call('/api/teams', { cookie, method: 'POST', body: { name: '!!!' } })
+    expect(unusable.status).toBe(422)
+
+    const reserved = await call('/api/teams', { cookie, method: 'POST', body: { name: 'Admin' } })
+    expect(reserved.status).toBe(422)
+
+    const longTag = await call('/api/teams', {
+      cookie,
+      method: 'POST',
+      body: { name: 'Langer Tag', shortName: 'DBWDBWDBWDBW' },
+    })
+    expect(longTag.status).toBe(422)
   })
 })

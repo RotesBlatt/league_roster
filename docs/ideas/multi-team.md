@@ -1,8 +1,10 @@
 # Idea — from "one team" to "a team per captain"
 
-**Status:** in progress — §8 steps 1–2 and the `/t/:slug` web routes landed (migrations
-`0001`–`0003`). Step 3 (`POST /api/teams`) is still missing, so a fresh install still bootstraps the
-`default` team (§10.4); the team switcher and step 5 (scoped `Db`, then RLS) are open too.
+**Status:** in progress — §8 steps 1–2, the `/t/:slug` web routes and step 3's API landed
+(migrations `0001`–`0004`): two accounts can each create a team and neither sees the other's roster.
+Still open: the create-team form that calls `POST /api/teams` (§8 step 4), removing the `default`
+team bootstrap (§10.4 — now dead code, it goes in its own patch), the team switcher, and step 5
+(scoped `Db`, then RLS).
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
 
@@ -163,5 +165,23 @@ defensible-but-not-obvious calls:
 5. **`/api/invites/claim` is global**, not under `/api/teams/:slug`: the code identifies the
    team, and the claimer is not a member yet, so a team guard would 404 them.
 
-Still open from §7: slug rules (§7.2), whether team creation is open or gated (§7.1), team
-switching (§7.3), ownership transfer (§7.4), team deletion (§7.5), existing data (§7.6).
+Still open from §7: whether team creation stays open or becomes gated (§7.1), team switching
+(§7.3), ownership transfer (§7.4), team deletion (§7.5), existing data (§7.6).
+
+## 11. Decided while implementing step 3
+
+1. **Creation is open to any signed-in account** (§7.1). No Discord gate, no allowlist: `POST
+   /api/teams` needs `auth: true` and nothing else. Rate limiting stays an open item, not a
+   blocker — a spam team is one row and can be deleted.
+2. **The slug is derived, never typed** (§7.2). `slugify(name)` lowercases, spells German letters
+   out (`Löwen` → `loewen`, `Straße` → `strasse`), folds other accents (`é` → `e`), collapses the
+   rest into hyphens and cuts to 32 characters. Reserved words (`api`, `admin`, `login`, `logout`,
+   `join`, `t`, `teams`, `new`, `default`) are rejected.
+3. **422 vs 409 carries the difference you can act on.** An unusable or reserved name is a 422 (your
+   input is wrong); a name whose slug is already taken is a 409 (your input is fine, it is taken).
+   The collision is detected with `onConflictDoNothing … returning()` inside the transaction, so a
+   race produces the same 409 as a check-then-insert and never leaves a team nobody owns.
+4. **`team.shortName` exists** (migration `0004`): a few characters for badges and the switcher
+   (`DBW`), optional, at most 8, trimmed, blank means NULL. Not unique — it is a label, not a key.
+5. **One account may create several teams.** Nothing counts or caps memberships; `createdBy` is the
+   only trace of who made which team, and ownership transfer (§7.4) is still unwritten.
