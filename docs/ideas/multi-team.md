@@ -1,6 +1,8 @@
 # Idea — from "one team" to "a team per captain"
 
-**Status:** idea, nothing implemented. Written to force the decisions before any schema changes.
+**Status:** in progress — §8 steps 1–2 and the `/t/:slug` web routes landed (migrations
+`0001`–`0003`). Step 3 (`POST /api/teams`) is still missing, so a fresh install still bootstraps the
+`default` team (§10.4); the team switcher and step 5 (scoped `Db`, then RLS) are open too.
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
 
