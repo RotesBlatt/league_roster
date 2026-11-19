@@ -8,6 +8,8 @@
   ],
   "scripts": {
     "dev": "bun run scripts/dev.ts",
+    "hooks:install": "bun run scripts/install-hooks.ts",
+    "prepare": "bun run scripts/install-hooks.ts",
     "build": "cd apps/web && bun run build",
     "start": "bun run apps/api/src/index.ts",
     "typecheck": "bun run --filter '*' typecheck",

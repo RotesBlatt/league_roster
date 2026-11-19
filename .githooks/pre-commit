@@ -1,0 +1,13 @@
+#!/bin/sh
+# Biome over the files this commit would add — fast, and it fails *before* the
+# commit exists rather than after CI does.
+#
+# Check mode on purpose: it must not silently rewrite files, and a red hook is
+# cheaper to undo than a rewritten working tree.
+#
+# Install once per clone:  bun run hooks:install
+set -e
+
+# Markdown is outside Biome's scope (biome.json), so a docs-only commit simply
+# processes zero files and the hook stays quiet.
+bunx biome check --staged --no-errors-on-unmatched
