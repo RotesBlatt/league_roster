@@ -4,6 +4,7 @@ import { type Db, db as defaultDb } from './db/index.ts'
 import { env } from './env.ts'
 import { createSpa } from './lib/spa.ts'
 import { createAuthPlugin } from './plugins/auth.ts'
+import { createClaimRoutes } from './routes/claim.ts'
 import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
@@ -86,10 +87,17 @@ export function createApp(options: AppOptions = {}) {
       .group('/api', (api) =>
         api
           .get('/health', () => ({ ok: true, uptime: process.uptime() }))
+          // global: you can be signed in and not be in a team (yet)
           .use(createMeRoutes(authPlugin))
-          .use(createPlayerRoutes(db, authPlugin))
-          .use(createInviteRoutes(db, authPlugin))
-          .use(createMemberRoutes(db, authPlugin)),
+          // global: the code identifies the team being joined
+          .use(createClaimRoutes(db, authPlugin))
+          // tenant-scoped: everything below is addressed by /api/teams/<slug>/...
+          .group('/teams/:slug', (team) =>
+            team
+              .use(createPlayerRoutes(db, authPlugin))
+              .use(createInviteRoutes(db, authPlugin))
+              .use(createMemberRoutes(db, authPlugin)),
+          ),
       )
       // Hashed build output; the SPA shell itself comes from the NOT_FOUND fallback above
       .use(spaAssets)
