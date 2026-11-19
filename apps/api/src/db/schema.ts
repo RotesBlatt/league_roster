@@ -1,5 +1,5 @@
 import { MEMBER_STATUSES, ROLES, USER_ROLES } from '@lol/shared'
-import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 
 /**
  * Postgres schema.
@@ -18,10 +18,6 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: createdAt.notNull(),
   updatedAt: updatedAt.notNull(),
-
-  // --- our additional fields (input: false, only the server sets them) ---
-  role: text('role', { enum: USER_ROLES }).notNull().default('member'),
-  status: text('status', { enum: MEMBER_STATUSES }).notNull().default('pending'),
 })
 
 export const session = pgTable(
@@ -88,10 +84,47 @@ export const players = pgTable(
     note: text('note'),
     isActive: boolean('isActive').notNull().default(true),
     userId: text('userId').references(() => user.id, { onDelete: 'set null' }),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
     createdAt: createdAt.notNull(),
     updatedAt: updatedAt.notNull(),
   },
-  (table) => [index('player_role_idx').on(table.role)],
+  (table) => [index('player_role_idx').on(table.role, table.teamId)],
+)
+
+/** A team of players. */
+export const teams = pgTable(
+  'team',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull().unique(),
+    createdAt: createdAt.notNull(),
+    createdBy: text('createdBy')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+  },
+  (table) => [index('team_name_idx').on(table.name)],
+)
+
+/** Maps a user to a team. */
+export const memberships = pgTable(
+  'membership',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: USER_ROLES }).notNull().default('member'),
+    status: text('status', { enum: MEMBER_STATUSES }).notNull().default('pending'),
+    joinedAt: timestamp('joinedAt', { withTimezone: true, mode: 'date' }).notNull(),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [unique('membership_teamId_userId_idx').on(table.teamId, table.userId)],
 )
 
 /** Shareable invite links. `code` is what goes into /join/<code>. */
@@ -106,6 +139,9 @@ export const invites = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     maxUses: integer('maxUses').notNull().default(1),
     uses: integer('uses').notNull().default(0),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
     expiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'date' }),
     revokedAt: timestamp('revokedAt', { withTimezone: true, mode: 'date' }),
     createdAt: createdAt.notNull(),

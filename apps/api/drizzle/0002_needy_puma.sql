@@ -1,0 +1,1 @@
+ALTER TABLE "membership" ADD COLUMN "updatedAt" timestamp with time zone NOT NULL;
