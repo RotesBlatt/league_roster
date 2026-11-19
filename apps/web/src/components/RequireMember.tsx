@@ -3,6 +3,7 @@ import { Navigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
 import { isUnauthorized, useMe } from '../hooks.ts'
 import { AppLayout } from './AppLayout.tsx'
+import { CreateTeamCard } from './CreateTeamCard.tsx'
 
 /** Gate for every page behind "signed in + an active membership in some team". */
 export function RequireMember() {
@@ -51,23 +52,12 @@ export function RequireMember() {
     )
   }
 
-  // No membership in any team: there is no tenant to show. The app used to offer an
-  // approval queue here; now an invite link is the only way in.
+  // No membership in any team: there is no tenant to show. Creating a team and opening an
+  // invite link are the only two ways in — there is no approval queue to wait in.
   if (!member.teamSlug) {
     return (
       <Center h="100vh" p="md">
-        <Card maw={460} w="100%">
-          <Stack>
-            <Title order={3}>No team yet</Title>
-            <Text size="sm" c="dimmed">
-              You are signed in as {member.name}, but you are not on a team yet. Open the invite
-              link a captain sent you to join one.
-            </Text>
-            <Button variant="default" onClick={() => void signOut().then(() => location.reload())}>
-              Log out
-            </Button>
-          </Stack>
-        </Card>
+        <CreateTeamCard signedInAs={member.name} />
       </Center>
     )
   }

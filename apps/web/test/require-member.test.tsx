@@ -9,6 +9,8 @@ let meState: unknown = { isPending: true, isError: false, data: undefined, error
 
 mock.module('../src/hooks.ts', () => ({
   useMe: () => meState,
+  // the no-team screen renders the create form; submitting is covered in create-team.test.ts
+  useCreateTeam: () => ({ mutate: () => {}, isPending: false }),
   isUnauthorized: (error: unknown) =>
     typeof error === 'object' && error !== null && 'status' in error && error.status === 401,
 }))
@@ -87,7 +89,10 @@ describe('RequireMember', () => {
     }
     renderAt('/t/alpha/roster')
 
-    expect(screen.getByText('No team yet')).toBeDefined()
+    // not a dead end any more: the screen creates a team instead of pointing at an invite
+    expect(screen.getByText('Create your team')).toBeDefined()
+    // placeholder, not getByLabelText: Mantine's label association is not resolved under happy-dom
+    expect(screen.getByPlaceholderText('Die Besten')).toBeDefined()
     expect(screen.queryByText('roster screen')).toBeNull()
   })
 

@@ -36,6 +36,19 @@ export function useMembers(slug: string, enabled = true) {
   })
 }
 
+/**
+ * `POST /api/teams`. There is no tenant in the URL yet, so this is the one team action that
+ * takes no slug. Seeding `['me']` is what turns the app from "no team" into that team
+ * without a refetch.
+ */
+export function useCreateTeam() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { name: string; shortName?: string }) => unwrap(api.teams.post(input)),
+    onSuccess: (me: Me) => queryClient.setQueryData(['me'], me),
+  })
+}
+
 export function useRefreshMe() {
   const queryClient = useQueryClient()
   return useMutation({
