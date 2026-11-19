@@ -57,7 +57,9 @@ invite        + teamId → team            (code is scoped to one team)
 user          unchanged — global identity, no role, no status
 ```
 
-- `role`/`status` **move** from `user` to `membership`. Same enums, new home.
+- `role`/`status` **move** from `user` to `membership`. `role` keeps its enum; **`status` loses
+  `pending`** (see §10) and becomes `active`/`disabled`, because a person who is not a member has
+  no membership row at all — absence is the "not in this team" state.
 - `players.userId` stays (a roster entry may be linked to a login), but `players.teamId` is what
   scopes reads.
 - `better-auth` needs no changes at all — its four tables are untouched. Good sign.
@@ -122,7 +124,7 @@ not something to assume.
    `role`/`status` from `user`. Backfill one team for existing rows. Pure migration + tests.
 2. **Tenant-scoped guards**: `{ member: true }` becomes "member *of the team in the path*";
    `ensureAccess` loses its bootstrap branch and reads `membership`. Regression tests: a user of
-   team A gets 404 on team B's resources, and a pending member of A still gets 403.
+   team A gets 404 on team B's resources, and a *disabled* member of A gets 403.
 3. **Landing page + `POST /api/teams`**: creator becomes captain in the same transaction.
    First test: two accounts each create a team, neither sees the other's roster.
 4. **Web**: `/t/:slug/...` routes, team switcher, invite links carry the slug.
@@ -136,3 +138,28 @@ Worth saying out loud, since the change looks purely additive:
 - the `CAPTAIN_DISCORD_IDS` allowlist stops being a global escape hatch (it can become
   "seed captain of a named team", or go away);
 - `GET /members` stops being a "list every account on the server" endpoint.
+
+## 10. Decided while implementing steps 1–2
+
+Recorded here because the code no longer matches the sketches above, and these were the
+defensible-but-not-obvious calls:
+
+1. **There is no approval queue.** A captain sees *only* their own team's members
+   (`GET /api/teams/:slug/members` inner-joins `membership` on `(userId, teamId)`). An account
+   that belongs to no team is invisible to every captain. Consequence: **an invite link is the
+   only way in**, which is what §1 says anyway. A captain cannot approve a stranger by id.
+2. **`pending` is removed** from `MEMBER_STATUSES` (migration `0003` maps any existing
+   `pending` row to `active`, then sets the column default to `active`). The states are now:
+   no row = not a member; `active`; `disabled`. `Me.status` is `MemberStatus | null`, where
+   `null` means "no membership", which is different from "a captain disabled me".
+3. **Cross-team and unknown-slug are the same answer: 404.** A team you are not a member of is
+   indistinguishable from a team that does not exist — on reads and writes, including
+   `PATCH /members/:id`.
+4. **The guards never bootstrap.** Only `/api/me` (`ensureAccess`) still creates the `default`
+   team for the first account, and the Discord allowlist still grants captain there. Until
+   `POST /api/teams` exists (step 3), that is the only way a fresh install becomes usable.
+5. **`/api/invites/claim` is global**, not under `/api/teams/:slug`: the code identifies the
+   team, and the claimer is not a member yet, so a team guard would 404 them.
+
+Still open from §7: slug rules (§7.2), whether team creation is open or gated (§7.1), team
+switching (§7.3), ownership transfer (§7.4), team deletion (§7.5), existing data (§7.6).

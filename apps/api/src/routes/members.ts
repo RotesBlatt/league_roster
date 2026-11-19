@@ -6,7 +6,7 @@ import type { MemberDto } from '../db/schema.types.ts'
 import { memberStatusSchema, userRoleSchema } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
-type MemberPatch = { role?: 'captain' | 'member'; status?: 'active' | 'pending' | 'disabled' }
+type MemberPatch = { role?: 'captain' | 'member'; status?: 'active' | 'disabled' }
 
 /** Mounted under /api/teams/:slug. */
 export function createMemberRoutes(db: Db, authPlugin: AuthPlugin) {

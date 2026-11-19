@@ -120,7 +120,7 @@ export const memberships = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     role: text('role', { enum: USER_ROLES }).notNull().default('member'),
-    status: text('status', { enum: MEMBER_STATUSES }).notNull().default('pending'),
+    status: text('status', { enum: MEMBER_STATUSES }).notNull().default('active'),
     joinedAt: timestamp('joinedAt', { withTimezone: true, mode: 'date' }).notNull(),
     updatedAt: updatedAt.notNull(),
   },

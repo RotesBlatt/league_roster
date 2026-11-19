@@ -10,7 +10,8 @@ export type Me = {
   /** how the SPA addresses that team: /t/<teamSlug>/roster */
   teamSlug: string | null
   role: UserRole
-  status: MemberStatus
+  /** null: no membership at all. 'disabled': this team disabled the account. */
+  status: MemberStatus | null
 }
 
 export type PlayerDto = {

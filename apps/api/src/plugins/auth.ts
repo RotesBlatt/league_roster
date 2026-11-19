@@ -7,7 +7,7 @@ import { getMembership, getTeamBySlug, type TeamRow } from '../lib/teams.ts'
 
 const NOT_SIGNED_IN = { message: 'Not signed in' }
 const NOT_FOUND = { message: 'Not found' }
-const WAITING = { message: 'Waiting for approval' }
+const NOT_ACTIVE = { message: 'Membership is not active' }
 const CAPTAIN_ONLY = { message: 'Captain only' }
 
 type Deps = { auth: Auth; db: Db }
@@ -82,7 +82,6 @@ async function resolveTeamAccess(
 /**
  * Route guards used by the API routes:
  *   { auth: true }         -> signed in (global; live between "signed in" and "in a team")
- *   { member: true }       -> signed in + approved, globally (only /api/me-ish routes)
  *   { teamMember: true }   -> signed in + member of the team named in `:slug`
  *   { teamCaptain: true }  -> ... and captain of that team
  *
@@ -100,20 +99,12 @@ export function createAuthPlugin(deps: Deps) {
         return { user: identity.user, session: identity.session, me: identity.me }
       },
     },
-    member: {
-      async resolve({ status, request }) {
-        const identity = await resolveIdentity(deps, request.headers)
-        if (identity.kind === 'unauthorized') return status(401, NOT_SIGNED_IN)
-        if (identity.me.status !== 'active') return status(403, WAITING)
-        return { user: identity.user, session: identity.session, me: identity.me }
-      },
-    },
     teamMember: {
       async resolve({ status, request, params }) {
         const access = await resolveTeamAccess(deps, request.headers, slugOf(params))
         if (access.kind === 'unauthorized') return status(401, NOT_SIGNED_IN)
         if (access.kind === 'not-found') return status(404, NOT_FOUND)
-        if (access.kind === 'inactive') return status(403, WAITING)
+        if (access.kind === 'inactive') return status(403, NOT_ACTIVE)
         return contextOf(access)
       },
     },
@@ -122,7 +113,7 @@ export function createAuthPlugin(deps: Deps) {
         const access = await resolveTeamAccess(deps, request.headers, slugOf(params))
         if (access.kind === 'unauthorized') return status(401, NOT_SIGNED_IN)
         if (access.kind === 'not-found') return status(404, NOT_FOUND)
-        if (access.kind === 'inactive') return status(403, WAITING)
+        if (access.kind === 'inactive') return status(403, NOT_ACTIVE)
         if (access.me.role !== 'captain') return status(403, CAPTAIN_ONLY)
         return contextOf(access)
       },

@@ -13,8 +13,8 @@ describe('canManageTeam', () => {
     expect(canManageTeam({ role: 'captain', status: 'active' })).toBe(true)
   })
 
-  test('a captain who is still pending cannot manage the team', () => {
-    expect(canManageTeam({ role: 'captain', status: 'pending' })).toBe(false)
+  test('a disabled captain cannot manage the team', () => {
+    expect(canManageTeam({ role: 'captain', status: 'disabled' })).toBe(false)
   })
 
   test('a disabled captain cannot manage the team', () => {
@@ -42,7 +42,7 @@ describe('role constants', () => {
   })
 
   test('statuses and user roles are the expected sets', () => {
-    expect([...MEMBER_STATUSES]).toEqual(['pending', 'active', 'disabled'])
+    expect([...MEMBER_STATUSES]).toEqual(['active', 'disabled'])
     expect([...USER_ROLES]).toEqual(['captain', 'member'])
   })
 

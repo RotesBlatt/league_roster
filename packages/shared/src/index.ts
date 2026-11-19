@@ -9,7 +9,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   SUP: 'Support',
 }
 
-export const MEMBER_STATUSES = ['pending', 'active', 'disabled'] as const
+export const MEMBER_STATUSES = ['active', 'disabled'] as const
 export type MemberStatus = (typeof MEMBER_STATUSES)[number]
 
 export const USER_ROLES = ['captain', 'member'] as const

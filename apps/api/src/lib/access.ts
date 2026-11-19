@@ -27,7 +27,7 @@ function toMe(row: {
     teamId: row.teamId,
     teamSlug: row.teamSlug,
     role: row.role ?? 'member',
-    status: row.status ?? 'pending',
+    status: row.status ?? null,
   }
 }
 
@@ -51,8 +51,8 @@ export function meForTeam(
 
 /**
  * Identity comes from `user`, role/status from `membership`.
- * No membership row means "pending member, no team" — the same thing the old
- * `user.status = 'pending'` default said.
+ * No membership row means "not a member of any team": `status` is null, as opposed to
+ * `disabled`, which is a decision a captain made about an existing membership.
  *
  * A user in several teams currently resolves to the oldest membership (first one joined).
  * Team-scoped routes do not use this: they get the team from the path.
@@ -140,7 +140,7 @@ async function grantCaptain(db: Db, userId: string, teamId: string): Promise<voi
  *  - a Discord id in the captain allowlist is always captain + active (in a team)
  *  - if nobody is active anywhere, the first account to show up becomes captain (fresh install)
  *  - disabled accounts stay disabled, even when allowlisted
- * Everyone else lands in `pending` until a captain approves them or they claim an invite.
+ * Everyone else has no membership until they open a team's invite link.
  *
  * Creating a team is what makes you its captain (`multi-team.md` §4); until there is a
  * "create team" route, the bootstrap path creates the default team to do it. Team-scoped
