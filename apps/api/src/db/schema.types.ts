@@ -40,6 +40,15 @@ export type InviteDto = {
   path: string
 }
 
+/** One row of the team switcher: `GET /api/teams` — the teams the caller may act as. */
+export type TeamSummary = {
+  id: string
+  slug: string
+  name: string
+  shortName: string | null
+  role: UserRole
+}
+
 export type MemberDto = {
   id: string
   name: string

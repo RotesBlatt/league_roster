@@ -1,7 +1,8 @@
 import { SHORT_NAME_MAX } from '@lol/shared'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import type { Db } from '../db/index.ts'
 import { memberships, teams } from '../db/schema.ts'
+import type { TeamSummary } from '../db/schema.types.ts'
 import { slugify, slugProblem } from './slug.ts'
 
 export type TeamRow = typeof teams.$inferSelect
@@ -23,6 +24,26 @@ export async function getMembership(
     .where(and(eq(memberships.teamId, input.teamId), eq(memberships.userId, input.userId)))
     .limit(1)
   return row ?? null
+}
+
+/**
+ * The teams one account may act as, for the switcher. Only `active` memberships: a disabled
+ * one is not a usable team, and it is not this list's job to advertise a team you cannot open.
+ * Ordered by slug so the switcher's order is stable.
+ */
+export async function listTeamsForUser(db: Db, userId: string): Promise<TeamSummary[]> {
+  return db
+    .select({
+      id: teams.id,
+      slug: teams.slug,
+      name: teams.name,
+      shortName: teams.shortName,
+      role: memberships.role,
+    })
+    .from(memberships)
+    .innerJoin(teams, eq(teams.id, memberships.teamId))
+    .where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
+    .orderBy(asc(teams.slug))
 }
 
 export type CreateTeamResult =

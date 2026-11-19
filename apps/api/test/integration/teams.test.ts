@@ -258,3 +258,64 @@ describe('POST /api/teams', () => {
     expect(longTag.status).toBe(422)
   })
 })
+
+describe('GET /api/teams', () => {
+  let server: TestServer
+  let call: TestServer['call']
+
+  beforeAll(() => {
+    server = createTestApp(ctx)
+    call = server.call
+  })
+
+  afterAll(() => {
+    server.close()
+  })
+
+  test('an anonymous request is a 401', async () => {
+    expect((await call('/api/teams')).status).toBe(401)
+  })
+
+  test('lists exactly the teams I am an active member of', async () => {
+    const owner = await createUser(ctx, { name: 'Owner' })
+    const mine = await createUser(ctx, { name: 'Mine' })
+
+    const captain = await seedTeam(ctx, {
+      createdBy: owner,
+      slug: 'gamma',
+      name: 'Gamma',
+      shortName: 'GM',
+    })
+    const member = await seedTeam(ctx, { createdBy: owner, slug: 'delta', name: 'Delta' })
+    // exist, but not for me: neither may appear
+    await seedTeam(ctx, { createdBy: owner, slug: 'secret', name: 'Secret' })
+    const suspended = await seedTeam(ctx, {
+      createdBy: owner,
+      slug: 'suspended',
+      name: 'Suspended',
+    })
+
+    await addMembership(ctx, { teamId: captain, userId: mine, role: 'captain' })
+    await addMembership(ctx, { teamId: member, userId: mine, role: 'member' })
+    await addMembership(ctx, { teamId: suspended, userId: mine, status: 'disabled' })
+
+    const cookie = await createSessionCookie(ctx, mine)
+    const res = await call('/api/teams', { cookie })
+    expect(res.status).toBe(200)
+
+    // alphabetical by slug, so the switcher has a stable order
+    expect(await res.json()).toEqual([
+      { id: member, slug: 'delta', name: 'Delta', shortName: null, role: 'member' },
+      { id: captain, slug: 'gamma', name: 'Gamma', shortName: 'GM', role: 'captain' },
+    ])
+  })
+
+  test('an account in no team gets an empty list', async () => {
+    const loner = await createUser(ctx, { name: 'Loner' })
+    const cookie = await createSessionCookie(ctx, loner)
+
+    const res = await call('/api/teams', { cookie })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+})
