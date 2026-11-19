@@ -20,6 +20,15 @@ export function usePlayers(slug: string) {
   })
 }
 
+/** The teams I may act as (`GET /api/teams`) — what the switcher lists. */
+export function useMyTeams() {
+  return useQuery({
+    queryKey: ['teams'],
+    queryFn: () => unwrap(api.teams.get()),
+    retry: false,
+  })
+}
+
 export function useInvites(slug: string, enabled = true) {
   return useQuery({
     queryKey: ['invites', slug],
@@ -45,7 +54,11 @@ export function useCreateTeam() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { name: string; shortName?: string }) => unwrap(api.teams.post(input)),
-    onSuccess: (me: Me) => queryClient.setQueryData(['me'], me),
+    onSuccess: (me: Me) => {
+      queryClient.setQueryData(['me'], me)
+      // a second team has to show up in the switcher without a reload
+      void queryClient.invalidateQueries({ queryKey: ['teams'] })
+    },
   })
 }
 

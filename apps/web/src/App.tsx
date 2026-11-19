@@ -4,6 +4,7 @@ import { useMe } from './hooks.ts'
 import { AdminPage } from './pages/AdminPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
+import { NewTeamPage } from './pages/NewTeamPage.tsx'
 import { RosterPage } from './pages/RosterPage.tsx'
 
 /**
@@ -27,6 +28,7 @@ export function App() {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/t/:slug/roster" element={<RosterPage />} />
         <Route path="/t/:slug/admin" element={<AdminPage />} />
+        <Route path="/new-team" element={<NewTeamPage />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
     </Routes>

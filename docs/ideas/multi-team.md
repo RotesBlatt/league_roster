@@ -2,9 +2,9 @@
 
 **Status:** in progress — §8 steps 1–3 landed (migrations `0001`–`0004`): two accounts can each
 create a team and neither sees the other's roster, and nothing is granted by signing in — the
-`default`-team bootstrap and the `CAPTAIN_DISCORD_IDS` allowlist are gone (§11.6). Still open: the
-create-team form that calls `POST /api/teams` and the team switcher (§8 step 4), then step 5
-(scoped `Db`, then RLS).
+`default`-team bootstrap and the `CAPTAIN_DISCORD_IDS` allowlist are gone (§11.6). Step 4 is done too: the
+create-team form, `GET /api/teams` and the header switcher. What remains is step 5 — the scoped
+`Db` (`TeamDb`), then RLS.
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
 
@@ -165,8 +165,8 @@ defensible-but-not-obvious calls:
 5. **`/api/invites/claim` is global**, not under `/api/teams/:slug`: the code identifies the
    team, and the claimer is not a member yet, so a team guard would 404 them.
 
-Still open from §7: whether team creation stays open or becomes gated (§7.1), team switching
-(§7.3), ownership transfer (§7.4), team deletion (§7.5), existing data (§7.6).
+Still open from §7: whether team creation stays open or becomes gated (§7.1), ownership transfer
+(§7.4), team deletion (§7.5), existing data (§7.6).
 
 ## 11. Decided while implementing step 3
 
@@ -191,3 +191,9 @@ Still open from §7: whether team creation stays open or becomes gated (§7.1), 
    "become captain of whichever team you are in", which is a cross-tenant privilege hole the
    moment one account is in two teams. `fresh-install.test.ts` is the regression test — the first
    account to sign in owns nothing, and the `team` table stays empty until someone creates one.
+7. **Switching teams is a header menu; the URL stays the source of truth** (§7.3). No
+   `session.activeTeamId`, no "last used team": the switcher lists `GET /api/teams` (active
+   memberships only, alphabetical by slug), marks the one in the path, and navigates. A slug that
+   is not in the list (stale link, membership disabled in another tab) does not resolve to a
+   "current" team — the page itself still 404s, which is the honest answer. `/api/me` keeps naming
+   the oldest membership, and that is only what decides the default landing page.

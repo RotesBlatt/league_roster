@@ -2,9 +2,10 @@ import type { Me } from '@lol/api/schema-types'
 import { AppShell, Avatar, Button, Group, Menu, Text } from '@mantine/core'
 import { IconLogout, IconShieldCog, IconUsersGroup } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
+import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
 import { StatusBadge } from './badges.tsx'
+import { TeamSwitcher } from './TeamSwitcher.tsx'
 
 function NavButton({ to, label, icon }: { to: string; label: string; icon: React.ReactNode }) {
   const { pathname } = useLocation()
@@ -38,9 +39,7 @@ export function AppLayout({ me }: { me: Me }) {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap={4}>
-            <Button component={Link} to={`${base}/roster`} variant="subtle" fw={700}>
-              {me.role === 'captain' ? '★ Team' : 'Team'}
-            </Button>
+            <TeamSwitcher me={me} />
             <NavButton to={`${base}/roster`} label="Roster" icon={<IconUsersGroup size={16} />} />
             {me.role === 'captain' && (
               <NavButton to={`${base}/admin`} label="Admin" icon={<IconShieldCog size={16} />} />
