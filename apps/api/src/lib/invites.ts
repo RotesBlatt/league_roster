@@ -1,13 +1,14 @@
 import { eq, sql } from 'drizzle-orm'
 import type { Db } from '../db/index.ts'
-import { invites, user } from '../db/schema.ts'
+import { invites, memberships } from '../db/schema.ts'
 
 export type ClaimOutcome =
   | { ok: true; inviteId: string }
   | { ok: false; status: 404 | 410; message: string }
 
 /**
- * Validates an invite code and, if usable, activates the user in one transaction.
+ * Validates an invite code and, if usable, activates the user's membership in the
+ * invite's team and burns one use, in one transaction.
  * Pure business rule (no Elysia, no HTTP) so it can be tested directly.
  */
 export async function claimInvite(
@@ -24,15 +25,29 @@ export async function claimInvite(
     return { ok: false, status: 410, message: 'This invite is used up' }
   }
 
+  const now = new Date()
   await db.transaction(async (tx) => {
     await tx
       .update(invites)
       .set({ uses: sql`${invites.uses} + 1` })
       .where(eq(invites.id, invite.id))
+
+    // The code belongs to one team, so claiming joins *that* team — not "the" team.
     await tx
-      .update(user)
-      .set({ status: 'active', updatedAt: new Date() })
-      .where(eq(user.id, input.userId))
+      .insert(memberships)
+      .values({
+        id: crypto.randomUUID(),
+        teamId: invite.teamId,
+        userId: input.userId,
+        role: 'member',
+        status: 'active',
+        joinedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [memberships.teamId, memberships.userId],
+        set: { status: 'active', updatedAt: now },
+      })
   })
 
   return { ok: true, inviteId: invite.id }

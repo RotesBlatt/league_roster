@@ -44,14 +44,6 @@ export function createAuth(database: Db = defaultDb) {
       updateAge: 60 * 60 * 24,
     },
 
-    user: {
-      // Never settable from the client — only our routes touch these.
-      additionalFields: {
-        role: { type: 'string', required: false, defaultValue: 'member', input: false },
-        status: { type: 'string', required: false, defaultValue: 'pending', input: false },
-      },
-    },
-
     advanced: {
       defaultCookieAttributes: {
         httpOnly: true,
