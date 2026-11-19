@@ -2,12 +2,33 @@
 # Biome over the files this commit would add — fast, and it fails *before* the
 # commit exists rather than after CI does.
 #
-# Check mode on purpose: it must not silently rewrite files, and a red hook is
-# cheaper to undo than a rewritten working tree.
+# It fixes what Biome can fix (formatting, import order) and re-stages exactly those
+# files, so the fix is part of this commit instead of a red hook you have to redo by
+# hand. What it cannot fix (a real lint error) still fails the hook, with Biome's
+# message — nothing here swallows a diagnostic.
+#
+# Only files the fixer rewrote are re-added: a file that was already dirty before the
+# hook was touched by you, not by Biome, so staging it would quietly merge your
+# unstaged work into the commit.
 #
 # Install once per clone:  bun run hooks:install
 set -e
 
 # Markdown is outside Biome's scope (biome.json), so a docs-only commit simply
 # processes zero files and the hook stays quiet.
-bunx biome check --staged --no-errors-on-unmatched
+before=$(mktemp)
+after=$(mktemp)
+trap 'rm -f "$before" "$after"' EXIT
+
+git diff --name-only | sort >"$before"
+
+# exit status is Biome's: 0 when everything was fixable or clean, 1 when a diagnostic
+# remained — so an unfixable error still stops the commit.
+bunx biome check --staged --write --no-errors-on-unmatched
+
+git diff --name-only | sort >"$after"
+
+# lines in `after` but not in `before` = files this run rewrote
+comm -13 "$before" "$after" | while IFS= read -r file; do
+  [ -n "$file" ] && git add -- "$file"
+done
