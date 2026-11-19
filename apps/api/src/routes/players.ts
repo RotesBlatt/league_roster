@@ -3,7 +3,7 @@ import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { players } from '../db/schema.ts'
 import type { PlayerDto } from '../db/schema.types.ts'
-import { roleSchema } from '../lib/validate.ts'
+import { roleSchema, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
 function toDto(row: typeof players.$inferSelect): PlayerDto {
@@ -97,17 +97,24 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
       },
       {
         teamCaptain: true,
-        params: t.Object({ id: t.String() }),
+        params: teamParams,
         body: t.Partial(playerBody),
       },
     )
     .delete(
       '/:id',
-      async ({ params: { id }, team }) => {
-        await db.delete(players).where(and(eq(players.id, id), eq(players.teamId, team.id)))
+      async ({ params: { id }, team, status }) => {
+        // returning() so "not found" and "deleted" are distinguishable: a silent 200 on
+        // another team's player id would be a lie (and a cross-team one)
+        const deleted = await db
+          .delete(players)
+          .where(and(eq(players.id, id), eq(players.teamId, team.id)))
+          .returning({ id: players.id })
+
+        if (deleted.length === 0) return status(404, { message: 'Player not found' })
         return { ok: true }
       },
-      { teamCaptain: true, params: t.Object({ id: t.String() }) },
+      { teamCaptain: true, params: teamParams },
     )
 }
 

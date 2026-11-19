@@ -3,7 +3,7 @@ import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { invites, user } from '../db/schema.ts'
 import type { InviteDto } from '../db/schema.types.ts'
-import { inviteCode } from '../lib/validate.ts'
+import { inviteCode, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
 function toDto(row: typeof invites.$inferSelect, createdByName: string | null): InviteDto {
@@ -84,7 +84,7 @@ export function createInviteRoutes(db: Db, authPlugin: AuthPlugin) {
           if (!row || row.teamId !== team.id) return status(404, { message: 'Invite not found' })
           return { ok: true }
         },
-        { teamCaptain: true, params: t.Object({ id: t.String() }) },
+        { teamCaptain: true, params: teamParams },
       )
   )
 }

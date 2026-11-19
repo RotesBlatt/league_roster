@@ -11,6 +11,13 @@ export const roleSchema = t.UnionEnum(ROLES, { default: undefined })
 export const memberStatusSchema = t.UnionEnum(MEMBER_STATUSES, { default: undefined })
 export const userRoleSchema = t.UnionEnum(USER_ROLES, { default: undefined })
 
+/**
+ * Params for a team-scoped route that also names a row.
+ * `slug` comes from the /teams/:slug prefix, `id` from the route — and Elysia validates
+ * the whole params object, so a missing key is rejected as an additionalProperty (422).
+ */
+export const teamParams = t.Object({ slug: t.String(), id: t.String() })
+
 /** Random url-safe invite code, ~8 chars. */
 export function inviteCode(length = 8): string {
   const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789'

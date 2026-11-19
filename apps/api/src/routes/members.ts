@@ -3,7 +3,7 @@ import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { memberships, players, user } from '../db/schema.ts'
 import type { MemberDto } from '../db/schema.types.ts'
-import { memberStatusSchema, userRoleSchema } from '../lib/validate.ts'
+import { memberStatusSchema, teamParams, userRoleSchema } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
 type MemberPatch = { role?: 'captain' | 'member'; status?: 'active' | 'disabled' }
@@ -117,7 +117,7 @@ export function createMemberRoutes(db: Db, authPlugin: AuthPlugin) {
         },
         {
           teamCaptain: true,
-          params: t.Object({ id: t.String() }),
+          params: teamParams,
           // t.Partial keeps the literal types; t.Optional(UnionEnum(...)) collapses them to undefined.
           body: t.Partial(t.Object({ role: userRoleSchema, status: memberStatusSchema })),
         },
