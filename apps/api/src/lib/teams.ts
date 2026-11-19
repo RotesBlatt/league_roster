@@ -1,3 +1,4 @@
+import { SHORT_NAME_MAX } from '@lol/shared'
 import { and, eq } from 'drizzle-orm'
 import type { Db } from '../db/index.ts'
 import { memberships, teams } from '../db/schema.ts'
@@ -5,9 +6,6 @@ import { slugify, slugProblem } from './slug.ts'
 
 export type TeamRow = typeof teams.$inferSelect
 export type MembershipRow = typeof memberships.$inferSelect
-
-/** A badge-sized tag next to the name: "DBW". Optional, so no minimum beyond non-blank. */
-export const SHORT_NAME_MAX = 8
 
 /** The tenant is addressed by slug in the URL (`/api/teams/:slug/...`), never by id. */
 export async function getTeamBySlug(db: Db, slug: string): Promise<TeamRow | null> {

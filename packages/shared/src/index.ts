@@ -1,3 +1,8 @@
+/** Team name limits. Shared so the create form and the API cannot disagree about them. */
+export const TEAM_NAME_MAX = 80
+/** A badge-sized tag next to the name, e.g. "DBW". Optional, so no minimum. */
+export const SHORT_NAME_MAX = 8
+
 export const ROLES = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'] as const
 export type Role = (typeof ROLES)[number]
 

@@ -1,11 +1,12 @@
+import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
 import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { meForTeam } from '../lib/access.ts'
-import { createTeam, SHORT_NAME_MAX } from '../lib/teams.ts'
+import { createTeam } from '../lib/teams.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
 const teamBody = t.Object({
-  name: t.String({ minLength: 1, maxLength: 80 }),
+  name: t.String({ minLength: 1, maxLength: TEAM_NAME_MAX }),
   // optional badge tag ("DBW"); the rule itself lives in createTeam, this only bounds the input
   shortName: t.Optional(t.String({ maxLength: SHORT_NAME_MAX })),
 })
