@@ -62,8 +62,10 @@ you write the next one.
 
 - Apply one patch to the working tree, then **stop**. Do not start the next one,
   do not "also fix" something you noticed, do not regenerate the queue silently.
-- Tell me exactly three things: **what changed** (file → the change), **what to
-  check**, and **what is expected to be red until a later patch**.
+- Tell me exactly four things: **what changed** (file → the change), **what to
+  check**, **what is expected to be red until a later patch**, and a **recommended
+  commit message** — one line, ready to paste, obeying the commit rules below. It
+  is a recommendation to accept or rewrite, never a commit: I still commit.
 - Keep each patch reviewable in one screen (~1 file, ~100 lines). If it can't be,
   it is too big — split it by concern *before* applying it.
 - Formatting is never part of a behaviour patch. `bun run check` reformats whole
@@ -91,6 +93,9 @@ Rules that keep history usable:
 - **One line per commit message. No body.** Subject ≤50 chars, imperative,
   scoped (`fix(api): …`). If the why does not fit on one line, the commit is
   too big — split it, or put the reasoning in the code it belongs to.
+- Every patch report carries that message already written out, so the loop never
+  stalls on "what do we call this commit?". If I have to edit the proposal, the
+  patch was doing more than its one idea.
 
 ## Stack
 
