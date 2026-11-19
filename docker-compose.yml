@@ -48,8 +48,8 @@ services:
       # talks to the db service over the compose network
       DATABASE_URL: postgres://${POSTGRES_USER:-lol}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-lol} # yamllint disable-line rule:line-length
     ports:
-      # host:container — put nginx/Caddy in front of this if you want TLS
-      - "3001:3001"
+      # host:container — loopback only; nginx/Caddy fronts this for TLS
+      - "127.0.0.1:3001:3001"
     depends_on:
       db:
         condition: service_healthy
