@@ -36,12 +36,41 @@ Every code change ships with tests. "It's a small change" is not an exemption.
 
 ## Pair programming — how work happens here
 
+Go slow. Ask. Work *with* me, not ahead of me.
+
 1. State the plan first: files touched, order, what changes, how it is verified.
 2. Wait for a go-ahead before multi-file or architectural work.
-3. Small steps, one topic per step. Don't bundle an unrelated refactor into a fix.
-4. Raise decisions that belong to the user (stack choice, data model, deploy
-   target) instead of silently picking one.
-5. Commit only when explicitly asked.
+3. **One thing at a time in the working tree. Never two.** Not "the fix plus its
+   tests plus the web side", not "the feature plus a tidy-up". If a step needs
+   more than one package, it becomes several patches applied one after another;
+   the next one does not exist in the tree until I have reviewed and committed
+   the previous one. A working tree containing two ideas is unreviewable and is
+   not a shortcut — it is the thing that made me stop working with you.
+4. **One package at a time.** `packages/shared` → `apps/api` → `apps/web`. A
+   cross-package change is a *sequence*, never one diff.
+5. Small steps, one topic per step. Don't bundle an unrelated refactor into a fix
+   — and don't bundle formatting either (see below).
+6. Raise decisions that belong to the user (stack choice, data model, deploy
+   target, product rules) instead of silently picking one.
+7. Commit only when explicitly asked. I say "committed" — then, and only then,
+   the next patch.
+
+### The review rhythm
+
+The loop is: you write **one** patch → I read `git diff` → I say "committed" →
+you write the next one.
+
+- Apply one patch to the working tree, then **stop**. Do not start the next one,
+  do not "also fix" something you noticed, do not regenerate the queue silently.
+- Tell me exactly three things: **what changed** (file → the change), **what to
+  check**, and **what is expected to be red until a later patch**.
+- Keep each patch reviewable in one screen (~1 file, ~100 lines). If it can't be,
+  it is too big — split it by concern *before* applying it.
+- Formatting is never part of a behaviour patch. `bun run check` reformats whole
+  files; if it touches files you did not intend to change, revert that and make a
+  separate `style:` commit.
+- Never commit on my behalf, and never rewrite history I already committed.
+- If a patch turns out wrong, say so and propose the fix as its own patch.
 
 ### Commit size
 
@@ -54,6 +83,7 @@ changes. A commit is one idea:
 
 Rules that keep history usable:
 
+- One idea per commit. If the subject line needs "and", split it.
 - Tests travel with the change they cover; a bugfix commit contains its
   regression test.
 - Every commit compiles and keeps the suite green (`bun run typecheck`).
