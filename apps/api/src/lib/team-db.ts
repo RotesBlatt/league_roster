@@ -31,6 +31,24 @@ export type TeamDb = {
     filter?: SQL,
     options?: { orderBy?: (SQL | PgColumn)[] },
   ): Promise<InferSelectModel<T>[]>
+  /**
+   * A scoped table joined to one other (usually the global `user`, for a display name).
+   * The team predicate still applies to the scoped side, so a join cannot widen the team.
+   * `columns` is the projection; `kind` defaults to a left join.
+   */
+  joinFrom<A extends TeamScoped, B extends PgTable, C extends Record<string, unknown>>(
+    table: A,
+    joined: B,
+    on: SQL,
+    /**
+     * Drizzle projection (`{ invite: invites, createdByName: user.name }`). Deliberately not
+     * typed as `C`: then C would be inferred from the projection *arguments*, and a nested table
+     * (`invite: invites`) would be read as "this value must be an invite row" and rejected.
+     * Left opaque, C is inferred from how the caller uses the rows — which is what it means.
+     */
+    columns: Record<string, unknown>,
+    options?: { kind?: 'left' | 'inner'; filter?: SQL; orderBy?: (SQL | PgColumn)[] },
+  ): Promise<C[]>
   insertInto<T extends TeamScoped>(
     table: T,
     values: TeamInsert<T>,
@@ -58,7 +76,7 @@ export function forTeam(db: Db, team: TeamRow): TeamDb {
    * Drizzle's builders refuse a *generic* table (`TableLikeHasEmptySelection<T>` is conditional),
    * while every real call site passes a concrete one. This is the single place that pays for it.
    */
-  const asTable = (table: TeamScoped): PgTable => table as PgTable
+  const asTable = (table: PgTable): PgTable => table
 
   return {
     team,
@@ -69,6 +87,20 @@ export function forTeam(db: Db, team: TeamRow): TeamDb {
       // drizzle cannot carry a *generic* table through its builder types; the bound is
       // `TeamScoped`, and every call site passes a concrete table, so the shape is sound
       return (await ordered) as InferSelectModel<typeof table>[]
+    },
+
+    async joinFrom(table, joined, on, columns, options) {
+      // `C` is the caller's projection; drizzle's SelectedFields is generic over table name and
+      // field set, which a generic helper cannot name — the values are the caller's own columns
+      const base = db.select(columns as never).from(asTable(table))
+      const joinedTable = asTable(joined)
+      const withJoin =
+        options?.kind === 'inner' ? base.innerJoin(joinedTable, on) : base.leftJoin(joinedTable, on)
+      const narrowed = withJoin.where(scoped(table, options?.filter))
+      const rows = options?.orderBy ? await narrowed.orderBy(...options.orderBy) : await narrowed
+      // the object-literal method cannot name its own type parameter `C`; the declared
+      // signature in `TeamDb` is what the caller sees
+      return rows as never
     },
 
     async insertInto(table, values) {

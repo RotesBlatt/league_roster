@@ -105,6 +105,30 @@ describe('writes never cross a team boundary', () => {
     expect(remove.status).toBe(404)
   })
 
+  // regression: revoke used to update by id and check the team afterwards, so captain A got a
+  // 404 for bravo's invite *after* it had already been revoked
+  test('captain A cannot revoke bravo’s invite by id', async () => {
+    const created = (await (
+      await call('/api/teams/bravo/invites', {
+        cookie: captainBCookie,
+        method: 'POST',
+        body: { note: 'bravo only' },
+      })
+    ).json()) as { id: string }
+
+    const revoke = await call(`/api/teams/alpha/invites/${created.id}/revoke`, {
+      cookie: captainACookie,
+      method: 'POST',
+    })
+    expect(revoke.status).toBe(404)
+
+    // and bravo's invite still works
+    const bravoInvites = (await (
+      await call('/api/teams/bravo/invites', { cookie: captainBCookie })
+    ).json()) as { id: string; revokedAt: number | null }[]
+    expect(bravoInvites.find((row) => row.id === created.id)?.revokedAt).toBeNull()
+  })
+
   test('...and the player is untouched', async () => {
     const rows = (await (
       await call('/api/teams/alpha/players', { cookie: captainACookie })

@@ -101,7 +101,7 @@ export function createApp(options: AppOptions = {}) {
             team
               // route factories get a scope, not the db: no team in the path, no handle
               .use(createPlayerRoutes((scoped) => forTeam(db, scoped), authPlugin))
-              .use(createInviteRoutes(db, authPlugin))
+              .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin))
               .use(createMemberRoutes(db, authPlugin)),
           ),
       )

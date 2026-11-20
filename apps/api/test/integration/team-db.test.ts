@@ -1,9 +1,15 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
-import { players } from '../../src/db/schema.ts'
+import { memberships, players, user } from '../../src/db/schema.ts'
 import { forTeam } from '../../src/lib/team-db.ts'
 import { getTeamBySlug } from '../../src/lib/teams.ts'
-import { createTestContext, createUser, seedTeam, type TestContext } from './helpers.ts'
+import {
+  addMembership,
+  createTestContext,
+  createUser,
+  seedTeam,
+  type TestContext,
+} from './helpers.ts'
 
 /**
  * The point of `forTeam` (multi-team.md §5): a route cannot reach another team's rows, not
@@ -117,6 +123,26 @@ describe('forTeam', () => {
 
     const alphaRows = await ctx.db.select().from(players).where(eq(players.teamId, alphaId))
     expect(alphaRows.find((row) => row.displayName === 'Smuggled')?.teamId).toBe(alphaId)
+  })
+
+  // the pair invites.ts and members.ts need: a team table joined to a global one (`user`)
+  test('joins a global table and still reads only its own team', async () => {
+    const scope = await alphaScope()
+    const alphaCaptain = await createUser(ctx, { name: 'Alpha Captain' })
+    const bravoCaptain = await createUser(ctx, { name: 'Bravo Captain' })
+    await addMembership(ctx, { teamId: alphaId, userId: alphaCaptain, role: 'captain' })
+    await addMembership(ctx, { teamId: bravoId, userId: bravoCaptain, role: 'captain' })
+
+    const rows = await scope.joinFrom(
+      memberships,
+      user,
+      eq(memberships.userId, user.id),
+      { name: user.name, role: memberships.role },
+      { kind: 'inner', orderBy: [user.name] },
+    )
+
+    expect(rows.map((row) => row.name)).toContain('Alpha Captain')
+    expect(rows.map((row) => row.name)).not.toContain('Bravo Captain')
   })
 
   test('orders what it returns when asked', async () => {

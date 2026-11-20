@@ -1,8 +1,8 @@
 import { desc, eq } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
-import type { Db } from '../db/index.ts'
 import { invites, user } from '../db/schema.ts'
 import type { InviteDto } from '../db/schema.types.ts'
+import type { TeamScope } from '../lib/team-db.ts'
 import { inviteCode, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
@@ -24,19 +24,26 @@ function toDto(row: typeof invites.$inferSelect, createdByName: string | null): 
 /**
  * Mounted under /api/teams/:slug. A code belongs to exactly one team, so claiming it
  * (see routes/claim.ts) can only ever join that team.
+ *
+ * Scoped like the roster: the `user` join is only there for a display name, and the team
+ * predicate comes from the handle — which is what makes revoking another team's invite
+ * impossible, rather than "possible but answered with a 404".
  */
-export function createInviteRoutes(db: Db, authPlugin: AuthPlugin) {
+export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
   return new Elysia({ prefix: '/invites' })
     .use(authPlugin)
     .get(
       '/',
       async ({ team }) => {
-        const rows = await db
-          .select({ invite: invites, createdByName: user.name })
-          .from(invites)
-          .leftJoin(user, eq(invites.createdBy, user.id))
-          .where(eq(invites.teamId, team.id))
-          .orderBy(desc(invites.createdAt))
+        // the projection is opaque to the handle, so the row shape is stated here, where it is used
+        const rows: { invite: typeof invites.$inferSelect; createdByName: string | null }[] =
+          await scope(team).joinFrom(
+            invites,
+            user,
+            eq(invites.createdBy, user.id),
+            { invite: invites, createdByName: user.name },
+            { orderBy: [desc(invites.createdAt)] },
+          )
         return rows.map((row) => toDto(row.invite, row.createdByName))
       },
       { teamCaptain: true },
@@ -44,21 +51,18 @@ export function createInviteRoutes(db: Db, authPlugin: AuthPlugin) {
     .post(
       '/',
       async ({ body, me, team }) => {
-        const [row] = await db
-          .insert(invites)
-          .values({
-            id: crypto.randomUUID(),
-            code: inviteCode(),
-            note: body.note ?? null,
-            createdBy: me.id,
-            teamId: team.id,
-            maxUses: body.maxUses ?? 1,
-            expiresAt: body.expiresInDays
-              ? new Date(Date.now() + body.expiresInDays * 86_400_000)
-              : null,
-            createdAt: new Date(),
-          })
-          .returning()
+        // no teamId in the values: the scope injects it
+        const row = await scope(team).insertInto(invites, {
+          id: crypto.randomUUID(),
+          code: inviteCode(),
+          note: body.note ?? null,
+          createdBy: me.id,
+          maxUses: body.maxUses ?? 1,
+          expiresAt: body.expiresInDays
+            ? new Date(Date.now() + body.expiresInDays * 86_400_000)
+            : null,
+          createdAt: new Date(),
+        })
 
         if (!row) throw new Error('insert failed')
         return toDto(row, me.name)
@@ -75,12 +79,14 @@ export function createInviteRoutes(db: Db, authPlugin: AuthPlugin) {
     .post(
       '/:id/revoke',
       async ({ params: { id }, team, status }) => {
-        const [row] = await db
-          .update(invites)
-          .set({ revokedAt: new Date() })
-          .where(eq(invites.id, id))
-          .returning()
-        if (!row || row.teamId !== team.id) return status(404, { message: 'Invite not found' })
+        // another team's id matches nothing here, so the 404 happens before any write
+        const [row] = await scope(team).update(
+          invites,
+          { revokedAt: new Date() },
+          eq(invites.id, id),
+        )
+
+        if (!row) return status(404, { message: 'Invite not found' })
         return { ok: true }
       },
       { teamCaptain: true, params: teamParams },
