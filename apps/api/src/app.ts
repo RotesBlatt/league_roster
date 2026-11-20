@@ -107,7 +107,7 @@ export function createApp(options: AppOptions = {}) {
           requestLog.onError({ request, set, code, error })
           return serveSpaIndex()
         }
-        console.error('[api]', code, error)
+        // No console.error: the 5xx http.request line already carries the code and stack.
         set.status = 500
         const body = { message: 'Internal error' }
         requestLog.onError({ request, set, code, error, message: body.message })
