@@ -122,8 +122,7 @@ Small on purpose. Every event here is something you would actually grep for.
 | `db.connect_failed` | error | `target`, hint lines | `index.ts` |
 | `db.migrate` | info | `folder`, `ms` | `db/migrate.ts` |
 | `http.request` | status-derived | `id`, `method`, `path`, `status`, `ms`, `userId`, `role`, `ip`, `ua`, `message?`, `errorCode?`, `slow?` | `lib/log/http.ts` |
-| `auth.denied` | info (`warn` for captain-only) | `guard`, `reason`, `userId?` | `plugins/auth.ts` |
-| `auth.bootstrap_promote` | warn | `userId`, `reason` (`allowlist` \| `first_user`) | `lib/access.ts` |
+| `auth.denied` | info (`warn` for captain-only) | `guard` (`auth` \| `teamMember` \| `teamCaptain`), `reason` (`not_signed_in` \| `no_team_in_path` \| `not_a_member` \| `inactive` \| `captain_only`), `userId?` | `plugins/auth.ts` |
 | `invite.created` | info | `inviteId`, `byUserId`, `maxUses`, `expiresAt` | `routes/invites.ts` |
 | `invite.claimed` | info | `inviteId`, `userId`, `uses`, `maxUses` | `lib/invites.ts` |
 | `invite.claim_rejected` | warn | `userId`, `reason` (`not_found` \| `revoked` \| `expired` \| `used_up`), `inviteId?` | `lib/invites.ts` |
@@ -233,7 +232,7 @@ asserts that a breaking destination yields a 200 from a route.
   short-circuit logging
 - `test/unit/env.test.ts` — new knobs, defaults, invalid `LOG_LEVEL`
 - `test/unit/invites.test.ts` / `access.test.ts` (new, no HTTP) — a fake logger receives
-  `invite.claimed` / `invite.claim_rejected` / `auth.bootstrap_promote` with the right fields, and
+  `invite.claimed` / `invite.claim_rejected` with the right fields, and
   **no invite code**
 - `test/integration/logging.test.ts` — inject a memory sink into `createApp({ logger })` and assert:
   200 / 401 / 403 / 422 / 404-SPA / better-auth / thrown 500 each emit **exactly one**
@@ -253,7 +252,6 @@ Then `bun run test`, `bun run test:db`, `bun run typecheck`, `bun run check`.
 | `apps/api/src/index.ts` | build the logger from `env`, `server.start`, `server.stop`, unhandled errors |
 | `apps/api/src/env.ts` | `log` config block |
 | `apps/api/src/plugins/auth.ts` | `logger`, `auth.denied`, user stamped onto the request record |
-| `apps/api/src/lib/access.ts` | `auth.bootstrap_promote` |
 | `apps/api/src/lib/invites.ts` | `invite.claimed` / `invite.claim_rejected` |
 | `apps/api/src/routes/{players,invites,members}.ts` | factory takes `logger`, emits its events |
 | `apps/api/src/db/migrate.ts` | `db.migrate` |

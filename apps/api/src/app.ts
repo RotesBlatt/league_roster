@@ -36,11 +36,15 @@ export function createApp(options: AppOptions = {}) {
   const auth = options.auth ?? defaultAuth
   const logger = options.logger ?? noopLogger
   const { spaAssets, serveSpaIndex } = createSpa(options.spaDist ?? env.webDist)
-  const authPlugin = createAuthPlugin({ auth, db })
   const requestLog = createRequestLog({
     logger,
     slowMs: env.log.slowMs,
     logAssets: env.log.assets,
+  })
+  const authPlugin = createAuthPlugin({
+    auth,
+    db,
+    requestLogger: (request) => requestLog.requestLogger(request),
   })
 
   return (

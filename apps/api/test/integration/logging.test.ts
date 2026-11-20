@@ -112,7 +112,7 @@ describe('request logging', () => {
     await settle(before + 2)
 
     const emitted = since(before)
-    expect(emitted).toHaveLength(2)
+    expect(emitted.filter((record) => record.event === 'http.request')).toHaveLength(2)
     const me = emitted.find((record) => record.path === '/api/me')
     const member = emitted.find((record) => record.path === `/api/teams/alpha/members/${captainId}`)
     expect(me).toMatchObject({ path: '/api/me', status: 401, level: 'warn' })
@@ -182,5 +182,60 @@ describe('request logging', () => {
     const secret = memberCookie.slice(memberCookie.indexOf('=') + 1)
     expect(haystack).not.toContain(secret)
     expect(haystack).not.toContain('better-auth.session_token')
+  })
+})
+
+describe('auth.denied', () => {
+  test('a captain-only denial is a warn line with guard, reason and user', async () => {
+    const before = records().length
+    const res = await call(`/api/teams/alpha/members/${memberId}`, {
+      method: 'PATCH',
+      body: { role: 'member' },
+      cookie: memberCookie,
+    })
+    expect(res.status).toBe(403)
+    await settle(before + 2)
+
+    const emitted = since(before)
+    const denied = emitted.find((record) => record.event === 'auth.denied')
+    const request = emitted.find((record) => record.event === 'http.request')
+    expect(denied).toMatchObject({
+      guard: 'teamCaptain',
+      reason: 'captain_only',
+      userId: memberId,
+      level: 'warn',
+    })
+    // correlated with the request line that produced it
+    expect(denied.requestId).toBe(request.id)
+  })
+
+  test('not signed in and not a member are info-level denials', async () => {
+    const outsider = await createUser(ctx, { name: 'Outsider' })
+    const outsiderCookie = await createSessionCookie(ctx, outsider)
+    const before = records().length
+
+    await call('/api/me')
+    await call('/api/teams/alpha/players', { cookie: outsiderCookie })
+    await settle(before + 4)
+
+    const emitted = since(before)
+    const notSignedIn = emitted.find((record) => record.reason === 'not_signed_in')
+    const notMember = emitted.find((record) => record.reason === 'not_a_member')
+    expect(notSignedIn).toMatchObject({ event: 'auth.denied', guard: 'auth', level: 'info' })
+    expect(notMember).toMatchObject({
+      event: 'auth.denied',
+      guard: 'teamMember',
+      reason: 'not_a_member',
+      userId: outsider,
+      level: 'info',
+    })
+  })
+
+  test('an allowed request logs no denial', async () => {
+    const before = records().length
+    const res = await call('/api/me', { cookie: memberCookie })
+    expect(res.status).toBe(200)
+    await settle(before + 1)
+    expect(since(before).some((record) => record.event === 'auth.denied')).toBe(false)
   })
 })
