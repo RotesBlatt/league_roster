@@ -5,6 +5,30 @@ export const REPO_ROOT = join(import.meta.dir, '../../..')
 
 export type EnvSource = Record<string, string | undefined>
 
+const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const
+
+export type LogLevel = (typeof LOG_LEVELS)[number]
+
+/** `true`/`1` and `false`/`0`, anything else (including unset) gives the default. */
+function envBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === '') return fallback
+  const normalized = value.toLowerCase()
+  if (normalized === 'true' || normalized === '1') return true
+  if (normalized === 'false' || normalized === '0') return false
+  return fallback
+}
+
+/** A positive whole number, or the default. Log config is silent — no warnings. */
+function envPositiveInt(value: string | undefined, fallback: number): number {
+  if (value === undefined || value === '') return fallback
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function envLogLevel(value: string | undefined): LogLevel {
+  return (LOG_LEVELS as readonly string[]).includes(value ?? '') ? (value as LogLevel) : 'info'
+}
+
 /** Pure reader so tests can exercise parsing without touching process.env. */
 export function readEnv(source: EnvSource = process.env, options: { warn?: boolean } = {}) {
   const warn = options.warn ?? source === process.env
@@ -34,6 +58,14 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     databaseUrl,
     webDist: resolve(REPO_ROOT, source.WEB_DIST ?? 'apps/web/dist'),
     discord,
+    log: {
+      level: envLogLevel(source.LOG_LEVEL),
+      toFile: envBool(source.LOG_TO_FILE, true),
+      dir: resolve(REPO_ROOT, source.LOG_DIR ?? 'logs'),
+      retentionDays: envPositiveInt(source.LOG_RETENTION_DAYS, 14),
+      assets: envBool(source.LOG_ASSETS, false),
+      slowMs: envPositiveInt(source.LOG_SLOW_MS, 500),
+    },
 
     get discordConfigured() {
       return Boolean(discord.clientId && discord.clientSecret)

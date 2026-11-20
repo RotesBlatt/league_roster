@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
-import { readEnv } from '../../src/env.ts'
+import { isAbsolute, join, resolve } from 'node:path'
+import { REPO_ROOT, readEnv } from '../../src/env.ts'
 
 const base = {
   BETTER_AUTH_SECRET: 'x'.repeat(32),
@@ -86,5 +86,59 @@ describe('readEnv', () => {
     const custom = join(tmpdir(), 'built-web')
     const absolute = readEnv({ ...base, WEB_DIST: custom }, { warn: false })
     expect(absolute.webDist).toBe(custom)
+  })
+})
+
+describe('readEnv log config', () => {
+  test('defaults to info, file on, 14 days, assets off, slow 500ms', () => {
+    const env = readEnv(base, { warn: false })
+    expect(env.log.level).toBe('info')
+    expect(env.log.toFile).toBe(true)
+    expect(env.log.dir).toBe(resolve(REPO_ROOT, 'logs'))
+    expect(env.log.retentionDays).toBe(14)
+    expect(env.log.assets).toBe(false)
+    expect(env.log.slowMs).toBe(500)
+  })
+
+  test('LOG_LEVEL accepts the four levels and falls back to info', () => {
+    for (const level of ['debug', 'info', 'warn', 'error'] as const) {
+      expect(readEnv({ ...base, LOG_LEVEL: level }, { warn: false }).log.level).toBe(level)
+    }
+    expect(readEnv({ ...base, LOG_LEVEL: 'trace' }, { warn: false }).log.level).toBe('info')
+    expect(readEnv({ ...base, LOG_LEVEL: '' }, { warn: false }).log.level).toBe('info')
+  })
+
+  test('booleans accept true/false and their numeric forms', () => {
+    const withLog = (value: string) =>
+      readEnv({ ...base, LOG_TO_FILE: value, LOG_ASSETS: value }, { warn: false }).log
+    expect(withLog('false').toFile).toBe(false)
+    expect(withLog('0').toFile).toBe(false)
+    expect(withLog('true').toFile).toBe(true)
+    expect(withLog('1').toFile).toBe(true)
+    expect(withLog('true').assets).toBe(true)
+    expect(readEnv(base, { warn: false }).log.assets).toBe(false)
+  })
+
+  test('LOG_DIR resolves against the repo root; an absolute path wins', () => {
+    expect(readEnv({ ...base, LOG_DIR: 'var/logs' }, { warn: false }).log.dir).toBe(
+      resolve(REPO_ROOT, 'var/logs'),
+    )
+    const absolute = join(tmpdir(), 'api-logs')
+    expect(readEnv({ ...base, LOG_DIR: absolute }, { warn: false }).log.dir).toBe(absolute)
+  })
+
+  test('numbers fall back to their defaults when invalid', () => {
+    expect(readEnv({ ...base, LOG_RETENTION_DAYS: '30' }, { warn: false }).log.retentionDays).toBe(
+      30,
+    )
+    expect(readEnv({ ...base, LOG_RETENTION_DAYS: 'abc' }, { warn: false }).log.retentionDays).toBe(
+      14,
+    )
+    expect(readEnv({ ...base, LOG_RETENTION_DAYS: '0' }, { warn: false }).log.retentionDays).toBe(
+      14,
+    )
+    expect(readEnv({ ...base, LOG_SLOW_MS: '1000' }, { warn: false }).log.slowMs).toBe(1000)
+    expect(readEnv({ ...base, LOG_SLOW_MS: '-5' }, { warn: false }).log.slowMs).toBe(500)
+    expect(readEnv({ ...base, LOG_SLOW_MS: 'abc' }, { warn: false }).log.slowMs).toBe(500)
   })
 })
