@@ -72,7 +72,7 @@ But route code never imports pino directly: `Logger` is our own narrow type
 (`debug|info|warn|error|child`), `createLogger()` is the only place pino is constructed, and tests
 inject a capture stream. That keeps the swap-over a one-file change in either direction.
 
-Dependencies: `pino`, `pino-pretty` (console, used as a plain synchronous stream — **not** a
+Dependencies: `pino`, `pino-pretty` (console, used as a plain stream into a `Writable` — **not** a
 worker-thread transport, which is the fragile part on Bun), `pino-roll` (daily file + retention).
 Pino is configured to keep the record shape below: `base: null` (no `pid`/`hostname`), a string
 `level` via `formatters.level`, and `ts` (ISO) via a custom timestamp.
@@ -209,12 +209,17 @@ Parsed in `readEnv` (already injectable/pure, `test/unit/env.test.ts`):
 
 ## 7. Rotation and writing
 
-`pino-roll` writes the daily file (`api-YYYY-MM-DD.log`) and enforces `LOG_RETENTION_DAYS` via
-`limit.count`; we own no rotation code. The file destination is synchronous (`pino.destination({ sync: true })`)
-so a dying process cannot swallow the last lines, and the cost is irrelevant at this traffic.
+`pino-roll` writes the daily file and enforces `LOG_RETENTION_DAYS` via `limit.count`; we own no
+rotation code. Its naming is `api.<YYYY-MM-DD>.<n>.log` — dot-separated, plus a rotation count —
+not the `api-YYYY-MM-DD.log` first drafted here. We accept that: owning rotation correctly is worth
+more than the separator. Retention is **count-based** and applies to the daily files the process
+manages, at rotation time; with a daily cadence `LOG_RETENTION_DAYS = 14` means "keep 14 days", which
+is the intent. The stream is created with `sync: true` so a dying process does not swallow the last
+lines, and the cost is irrelevant at this traffic.
 
-A destination that throws must never affect the caller: the facade wraps every emit, and a unit test
-asserts that a broken destination still yields a 200 from a route.
+The two sinks are independent: a file that cannot be written must not take the console down, and a
+broken console must not lose the file line. Each write is guarded separately, and the facade still
+asserts that a breaking destination yields a 200 from a route.
 
 ## 8. Tests (test-first, per `AGENTS.md`)
 
@@ -279,7 +284,8 @@ report and found with one `grep`.
 
 1. `docs(ideas): choose pino for api logging` — this doc
 2. `feat(api): add pino logger facade` — `lib/log/{logger,noop}.ts` + unit tests
-3. `feat(api): console and rotating file destinations` — `lib/log/destinations.ts`, `env.ts` knobs + tests
+3. `feat(api): console and rotating file destinations` — `lib/log/destinations.ts` + tests
+   (`env.ts` knobs landed separately as `feat(api): log config knobs in env`)
 4. `feat(api): log every http request and its outcome` — `lib/log/http.ts`, `app.ts`, `index.ts`,
    integration test
 5. `feat(api): log domain events` — auth/access/invites/members/players/migrate + their unit tests
