@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { memberships, teams } from '../../src/db/schema.ts'
-import { createTeam } from '../../src/lib/teams.ts'
+import { createTeam, renameTeam } from '../../src/lib/teams.ts'
 import {
   addMembership,
   createSessionCookie,
@@ -138,6 +138,115 @@ describe('createTeam', () => {
       shortName: 'DBWDBWDBWDBW',
     })
     expect(tooLong).toMatchObject({ ok: false, status: 422 })
+  })
+})
+
+describe('renameTeam', () => {
+  test('the name and short name change, and the slug follows the name', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, { userId: owner, name: 'Alte Garde', shortName: 'AG' })
+    if (!created.ok) throw new Error(created.message)
+
+    const result = await renameTeam(ctx.db, {
+      team: created.team,
+      name: 'Neue Welle',
+      shortName: 'NW',
+    })
+    if (!result.ok) throw new Error(result.message)
+
+    expect(result.team).toMatchObject({ name: 'Neue Welle', shortName: 'NW', slug: 'neue-welle' })
+
+    // the row really changed, not just the returned object
+    const [row] = await ctx.db.select().from(teams).where(eq(teams.id, created.team.id))
+    expect(row).toMatchObject({ name: 'Neue Welle', shortName: 'NW', slug: 'neue-welle' })
+  })
+
+  test('a blank short name clears it', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, {
+      userId: owner,
+      name: 'Tag und Tuch',
+      shortName: 'TT',
+    })
+    if (!created.ok) throw new Error(created.message)
+
+    const result = await renameTeam(ctx.db, {
+      team: created.team,
+      name: 'Tag und Tuch',
+      shortName: '   ',
+    })
+    if (!result.ok) throw new Error(result.message)
+
+    expect(result.team.shortName).toBeNull()
+  })
+
+  test('a short name can be left out entirely without touching the existing one', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, { userId: owner, name: 'Bleibt', shortName: 'BL' })
+    if (!created.ok) throw new Error(created.message)
+
+    const result = await renameTeam(ctx.db, { team: created.team, name: 'Bleibt auch' })
+    if (!result.ok) throw new Error(result.message)
+
+    expect(result.team.shortName).toBe('BL')
+  })
+
+  test('renaming a team to its own name is not a collision with itself', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, { userId: owner, name: 'Eigen Name', shortName: 'EN' })
+    if (!created.ok) throw new Error(created.message)
+
+    const result = await renameTeam(ctx.db, {
+      team: created.team,
+      name: 'EIGEN NAME',
+      shortName: 'EN',
+    })
+
+    expect(result).toMatchObject({ ok: true, team: { name: 'EIGEN NAME', slug: 'eigen-name' } })
+  })
+
+  test('a name whose slug another team owns is a 409, and this team is untouched', async () => {
+    const owner = await createUser(ctx)
+    const first = await createTeam(ctx.db, { userId: owner, name: 'Besetzt' })
+    const second = await createTeam(ctx.db, { userId: owner, name: 'Frei' })
+    if (!first.ok) throw new Error(first.message)
+    if (!second.ok) throw new Error(second.message)
+
+    const clash = await renameTeam(ctx.db, { team: second.team, name: 'besetzt!!' })
+
+    expect(clash).toMatchObject({ ok: false, status: 409 })
+    const [row] = await ctx.db.select().from(teams).where(eq(teams.id, second.team.id))
+    expect(row).toMatchObject({ name: 'Frei', slug: 'frei' })
+  })
+
+  test('an unusable or reserved name is a 422, and nothing is written', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, { userId: owner, name: 'Solide' })
+    if (!created.ok) throw new Error(created.message)
+
+    for (const name of ['!!!', 'Admin']) {
+      expect(await renameTeam(ctx.db, { team: created.team, name })).toMatchObject({
+        ok: false,
+        status: 422,
+      })
+    }
+
+    const [row] = await ctx.db.select().from(teams).where(eq(teams.id, created.team.id))
+    expect(row).toMatchObject({ name: 'Solide', slug: 'solide' })
+  })
+
+  test('an over-long short name is a 422', async () => {
+    const owner = await createUser(ctx)
+    const created = await createTeam(ctx.db, { userId: owner, name: 'Taglos' })
+    if (!created.ok) throw new Error(created.message)
+
+    expect(
+      await renameTeam(ctx.db, {
+        team: created.team,
+        name: 'Taglos',
+        shortName: 'DBWDBWDBWDBW',
+      }),
+    ).toMatchObject({ ok: false, status: 422 })
   })
 })
 

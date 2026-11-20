@@ -50,6 +50,12 @@ export type CreateTeamResult =
   | { ok: true; team: TeamRow; membership: MembershipRow }
   | { ok: false; status: 409 | 422; message: string }
 
+/** A unique violation on `team.slug`: someone else already owns the slug this update names. */
+function isSlugConflict(error: unknown): boolean {
+  const code = (error as { code?: string; cause?: { code?: string } } | null)?.code
+  return (code ?? (error as { cause?: { code?: string } } | null)?.cause?.code) === '23505'
+}
+
 const blankToNull = (value: string | null | undefined): string | null => {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
@@ -121,4 +127,58 @@ export async function createTeam(
 
     return { ok: true, team, membership } as const
   })
+}
+
+export type RenameTeamResult =
+  | { ok: true; team: TeamRow }
+  | { ok: false; status: 409 | 422; message: string }
+
+/**
+ * Renaming is the captain's edit of the same two fields `createTeam` took, plus the slug they
+ * imply (multi-team.md §11.2 / team-rename.md §2): the URL follows the name, so a rename that
+ * changes the name usually changes the slug. `shortName: undefined` leaves it as it is; an empty
+ * one clears it.
+ *
+ * A slug another team owns is a 409 (the name is fine, it is taken) and the row stays as it was.
+ * There is no `onConflictDoNothing` for an UPDATE, so the unique index is the test: one statement,
+ * and a losing race arrives as the same 409 as a plain collision. Renaming to the team's own slug
+ * never conflicts — a row does not collide with itself.
+ */
+export async function renameTeam(
+  db: Db,
+  input: { team: TeamRow; name: string; shortName?: string | null },
+): Promise<RenameTeamResult> {
+  const name = input.name.trim()
+  const slug = slugify(name)
+
+  const problem = slugProblem(slug)
+  if (problem) return { ok: false, status: 422, message: problem }
+
+  const shortName =
+    input.shortName === undefined ? input.team.shortName : blankToNull(input.shortName)
+  if (shortName && shortName.length > SHORT_NAME_MAX) {
+    return {
+      ok: false,
+      status: 422,
+      message: `The short name must be at most ${SHORT_NAME_MAX} characters`,
+    }
+  }
+
+  try {
+    const [team] = await db
+      .update(teams)
+      .set({ name, shortName, slug })
+      .where(eq(teams.id, input.team.id))
+      .returning()
+
+    // unreachable while the guard's team row exists; failing loudly beats a silent no-op
+    if (!team) throw new Error(`team ${input.team.id} vanished during rename`)
+
+    return { ok: true, team }
+  } catch (error) {
+    if (isSlugConflict(error)) {
+      return { ok: false, status: 409, message: 'That team name is already taken' }
+    }
+    throw error
+  }
 }
