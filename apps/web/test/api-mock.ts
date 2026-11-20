@@ -17,18 +17,26 @@ export const apiState: {
   teamList: Result
   /** POST /api/teams */
   createTeam: Result
+  /** PATCH /api/teams/:slug */
+  renameTeam: Result
   /** the body handed to POST /api/teams, for assertions */
   sentBody: unknown
+  /** the body handed to PATCH /api/teams/:slug, for assertions */
+  sentRename: unknown
 } = {
   teamList: { data: [], error: null, status: 200 },
   createTeam: { data: null, error: null, status: 200 },
+  renameTeam: { data: null, error: null, status: 200 },
   sentBody: undefined,
+  sentRename: undefined,
 }
 
 export function resetApiState() {
   apiState.teamList = { data: [], error: null, status: 200 }
   apiState.createTeam = { data: null, error: null, status: 200 }
+  apiState.renameTeam = { data: null, error: null, status: 200 }
   apiState.sentBody = undefined
+  apiState.sentRename = undefined
 }
 
 /** Call once per test file, before importing the components under test. */
@@ -37,13 +45,23 @@ export function installApiMock() {
     ApiError,
     unwrap,
     api: {
-      teams: {
-        get: () => Promise.resolve(apiState.teamList),
-        post: (body: unknown) => {
-          apiState.sentBody = body
-          return Promise.resolve(apiState.createTeam)
+      // Eden's `teams` is callable (it takes the path params) *and* carries the collection
+      // verbs, so the mock has to be both, or one surface silently stops working
+      teams: Object.assign(
+        (params: { slug: string }) => ({
+          patch: (body: unknown) => {
+            apiState.sentRename = { slug: params.slug, body }
+            return Promise.resolve(apiState.renameTeam)
+          },
+        }),
+        {
+          get: () => Promise.resolve(apiState.teamList),
+          post: (body: unknown) => {
+            apiState.sentBody = body
+            return Promise.resolve(apiState.createTeam)
+          },
         },
-      },
+      ),
     },
   }))
 }
