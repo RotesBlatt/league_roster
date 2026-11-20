@@ -1,6 +1,6 @@
 # Idea — logging that answers "did it do the thing?"
 
-**Status:** idea, nothing implemented. Quick win.
+**Status:** decided — thin `pino` facade, not hand-rolled. Implementation in progress (see §12).
 **Scope:** backend only (`apps/api`), plus env/docs/docker wiring. No SPA code.
 
 ## 1. The idea
@@ -57,17 +57,25 @@ Three findings that shape the code:
 ## 3. Shape
 
 ```text
-apps/api/src/lib/log/format.ts   pure: record type, NDJSON line, pretty line, redaction, truncation
-apps/api/src/lib/log/sinks.ts    consoleSink + fileSink (daily file, retention, sync append)
-apps/api/src/lib/log/logger.ts   createLogger({ level, sinks, clock }) → {debug,info,warn,error,child}
-apps/api/src/lib/log/http.ts     createRequestLog(logger) → hook functions + requestLogger() helper
-apps/api/src/lib/log/noop.ts     silent logger for tests/optional params (2 lines)
+apps/api/src/lib/log/logger.ts       Logger type + createLogger() over pino (levels, child, redaction)
+apps/api/src/lib/log/destinations.ts pino.multistream: pretty console + daily file (pino-roll)
+apps/api/src/lib/log/http.ts         createRequestLog(logger) → hook functions + requestLogger()
+apps/api/src/lib/log/noop.ts         silent logger for tests/optional params
 ```
 
-No new dependency. Pino/winston would be justified if we ever ship logs off-box or want redaction
-plugins; for "one line per request, file + console, daily file" they are ~150 lines of config and a
-transitive dependency tree. The sink interface stays narrow enough that swapping in pino later is a
-one-file change.
+**Backed by pino, wrapped thin.** Aggregating logs (Loki/Fluent Bit/Datadog) is a plausible next
+step, and pino's NDJSON is what those tools parse out of the box; its transport ecosystem is the
+"ship the file later" story. Hand-rolling redaction and error serializers is exactly where a battle-
+tested library is worth the dependency.
+
+But route code never imports pino directly: `Logger` is our own narrow type
+(`debug|info|warn|error|child`), `createLogger()` is the only place pino is constructed, and tests
+inject a capture stream. That keeps the swap-over a one-file change in either direction.
+
+Dependencies: `pino`, `pino-pretty` (console, used as a plain synchronous stream — **not** a
+worker-thread transport, which is the fragile part on Bun), `pino-roll` (daily file + retention).
+Pino is configured to keep the record shape below: `base: null` (no `pid`/`hostname`), a string
+`level` via `formatters.level`, and `ts` (ISO) via a custom timestamp.
 
 Console (ANSI colours only when `process.stdout.isTTY`). Generic events print as
 `time LEVEL event key=value …`; `http.request` gets one compact branch because it is the most
@@ -201,13 +209,12 @@ Parsed in `readEnv` (already injectable/pure, `test/unit/env.test.ts`):
 
 ## 7. Rotation and writing
 
-Daily file, name from the injected clock: `api-YYYY-MM-DD.log`. On a date change, create the new
-file and sweep `api-*.log` older than `LOG_RETENTION_DAYS` (string compare on the date part, no
-`stat` per write). `appendFileSync` from `node:fs` — at this traffic the cost is irrelevant, and it
-cannot lose lines when the process dies. Revisit only if it shows up in request timings.
+`pino-roll` writes the daily file (`api-YYYY-MM-DD.log`) and enforces `LOG_RETENTION_DAYS` via
+`limit.count`; we own no rotation code. The file destination is synchronous (`pino.destination({ sync: true })`)
+so a dying process cannot swallow the last lines, and the cost is irrelevant at this traffic.
 
-A sink that throws must never affect the caller: `logger` wraps every sink call, and a unit test
-asserts that a broken sink still yields a 200 from a route.
+A destination that throws must never affect the caller: the facade wraps every emit, and a unit test
+asserts that a broken destination still yields a 200 from a route.
 
 ## 8. Tests (test-first, per `AGENTS.md`)
 
@@ -236,7 +243,7 @@ Then `bun run test`, `bun run test:db`, `bun run typecheck`, `bun run check`.
 
 | File | Change |
 | --- | --- |
-| `apps/api/src/lib/log/*` | new (5 files) |
+| `apps/api/src/lib/log/*` | new (4 files: logger, destinations, http, noop) |
 | `apps/api/src/app.ts` | `createApp({ logger })`, chain hook functions, wrap better-auth `onRequest` |
 | `apps/api/src/index.ts` | build the logger from `env`, `server.start`, `server.stop`, unhandled errors |
 | `apps/api/src/env.ts` | `log` config block |
@@ -259,9 +266,8 @@ report and found with one `grep`.
 
 ## 11. Open questions
 
-1. **Format** — NDJSON file + pretty console, or plain text in both? (recommend NDJSON: the file is
-   for machines and `jq`, the console is for eyes)
-2. **Rotation** — daily + 14 days, or size-based? (recommend daily; no size cap needed here)
+1. ~~**Format**~~ — resolved: pino NDJSON to file, `pino-pretty` to console.
+2. ~~**Rotation**~~ — resolved: daily + `LOG_RETENTION_DAYS` via `pino-roll`.
 3. **Container** — file logging on inside Docker with a named volume, or console-only there and let
    the `json-file` driver (10m × 3) do the rotating? (recommend the volume: "check the log after the
    fact" is the point)
@@ -271,14 +277,15 @@ report and found with one `grep`.
 
 ## 12. Suggested commits
 
-1. `feat(api): add structured logger with file sink` — `lib/log/{format,sinks,logger,noop}.ts` + unit
-   tests
-2. `feat(api): log every http request and its outcome` — `lib/log/http.ts`, `app.ts`, `env.ts`,
-   `index.ts`, integration test
-3. `feat(api): log domain events` — auth/access/invites/members/players/migrate + their unit tests
-4. `chore(docker): persist and rotate api log files` — compose, Dockerfile, gitignore, env example
+1. `docs(ideas): choose pino for api logging` — this doc
+2. `feat(api): add pino logger facade` — `lib/log/{logger,noop}.ts` + unit tests
+3. `feat(api): console and rotating file destinations` — `lib/log/destinations.ts`, `env.ts` knobs + tests
+4. `feat(api): log every http request and its outcome` — `lib/log/http.ts`, `app.ts`, `index.ts`,
+   integration test
+5. `feat(api): log domain events` — auth/access/invites/members/players/migrate + their unit tests
+6. `chore(docker): persist and rotate api log files` — compose, Dockerfile, gitignore, env example
 
-One idea per commit, each green on its own. 1 and 4 can land without 2–3; 3 depends on 1.
+One idea per commit, each green on its own. 1 and 6 can land without 2–5; 5 depends on 2–4.
 
 ## 13. Deliberately out of scope
 
