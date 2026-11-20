@@ -87,8 +87,10 @@ describe('AdminPage', () => {
     })
     fireEvent.click(saveButton())
 
+    // the URL is the assertion: "was I sent to the roster?" must not be answered by scanning
+    // the document, because bun runs every test file in one process and another file's tree can
+    // still be in document.body
     expect(await screen.findByText('at /t/neue-welle/admin')).toBeDefined()
-    expect(screen.queryByText(/roster of/)).toBeNull()
   })
 
   // the bug behind this test: captaincy came from `GET /api/me`, which names the *oldest*
@@ -108,19 +110,16 @@ describe('AdminPage', () => {
 
     expect(await screen.findByText('at /t/alpha/admin')).toBeDefined()
     expect(await screen.findByLabelText('Team name')).toBeDefined()
-    expect(screen.queryByText(/roster of/)).toBeNull()
   })
 
-  test('a plain member is not left on the page', async () => {
+  // the redirect used to name `/roster`, which is not a route: it fell through the catch-all and
+  // landed on the *default* team's roster instead of this team's
+  test('a plain member is sent to this team’s roster, not the default team’s', async () => {
     apiState.me = { data: { ...me, role: 'member' }, error: null, status: 200 }
     apiState.teamList = { data: [{ ...alpha, role: 'member' }], error: null, status: 200 }
     renderAdmin()
 
-    expect(await screen.findByText(/roster of|fell through/)).toBeDefined()
-    expect(nameFieldOrNull()).toBeNull()
+    expect(await screen.findByText('at /t/alpha/roster')).toBeDefined()
+    expect(await screen.findByText('roster of alpha')).toBeDefined()
   })
 })
-
-function nameFieldOrNull() {
-  return screen.queryByLabelText('Team name')
-}

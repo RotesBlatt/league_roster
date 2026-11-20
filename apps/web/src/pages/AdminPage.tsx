@@ -79,7 +79,9 @@ export function AdminPage() {
   // nothing is decided before the list arrives — answering "denied" here would redirect a
   // captain off their own page on the first render
   if (access === 'loading') return null
-  if (!isCaptain) return <Navigate to="/roster" replace />
+  // this team's roster: "/roster" is not a route, so it fell through the catch-all and landed on
+  // the *default* team's roster — the same bounce the switcher used to cause
+  if (!isCaptain) return <Navigate to={`/t/${slug}/roster`} replace />
 
   return (
     <Stack gap="lg">
