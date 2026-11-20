@@ -52,6 +52,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # a deploy cannot migrate (the entrypoint does) unless a dump succeeded
+      pre-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
@@ -64,6 +67,33 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # one-shot before every boot: dump, then let `app` migrate. reuses backup.sh,
+  # so it lands in pg-backups and is pruned like the daily dumps.
+  pre-migrate:
+    image: postgres:17-alpine
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-lol}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-lol}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+      BACKUP_DIR: /backups/pre-migrate
+    volumes:
+      - pg-backups:/backups
+      - ./docker/backup.sh:/usr/local/bin/backup.sh:ro
+    # root only to write into the volume; pg_dump needs no more
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh", "once"]
     logging:
       driver: json-file
       options:
