@@ -54,4 +54,5 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
+| [team-rename](ideas/done/team-rename.md) | A captain renames their team from the admin page; the slug follows the name (option A), so the SPA navigates to the new URL and old links 404. Found and fixed a page-level bug on the way: captaincy came from `/api/me` (the oldest membership) instead of the team in the URL. | 2026-11-20 |
 | [multi-team](ideas/done/multi-team.md) | Team as tenant: `membership` rows replace role/status on the global user, path-scoped `/api/teams/:slug`, `POST`/`GET /api/teams`, the create-team form and header switcher, and a `TeamScope` handle every tenant route must go through. The bootstrap and `CAPTAIN_DISCORD_IDS` are gone. RLS deliberately skipped. | 2026-11-20 |
