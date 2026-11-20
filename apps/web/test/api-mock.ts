@@ -13,6 +13,12 @@ import { ApiError, unwrap } from '../src/api-result.ts'
 export type Result = { data: unknown; error: unknown; status: number }
 
 export const apiState: {
+  /** GET /api/me */
+  me: Result
+  /** GET /api/teams/:slug/invites */
+  inviteList: Result
+  /** GET /api/teams/:slug/members */
+  memberList: Result
   /** GET /api/teams — the switcher's list */
   teamList: Result
   /** POST /api/teams */
@@ -24,6 +30,9 @@ export const apiState: {
   /** the body handed to PATCH /api/teams/:slug, for assertions */
   sentRename: unknown
 } = {
+  me: { data: null, error: null, status: 200 },
+  inviteList: { data: [], error: null, status: 200 },
+  memberList: { data: [], error: null, status: 200 },
   teamList: { data: [], error: null, status: 200 },
   createTeam: { data: null, error: null, status: 200 },
   renameTeam: { data: null, error: null, status: 200 },
@@ -32,6 +41,9 @@ export const apiState: {
 }
 
 export function resetApiState() {
+  apiState.me = { data: null, error: null, status: 200 }
+  apiState.inviteList = { data: [], error: null, status: 200 }
+  apiState.memberList = { data: [], error: null, status: 200 }
   apiState.teamList = { data: [], error: null, status: 200 }
   apiState.createTeam = { data: null, error: null, status: 200 }
   apiState.renameTeam = { data: null, error: null, status: 200 }
@@ -45,6 +57,9 @@ export function installApiMock() {
     ApiError,
     unwrap,
     api: {
+      me: {
+        get: () => Promise.resolve(apiState.me),
+      },
       // Eden's `teams` is callable (it takes the path params) *and* carries the collection
       // verbs, so the mock has to be both, or one surface silently stops working
       teams: Object.assign(
@@ -53,6 +68,8 @@ export function installApiMock() {
             apiState.sentRename = { slug: params.slug, body }
             return Promise.resolve(apiState.renameTeam)
           },
+          invites: { get: () => Promise.resolve(apiState.inviteList) },
+          members: { get: () => Promise.resolve(apiState.memberList) },
         }),
         {
           get: () => Promise.resolve(apiState.teamList),
