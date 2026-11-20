@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- 1. dependencies (all, incl. dev — needed for the build) ----------------
-FROM oven/bun:1.4.4-alpine AS deps
+FROM oven/bun:1.4.5-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/api/package.json ./apps/api/
@@ -16,7 +16,7 @@ COPY . .
 RUN bun run build
 
 # ---- 3. production-only dependencies ---------------------------------------
-FROM oven/bun:1.4.4-alpine AS prod-deps
+FROM oven/bun:1.4.5-alpine AS prod-deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
@@ -26,7 +26,7 @@ COPY scripts/install-hooks.ts ./scripts/
 RUN bun install --frozen-lockfile --production
 
 # ---- 4. runtime -------------------------------------------------------------
-FROM oven/bun:1.4.4-alpine AS runtime
+FROM oven/bun:1.4.5-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3001
