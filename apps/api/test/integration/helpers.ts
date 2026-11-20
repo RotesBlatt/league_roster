@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { join } from 'node:path'
+import { readMigrationFiles } from 'drizzle-orm/migrator'
+import type { PgDialect } from 'drizzle-orm/pg-core'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
 import { createApp } from '../../src/app.ts'
@@ -13,6 +15,24 @@ if (!adminUrl) {
   throw new Error('TEST_DATABASE_URL is not set — run `bun run test:db` instead of `bun test`.')
 }
 
+export const migrationsFolder = join(import.meta.dir, '../../drizzle')
+
+/**
+ * Applies only the first `count` migrations, leaving the database in the shape an older
+ * release shipped. A test can then put rows in it and apply the rest — which is the one
+ * state every migration actually meets in production, and the one an empty database never is.
+ */
+export async function migrateTo(db: Db, count: number): Promise<void> {
+  const files = readMigrationFiles({ migrationsFolder })
+  // `dialect` is not part of the public PgDatabase type, but it is the handle drizzle's
+  // own `migrate()` calls, and it already accepts a slice of the migration list.
+  const { dialect, session } = db as unknown as {
+    dialect: PgDialect
+    session: Parameters<PgDialect['migrate']>[1]
+  }
+  await dialect.migrate(files.slice(0, count), session, { migrationsFolder })
+}
+
 export type TestContext = {
   db: Db
   auth: Auth
@@ -22,7 +42,7 @@ export type TestContext = {
 }
 
 /** Creates a throwaway database, migrates it, and returns a wired context. */
-export async function createTestContext(): Promise<TestContext> {
+export async function createTestContext(options: { migrate?: boolean } = {}): Promise<TestContext> {
   const name = `lol_test_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
   const admin = postgres(adminUrl!, { max: 1, onnotice: () => {} })
   await admin.unsafe(`CREATE DATABASE "${name}"`)
@@ -31,7 +51,9 @@ export async function createTestContext(): Promise<TestContext> {
   target.pathname = `/${name}`
 
   const { db, close } = createDb(target.toString())
-  await migrate(db, { migrationsFolder: join(import.meta.dir, '../../drizzle') })
+  if (options.migrate ?? true) {
+    await migrate(db, { migrationsFolder })
+  }
 
   return {
     db,
