@@ -7,6 +7,7 @@ COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
+COPY scripts/install-hooks.ts ./scripts/
 RUN bun install --frozen-lockfile
 
 # ---- 2. build the SPA -------------------------------------------------------
@@ -21,6 +22,7 @@ COPY package.json bun.lock ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
+COPY scripts/install-hooks.ts ./scripts/
 RUN bun install --frozen-lockfile --production
 
 # ---- 4. runtime -------------------------------------------------------------
