@@ -40,6 +40,7 @@ it sat at the top — and why closing it (see **Done**) unblocks most of the que
 | [logging](ideas/logging.md) | One line per request plus business events, to console and an NDJSON file, so "did it do the thing?" is answerable. | — | idea |
 | [web-architecture](ideas/web-architecture.md) | Behaviour-preserving refactor: get server state, mutations, derived rules and form state out of `RosterPage`/`AdminPage` into plain modules and hooks. | — | idea |
 | [quick-wins](ideas/quick-wins.md) | Findings from the module walkthrough: dead exports, a duplicate index, one-line inconsistencies, small extractions — cheapest first, each with its test rule. | — | idea |
+| [team-slug-history](ideas/team-slug-history.md) | A retired team slug keeps answering: a `team_slug_history` row per rename and a 308 on the SPA path, so an old `/t/<slug>/…` link still lands on the team. Deliberately deferred when renaming shipped. | team-rename | idea |
 
 ## Not written up yet
 

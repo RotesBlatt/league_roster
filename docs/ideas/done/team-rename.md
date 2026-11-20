@@ -29,7 +29,7 @@ The question that decides the whole shape: **does the slug change with the name?
 and the only people holding links to a team are its own captains and members, who are one click
 away from the new URL. B was rejected because a team called "Löwen" living at `/t/die-besten/`
 is a support ticket generator. C is a real idea, not a rejected one — recorded separately as
-`team-slug-history.md`.
+[`team-slug-history.md`](../team-slug-history.md).
 
 Consequence that shaped the API: the rename **answer must carry the new slug**, and the client must
 navigate rather than refetch. A rename that keeps the slug (only the tag, or only the letter case
@@ -95,7 +95,8 @@ reserved name (your input is wrong), 409 for a name another team already owns (y
 
 ## 6. Open / follow-ups
 
-1. **Old slugs 404.** Option C — `team-slug-history.md` — is the fix if it ever hurts. Nothing is
+1. **Old slugs 404.** Option C — [`team-slug-history.md`](../team-slug-history.md) — is the fix if
+   it ever hurts. Nothing is
    broken today; a bookmarked `/t/old-name/roster` is one create-team-form away from useless, which
    is why it was not built up front.
 2. **`<Navigate to="/roster">`** in `AdminPage` names a route that does not exist, so a denied
