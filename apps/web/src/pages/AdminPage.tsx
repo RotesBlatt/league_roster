@@ -19,6 +19,7 @@ import { Navigate, useParams } from 'react-router'
 import { api, unwrap } from '../api.ts'
 import { TeamSettingsCard } from '../components/TeamSettingsCard.tsx'
 import { useInvites, useMe, useMembers, useMyTeams } from '../hooks.ts'
+import { teamRole } from '../team-role.ts'
 
 type MemberPatch = {
   role?: 'captain' | 'member'
@@ -28,11 +29,14 @@ type MemberPatch = {
 export function AdminPage() {
   const { slug = '' } = useParams()
   const me = useMe()
-  const isCaptain = me.data?.role === 'captain'
+  // captaincy is per team and the URL names the team: `me` is the *oldest* membership, so it
+  // would hide this page from a captain whose oldest team is a different one
+  const teams = useMyTeams()
+  const access = teamRole(teams.data, slug)
+  const isCaptain = access === 'captain'
   const invites = useInvites(slug, isCaptain)
   const members = useMembers(slug, isCaptain)
-  // the card renames the team the URL names, not "my" team: `me` is only the oldest membership
-  const team = useMyTeams().data?.find((row) => row.slug === slug)
+  const team = teams.data?.find((row) => row.slug === slug)
   const queryClient = useQueryClient()
 
   const form = useForm({
@@ -72,6 +76,9 @@ export function AdminPage() {
     onError: (error) => notifications.show({ message: error.message, color: 'red' }),
   })
 
+  // nothing is decided before the list arrives — answering "denied" here would redirect a
+  // captain off their own page on the first render
+  if (access === 'loading') return null
   if (!isCaptain) return <Navigate to="/roster" replace />
 
   return (
