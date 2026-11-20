@@ -3,34 +3,18 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { ApiError, unwrap } from '../src/api-result.ts'
+import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 
 /**
  * The card's wiring only: what leaves the component (the body handed to the mutation),
  * where it navigates on success, and what a human sees when the API refuses. The
  * thinking itself is covered in `create-team.test.ts`.
  *
- * The network edge is mocked, not `hooks.ts`: `mock.module` is process-wide in bun, so a
- * second mock of `hooks.ts` would replace the one `require-member.test.tsx` registered and
- * break it. Mocking `api` keeps the real `useCreateTeam` and `unwrap` in the loop.
+ * `api.ts` comes from the shared mock in api-mock.ts: bun's `mock.module` is process-wide,
+ * so per-file factories clobber each other.
  */
 
-type Result = { data: unknown; error: unknown; status: number }
-let nextResult: Result = { data: null, error: null, status: 200 }
-let sentBody: unknown
-
-mock.module('../src/api.ts', () => ({
-  ApiError,
-  unwrap,
-  api: {
-    teams: {
-      post: (body: unknown) => {
-        sentBody = body
-        return Promise.resolve(nextResult)
-      },
-    },
-  },
-}))
+installApiMock()
 
 mock.module('../src/auth-client.ts', () => ({
   signOut: async () => {},
@@ -67,31 +51,30 @@ function submit() {
 }
 
 beforeEach(() => {
-  sentBody = undefined
-  nextResult = { data: null, error: null, status: 200 }
+  resetApiState()
 })
 
 describe('CreateTeamCard', () => {
   test('submits the trimmed name and lands on the new team', async () => {
-    nextResult = { data: { teamSlug: 'die-besten' }, error: null, status: 200 }
+    apiState.createTeam = { data: { teamSlug: 'die-besten' }, error: null, status: 200 }
     renderCard()
 
     fillIn('  Die Besten ', '  ')
     submit()
 
     expect(await screen.findByText('roster screen')).toBeDefined()
-    expect(sentBody).toEqual({ name: 'Die Besten' })
+    expect(apiState.sentBody).toEqual({ name: 'Die Besten' })
   })
 
   test('sends the short name when one was typed', async () => {
-    nextResult = { data: { teamSlug: 'die-besten' }, error: null, status: 200 }
+    apiState.createTeam = { data: { teamSlug: 'die-besten' }, error: null, status: 200 }
     renderCard()
 
     fillIn('Die Besten', ' DBW ')
     submit()
 
     expect(await screen.findByText('roster screen')).toBeDefined()
-    expect(sentBody).toEqual({ name: 'Die Besten', shortName: 'DBW' })
+    expect(apiState.sentBody).toEqual({ name: 'Die Besten', shortName: 'DBW' })
   })
 
   test('a blank name never reaches the API', () => {
@@ -100,12 +83,12 @@ describe('CreateTeamCard', () => {
     fillIn('   ')
     submit()
 
-    expect(sentBody).toBeUndefined()
+    expect(apiState.sentBody).toBeUndefined()
     expect(screen.getByText('Give the team a name.')).toBeDefined()
   })
 
   test('a taken name is explained, not shown as a raw status', async () => {
-    nextResult = {
+    apiState.createTeam = {
       data: null,
       error: { message: 'That team name is already taken' },
       status: 409,
@@ -120,7 +103,7 @@ describe('CreateTeamCard', () => {
   })
 
   test('the API’s own reason for a 422 is shown as written', async () => {
-    nextResult = {
+    apiState.createTeam = {
       data: null,
       error: { message: 'That name is reserved — pick another one' },
       status: 422,

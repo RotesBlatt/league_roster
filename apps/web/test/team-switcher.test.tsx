@@ -1,17 +1,17 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Me, TeamSummary } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router'
-import { ApiError, unwrap } from '../src/api-result.ts'
+import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 
 /**
  * The switcher's wiring: what the header names, that the menu only offers *other* teams, and
  * that picking one lands on its roster. `team-menu.test.ts` covers the derived state itself.
  *
- * Mocking `api.ts` (not `hooks.ts`): `mock.module` is process-wide in bun, so a second mock of
- * `hooks.ts` would replace the one `require-member.test.tsx` registered.
+ * `api.ts` comes from the shared mock in api-mock.ts: bun's `mock.module` is process-wide,
+ * so per-file factories clobber each other.
  */
 
 const alpha: TeamSummary = {
@@ -29,14 +29,7 @@ const bravo: TeamSummary = {
   role: 'member',
 }
 
-type Result = { data: unknown; error: unknown; status: number }
-let teamsResult: Result = { data: [alpha, bravo], error: null, status: 200 }
-
-mock.module('../src/api.ts', () => ({
-  ApiError,
-  unwrap,
-  api: { teams: { get: () => Promise.resolve(teamsResult) } },
-}))
+installApiMock()
 
 const { TeamSwitcher } = await import('../src/components/TeamSwitcher.tsx')
 
@@ -56,13 +49,13 @@ function RosterProbe() {
   return <div>roster of {slug}</div>
 }
 
-function renderSwitcher() {
+function renderSwitcher(entry = '/t/alpha/roster') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   return render(
     <MantineProvider>
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/t/alpha/roster']}>
+        <MemoryRouter initialEntries={[entry]}>
           <Routes>
             <Route
               path="/t/:slug/roster"
@@ -81,25 +74,27 @@ function renderSwitcher() {
   )
 }
 
-async function openMenu() {
-  const target = await screen.findByRole('button', { name: /Alpha/ })
-  fireEvent.click(target)
+async function openMenu(name: RegExp = /Alpha/) {
+  fireEvent.click(await screen.findByRole('button', { name }))
 }
 
+const bothTeams = { data: [alpha, bravo], error: null, status: 200 }
+
 beforeEach(() => {
-  teamsResult = { data: [alpha, bravo], error: null, status: 200 }
+  resetApiState()
+  apiState.teamList = bothTeams
 })
 
 describe('TeamSwitcher', () => {
   test('names the team in the URL, not the first one in the list', async () => {
-    teamsResult = { data: [bravo, alpha], error: null, status: 200 }
+    apiState.teamList = { data: [bravo, alpha], error: null, status: 200 }
     renderSwitcher()
 
     expect(await screen.findByRole('button', { name: /Alpha/ })).toBeDefined()
   })
 
   test('falls back to the slug while the list has not arrived', async () => {
-    teamsResult = { data: [], error: null, status: 200 }
+    apiState.teamList = { data: [], error: null, status: 200 }
     renderSwitcher()
 
     expect(await screen.findByRole('button', { name: /alpha/ })).toBeDefined()
@@ -109,8 +104,7 @@ describe('TeamSwitcher', () => {
     renderSwitcher()
 
     await openMenu()
-    const bravoItem = await screen.findByText('Bravo')
-    fireEvent.click(bravoItem)
+    fireEvent.click(await screen.findByText('Bravo'))
 
     expect(await screen.findByText('roster of bravo')).toBeDefined()
   })
@@ -122,6 +116,19 @@ describe('TeamSwitcher', () => {
     expect(await screen.findByText('current')).toBeDefined()
     // the label row shows Alpha once; there is no second, clickable "Alpha" item
     expect(screen.queryByText('AL')).toBeNull()
+  })
+
+  // regression: the header used to treat `me.teamSlug` (the oldest membership) as current, so
+  // after switching, the team you were looking at was offered as "another" team
+  test('the team in the URL is current, even when /api/me names another', async () => {
+    renderSwitcher('/t/bravo/roster')
+
+    expect(await screen.findByRole('button', { name: /Bravo/ })).toBeDefined()
+
+    await openMenu(/Bravo/)
+    fireEvent.click(await screen.findByText('Alpha'))
+
+    expect(await screen.findByText('roster of alpha')).toBeDefined()
   })
 
   test('creating another team leads to /new-team', async () => {

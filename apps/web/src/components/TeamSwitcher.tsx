@@ -1,10 +1,11 @@
 import type { Me } from '@lol/api/schema-types'
 import { Badge, Button, Group, Menu, Text } from '@mantine/core'
 import { IconChevronDown, IconPlus, IconUsersGroup } from '@tabler/icons-react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { rosterPath } from '../create-team.ts'
 import { useMyTeams } from '../hooks.ts'
 import { currentTeam, otherTeams } from '../team-menu.ts'
+import { teamSlugFromPath } from '../team-path.ts'
 
 /**
  * One account may be in several teams (multi-team.md §7.3). The header names the team in the
@@ -14,11 +15,14 @@ import { currentTeam, otherTeams } from '../team-menu.ts'
 export function TeamSwitcher({ me }: { me: Me }) {
   const navigate = useNavigate()
   const teams = useMyTeams().data ?? []
-  const current = currentTeam(teams, me.teamSlug)
-  const others = otherTeams(teams, me.teamSlug)
+  // the URL decides which team is current — `me.teamSlug` is the oldest membership, which is
+  // only right until you switch, and is nothing but the fallback outside /t/:slug
+  const slug = teamSlugFromPath(useLocation().pathname) ?? me.teamSlug
+  const current = currentTeam(teams, slug)
+  const others = otherTeams(teams, slug)
 
   // while the list loads (or if it fails) the URL still knows which team this is
-  const label = current?.name ?? me.teamSlug ?? 'Team'
+  const label = current?.name ?? slug ?? 'Team'
 
   return (
     <Menu position="bottom-start" width={260} withinPortal>

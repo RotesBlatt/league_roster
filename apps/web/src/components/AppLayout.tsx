@@ -4,6 +4,7 @@ import { IconLogout, IconShieldCog, IconUsersGroup } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
+import { teamSlugFromPath } from '../team-path.ts'
 import { StatusBadge } from './badges.tsx'
 import { TeamSwitcher } from './TeamSwitcher.tsx'
 
@@ -26,7 +27,9 @@ function NavButton({ to, label, icon }: { to: string; label: string; icon: React
 export function AppLayout({ me }: { me: Me }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const base = me.teamSlug ? `/t/${me.teamSlug}` : ''
+  // the URL names the team; `me.teamSlug` is only the fallback outside /t/:slug (e.g. /new-team)
+  const slug = teamSlugFromPath(useLocation().pathname) ?? me.teamSlug
+  const base = slug ? `/t/${slug}` : ''
 
   const logout = async () => {
     await signOut()
