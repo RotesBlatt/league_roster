@@ -3,6 +3,7 @@ import { type Auth, auth as defaultAuth } from './auth.ts'
 import { type Db, db as defaultDb } from './db/index.ts'
 import { env } from './env.ts'
 import { createSpa } from './lib/spa.ts'
+import { forTeam } from './lib/team-db.ts'
 import { createAuthPlugin } from './plugins/auth.ts'
 import { createClaimRoutes } from './routes/claim.ts'
 import { createInviteRoutes } from './routes/invites.ts'
@@ -98,7 +99,8 @@ export function createApp(options: AppOptions = {}) {
           // tenant-scoped: everything below is addressed by /api/teams/<slug>/...
           .group('/teams/:slug', (team) =>
             team
-              .use(createPlayerRoutes(db, authPlugin))
+              // route factories get a scope, not the db: no team in the path, no handle
+              .use(createPlayerRoutes((scoped) => forTeam(db, scoped), authPlugin))
               .use(createInviteRoutes(db, authPlugin))
               .use(createMemberRoutes(db, authPlugin)),
           ),

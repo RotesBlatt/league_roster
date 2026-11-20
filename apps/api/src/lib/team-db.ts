@@ -43,6 +43,12 @@ export type TeamDb = {
   deleteFrom<T extends TeamScoped>(table: T, filter?: SQL): Promise<InferSelectModel<T>[]>
 }
 
+/**
+ * What a route factory receives instead of the raw `Db`: with no team there is no handle, so a
+ * handler must resolve one from the guard's `team` before it can query at all.
+ */
+export type TeamScope = (team: TeamRow) => TeamDb
+
 export function forTeam(db: Db, team: TeamRow): TeamDb {
   /** the team predicate, ANDed with whatever the caller narrowed by */
   const scoped = (table: TeamScoped, filter?: SQL): SQL =>

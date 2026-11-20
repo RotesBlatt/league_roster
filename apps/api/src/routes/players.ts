@@ -1,8 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
-import type { Db } from '../db/index.ts'
 import { players } from '../db/schema.ts'
 import type { PlayerDto } from '../db/schema.types.ts'
+import type { TeamScope } from '../lib/team-db.ts'
 import { roleSchema, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
@@ -29,8 +29,13 @@ const playerBody = t.Object({
   isActive: t.Optional(t.Boolean()),
 })
 
-/** Mounted under /api/teams/:slug — `team` is the tenant resolved by the guard. */
-export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
+/**
+ * Mounted under /api/teams/:slug. It receives a `scope`, never the raw `db`: every query goes
+ * through `forTeam(team)`, so no handler here can address another team's roster — not even by
+ * passing its player id. The `where` that used to be remembered is now the only thing the
+ * handle can express (multi-team.md §5).
+ */
+export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
   return new Elysia({ prefix: '/players' })
     .use(authPlugin)
     .get(
@@ -39,11 +44,9 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
         // TOP -> JGL -> MID -> ADC -> SUP, not alphabetically
         const roleOrder = sql`CASE ${players.role}
           WHEN 'TOP' THEN 0 WHEN 'JGL' THEN 1 WHEN 'MID' THEN 2 WHEN 'ADC' THEN 3 ELSE 4 END`
-        const rows = await db
-          .select()
-          .from(players)
-          .where(eq(players.teamId, team.id))
-          .orderBy(roleOrder, players.displayName)
+        const rows = await scope(team).selectFrom(players, undefined, {
+          orderBy: [roleOrder, players.displayName],
+        })
         return rows.map(toDto)
       },
       { teamMember: true },
@@ -52,22 +55,19 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
       '/',
       async ({ body, team, status }) => {
         const now = new Date()
-        const [row] = await db
-          .insert(players)
-          .values({
-            id: crypto.randomUUID(),
-            teamId: team.id,
-            displayName: body.displayName,
-            role: body.role,
-            // empty form fields must land as NULL, not ''
-            riotGameName: body.riotGameName || null,
-            riotTagLine: body.riotTagLine || null,
-            note: body.note || null,
-            isActive: body.isActive ?? true,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning()
+        // no teamId in the values: the scope injects it
+        const row = await scope(team).insertInto(players, {
+          id: crypto.randomUUID(),
+          displayName: body.displayName,
+          role: body.role,
+          // empty form fields must land as NULL, not ''
+          riotGameName: body.riotGameName || null,
+          riotTagLine: body.riotTagLine || null,
+          note: body.note || null,
+          isActive: body.isActive ?? true,
+          createdAt: now,
+          updatedAt: now,
+        })
 
         if (!row) return status(500, { message: 'Could not create player' })
         return toDto(row)
@@ -77,9 +77,10 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
     .patch(
       '/:id',
       async ({ body, params: { id }, team, status }) => {
-        const [row] = await db
-          .update(players)
-          .set({
+        // the team predicate comes from the scope; `id` only narrows within it
+        const [row] = await scope(team).update(
+          players,
+          {
             ...(body.displayName !== undefined && { displayName: body.displayName }),
             ...(body.role !== undefined && { role: body.role }),
             ...(body.riotGameName !== undefined && { riotGameName: body.riotGameName || null }),
@@ -87,10 +88,9 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
             ...(body.note !== undefined && { note: body.note || null }),
             ...(body.isActive !== undefined && { isActive: body.isActive }),
             updatedAt: new Date(),
-          })
-          // the team predicate is what keeps one team's captain out of another team's roster
-          .where(and(eq(players.id, id), eq(players.teamId, team.id)))
-          .returning()
+          },
+          eq(players.id, id),
+        )
 
         if (!row) return status(404, { message: 'Player not found' })
         return toDto(row)
@@ -104,12 +104,9 @@ export function createPlayerRoutes(db: Db, authPlugin: AuthPlugin) {
     .delete(
       '/:id',
       async ({ params: { id }, team, status }) => {
-        // returning() so "not found" and "deleted" are distinguishable: a silent 200 on
+        // returning rows so "not found" and "deleted" stay distinguishable: a silent 200 on
         // another team's player id would be a lie (and a cross-team one)
-        const deleted = await db
-          .delete(players)
-          .where(and(eq(players.id, id), eq(players.teamId, team.id)))
-          .returning({ id: players.id })
+        const deleted = await scope(team).deleteFrom(players, eq(players.id, id))
 
         if (deleted.length === 0) return status(404, { message: 'Player not found' })
         return { ok: true }
