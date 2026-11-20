@@ -184,7 +184,7 @@ describe('createRequestLog', () => {
     expect(s.records()[0]).not.toHaveProperty('error')
   })
 
-  test('reads the message from a JSON Response body', async () => {
+  test('does not consume a raw Response body for a message', async () => {
     const s = setup()
     const c = ctx()
     c.set.status = 403
@@ -194,7 +194,9 @@ describe('createRequestLog', () => {
       response: new Response(JSON.stringify({ message: 'Captain only' }), { status: 403 }),
     })
 
-    expect(s.records()[0]).toMatchObject({ status: 403, message: 'Captain only' })
+    const record = s.records()[0]
+    expect(record.status).toBe(403)
+    expect(record).not.toHaveProperty('message')
   })
 
   test('reads the message from an Elysia status wrapper (guard denial)', async () => {

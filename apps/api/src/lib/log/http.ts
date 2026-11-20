@@ -68,15 +68,13 @@ function messageOf(value: unknown): string | undefined {
  * for guard denials and validation errors, so read the (cloned) JSON body — never the whole
  * body, and only the `message` field, which the client already received.
  */
-async function messageFromResponse(response: unknown): Promise<string | undefined> {
-  if (response instanceof Response) {
-    try {
-      return messageOf(await response.clone().json())
-    } catch {
-      return undefined
-    }
-  }
-  // A macro guard that returns `status(403, …)` leaves an ElysiaCustomStatusResponse here.
+/**
+ * A guard/handler that returns `status(403, …)` leaves an `ElysiaCustomStatusResponse` here, and
+ * its body is the only place the API's own message is available. Response bodies are deliberately
+ * not read: consuming a stream after the fact is not worth it, and `app.onError` already passes
+ * its own message. Keeping this synchronous also keeps log lines in request order.
+ */
+function messageFromResponse(response: unknown): string | undefined {
   if (response && typeof response === 'object' && 'response' in response) {
     return messageOf(response.response)
   }
@@ -182,11 +180,11 @@ export function createRequestLog(options: RequestLogOptions) {
       if (ctx.message !== undefined) record.message = ctx.message
     },
 
-    async onAfterResponse(ctx: BaseContext & { response?: unknown }): Promise<void> {
+    onAfterResponse(ctx: BaseContext & { response?: unknown }): void {
       const record = pending.get(ctx.request)
       if (!record) return
       const status = statusOf(ctx.response, ctx.set)
-      const message = status >= 400 ? await messageFromResponse(ctx.response) : undefined
+      const message = status >= 400 ? messageFromResponse(ctx.response) : undefined
       emit(ctx.request, record, status, message)
     },
 
