@@ -10,7 +10,7 @@ import { createTestContext, migrateTo, migrationsFolder } from './helpers.ts'
 /**
  * A migration runs against state we do not own: tables that already hold live rows.
  * "It migrated a fresh database" is not evidence — a fresh database is the one case
- * production never is (docs/ideas/engineering/migration-safety.md).
+ * production never is (docs/ideas/done/migration-safety.md).
  *
  * For every step, the prefix is applied, one row is put into *every* table that exists
  * at that point, and the remaining migrations run. Any new NOT NULL column, unique

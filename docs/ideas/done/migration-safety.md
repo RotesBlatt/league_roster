@@ -1,9 +1,10 @@
 # Idea — a migration can never take prod down again
 
-**Status:** in progress (2026-11-21). Landed: a seeded-database replay of every migration, static
-rules that reject unsafe SQL shapes, a pre-migration dump the deploy waits on, and an advisory lock
-around `runMigrations`. Open: an image smoke test against a legacy fixture (P5). The backfill (P2)
-was dropped — no database replays `0001`/`0002`, so those files stay exactly as they shipped.
+**Status:** done (2026-11-21) — commits `70d663c`, `05a3e29`, `b6419a3`, `091c3bb`, `6fec07c`.
+Static rules reject unsafe SQL shapes, every migration from `0003` on is replayed against a seeded
+database, migrations are serialised by an advisory lock, and `docker compose up` will not start the
+app unless a pre-migration dump succeeded. The backfill (P2) and the image-vs-legacy fixture (P5)
+were deliberately dropped.
 **Scope:** `apps/api/drizzle`, `apps/api/test/integration`, `apps/api/test/unit`,
 `apps/api/src/db/migrations.ts`, `docker-compose.yml`, `.github/workflows/ci.yml`, `AGENTS.md`.
 
@@ -110,21 +111,19 @@ wiring with `jq` over `docker compose config --format json`.
 - **Bare `docker run` does not dump.** The pre-migration dump is wired in `docker-compose.yml`; the
   image on its own (CI smoke test, ad-hoc runs) is not covered.
 
-## 5. Decisions and what is still open
-
-Decided while implementing (2026-11-21):
+## 5. Decisions while implementing
 
 - **No backfill.** `0001`/`0002` stay shipped; no database replays them. The guarantee is about the
   next migration, not repairing history.
+- **`0001`/`0002` are allowlisted, not fixed.** They are the only entries, each with a reason, and
+  the static test fails if an entry stops matching.
+- **The seeded replay starts at `0003`.** Pointing it at `0001` would only re-fail history; from
+  `0003` on, every new migration is covered with no list to maintain.
 - **Pre-migration dumps share the daily retention** (`BACKUP_KEEP_DAYS`, 7) and live in their own
   `pg-backups/pre-migrate` subdirectory, so a dump cannot collide with a daily one.
 - **The entrypoint still migrates on boot.** The dump is a `depends_on` dependency, not a separate
   `migrate` service; a failed dump is a failed deploy, a failed migration is still a failing
   entrypoint.
-
-Still open:
-
-- **P5** — seed the `package` smoke test with a `0004`-era fixture so the *image* is proven against
-  legacy rows, not only the test suite.
-- **Retention** — is 7 days enough for the pre-migration dump? It is the one that matters when a
-  deploy goes wrong late.
+- **P5 was dropped on purpose.** Seeding the `package` smoke test with a `0004`-era fixture would
+  prove the image against legacy rows, but the integration replay and the pre-migration dump cover
+  the class; it stays a possible follow-up, not a TODO.

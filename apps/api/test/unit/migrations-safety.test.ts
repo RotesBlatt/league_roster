@@ -5,7 +5,7 @@ import { join } from 'node:path'
 /**
  * A migration runs against state we do not own: a database that already has rows.
  * These rules catch the shapes that only work on an empty one — the incident in
- * docs/ideas/engineering/migration-safety.md (ADD COLUMN … NOT NULL, no default).
+ * docs/ideas/done/migration-safety.md (ADD COLUMN … NOT NULL, no default).
  *
  * Static, so it costs milliseconds and runs in `bun run test`; nobody has to remember
  * the rule at review time.
