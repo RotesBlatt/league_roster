@@ -193,7 +193,10 @@ jobs:
             exit 1
           fi
 
-          docker logs lol-team | grep -q "migrations applied"
+          # migrate logs a `db.migrate` event now, not "migrations applied".
+          # capture first: pipe + grep -q can SIGPIPE under pipefail
+          docker logs lol-team > /tmp/app.log
+          grep -q 'db.migrate' /tmp/app.log
 
           session_code=$(curl -s -o /dev/null -w '%{http_code}' \
             http://127.0.0.1:3001/api/auth/get-session)
