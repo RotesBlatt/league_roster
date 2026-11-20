@@ -102,7 +102,7 @@ export function createApp(options: AppOptions = {}) {
               // route factories get a scope, not the db: no team in the path, no handle
               .use(createPlayerRoutes((scoped) => forTeam(db, scoped), authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin))
-              .use(createMemberRoutes(db, authPlugin)),
+              .use(createMemberRoutes((scoped) => forTeam(db, scoped), authPlugin)),
           ),
       )
       // Hashed build output; the SPA shell itself comes from the NOT_FOUND fallback above

@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { players } from '../../src/db/schema.ts'
+import { getTeamBySlug } from '../../src/lib/teams.ts'
 import {
   addMembership,
   createSessionCookie,
@@ -415,5 +417,36 @@ describe('members', () => {
     })
     // disabled by the previous test, so the guard stops them one step earlier
     expect(res.status).toBe(403)
+  })
+
+  // test-only: `hasPlayer` was untested before this route moved onto the team scope, where it is
+  // no longer the same left join and had to be recomputed from a second scoped query
+  test('hasPlayer marks the member with a roster entry linked to them', async () => {
+    const teamA = await getTeamBySlug(ctx.db, 'alpha')
+    if (!teamA) throw new Error('alpha team missing')
+
+    const linked = await createUser(ctx, { name: 'Linked' })
+    const unlinked = await createUser(ctx, { name: 'Unlinked' })
+    await addMembership(ctx, { teamId: teamA.id, userId: linked })
+    await addMembership(ctx, { teamId: teamA.id, userId: unlinked })
+
+    const now = new Date()
+    await ctx.db.insert(players).values({
+      id: crypto.randomUUID(),
+      teamId: teamA.id,
+      userId: linked,
+      displayName: 'Linked on the roster',
+      role: 'MID',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const rows = (await (
+      await call('/api/teams/alpha/members', { cookie: captainACookie })
+    ).json()) as { id: string; hasPlayer: boolean }[]
+
+    expect(rows.find((row) => row.id === linked)?.hasPlayer).toBe(true)
+    expect(rows.find((row) => row.id === unlinked)?.hasPlayer).toBe(false)
   })
 })

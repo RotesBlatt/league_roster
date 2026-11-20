@@ -3,8 +3,10 @@
 **Status:** in progress — §8 steps 1–3 landed (migrations `0001`–`0004`): two accounts can each
 create a team and neither sees the other's roster, and nothing is granted by signing in — the
 `default`-team bootstrap and the `CAPTAIN_DISCORD_IDS` allowlist are gone (§11.6). Step 4 is done too: the
-create-team form, `GET /api/teams` and the header switcher. What remains is step 5 — the scoped
-`Db` (`TeamDb`), then RLS.
+create-team form, `GET /api/teams` and the header switcher. Step 5's first half landed as well —
+`forTeam` / `TeamScope` in `lib/team-db.ts`, and no tenant-scoped route factory receives the raw
+`Db` any more (§11.8). What remains is RLS as defence in depth, which needs a deploy decision
+about connection pooling before it is worth writing.
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
 
@@ -88,6 +90,11 @@ Three ways to defend, cheapest first:
 Recommended: **scoped access object now, RLS later as defence in depth.** The codebase already
 injects `Db` into route factories, so tightening that type to `TeamDb` is a natural step.
 
+Implemented as `lib/team-db.ts`: `forTeam(db, team)` returns a handle whose every method ANDs
+`eq(table.teamId, team.id)`, and route factories receive a `TeamScope` (a function of the team)
+rather than the `Db`. It already caught one real cross-team write — `POST /invites/:id/revoke`
+updated by id and checked the team afterwards (§11.6's sibling; see §11.8).
+
 Also decide: a cross-team read returns **404, not 403** — don't confirm that the other team's
 resource exists.
 
@@ -168,7 +175,7 @@ defensible-but-not-obvious calls:
 Still open from §7: whether team creation stays open or becomes gated (§7.1), ownership transfer
 (§7.4), team deletion (§7.5), existing data (§7.6).
 
-## 11. Decided while implementing step 3
+## 11. Decided while implementing steps 3–5
 
 1. **Creation is open to any signed-in account** (§7.1). No Discord gate, no allowlist: `POST
    /api/teams` needs `auth: true` and nothing else. Rate limiting stays an open item, not a
@@ -197,3 +204,14 @@ Still open from §7: whether team creation stays open or becomes gated (§7.1), 
    is not in the list (stale link, membership disabled in another tab) does not resolve to a
    "current" team — the page itself still 404s, which is the honest answer. `/api/me` keeps naming
    the oldest membership, and that is only what decides the default landing page.
+8. **The scoped handle is a `TeamScope`, not a `TeamDb` in the factory signature** (§5). A route
+   factory is built once at boot and the team only exists per request, so it receives
+   `(team) => forTeam(db, team)` and resolves a handle inside the handler. `db` is closed over in
+   `createApp` only. `membership`/`player`/`invite` all carry `teamId`, so they are queryable
+   through the handle; `user` does not, which is what `joinFrom` is for (`invites` needs a
+   `createdByName`, `members` needs the identity behind a membership). Two things it deliberately
+   does not do: it is not RLS (a bug that bypasses the handle still reaches the DB), and its join
+   projection is opaque, so the caller states the row shape once (see the comment in `team-db.ts`).
+   It also found a real defect while being written: `POST /invites/:id/revoke` updated by id and
+   checked the team *afterwards*, so a captain could revoke another team's invite and still get a
+   404 — now the scoped update matches nothing and the 404 comes first.
