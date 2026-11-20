@@ -1,0 +1,39 @@
+# Dependabot: version updates weekly, security updates bundled per ecosystem.
+#
+# `applies-to: security-updates` is what makes GitHub group the PRs it opens
+# for vulnerability alerts into one PR per ecosystem instead of one PR per
+# advisory. Security PRs are not counted against `open-pull-requests-limit`.
+#
+# Bun caveat: Dependabot still ships *version* updates only for `bun`. The
+# group below is inert until GitHub supports bun security updates; the alerts
+# for JS dependencies have to be triaged by hand meanwhile.
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      security-updates:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  # Covers docker-compose.yml (postgres:17-alpine) and the Dockerfile.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      security-updates:
+        applies-to: "security-updates"
+        patterns: ["*"]
+
+  # Actions are pinned to commit SHAs in .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      security-updates:
+        applies-to: "security-updates"
+        patterns: ["*"]
