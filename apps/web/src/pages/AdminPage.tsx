@@ -17,7 +17,8 @@ import { IconCheck, IconCopy, IconPlus } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useParams } from 'react-router'
 import { api, unwrap } from '../api.ts'
-import { useInvites, useMe, useMembers } from '../hooks.ts'
+import { TeamSettingsCard } from '../components/TeamSettingsCard.tsx'
+import { useInvites, useMe, useMembers, useMyTeams } from '../hooks.ts'
 
 type MemberPatch = {
   role?: 'captain' | 'member'
@@ -30,6 +31,8 @@ export function AdminPage() {
   const isCaptain = me.data?.role === 'captain'
   const invites = useInvites(slug, isCaptain)
   const members = useMembers(slug, isCaptain)
+  // the card renames the team the URL names, not "my" team: `me` is only the oldest membership
+  const team = useMyTeams().data?.find((row) => row.slug === slug)
   const queryClient = useQueryClient()
 
   const form = useForm({
@@ -74,6 +77,9 @@ export function AdminPage() {
   return (
     <Stack gap="lg">
       <Title order={2}>Admin</Title>
+
+      {/* keyed by id: the form seeds its state once, so another team must not reuse it */}
+      {team ? <TeamSettingsCard key={team.id} team={team} /> : null}
 
       <Card>
         <Stack>
