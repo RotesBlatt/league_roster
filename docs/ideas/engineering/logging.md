@@ -1,6 +1,6 @@
 # Idea — logging that answers "did it do the thing?"
 
-**Status:** decided — thin `pino` facade, not hand-rolled. Implementation in progress (see §12).
+**Status:** implemented — thin `pino` facade, not hand-rolled. Commits in §12.
 **Scope:** backend only (`apps/api`), plus env/docs/docker wiring. No SPA code.
 
 ## 1. The idea

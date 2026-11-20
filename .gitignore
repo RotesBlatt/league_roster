@@ -15,6 +15,7 @@ data/*.sqlite*
 # misc
 .DS_Store
 *.log
+logs/
 apps/api/public/
 
 # keep the template

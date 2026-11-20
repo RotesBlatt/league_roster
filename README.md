@@ -123,6 +123,29 @@ A volume on the same disk is not a real backup: copy a dump somewhere else
 (`docker run --rm -v lol-team_pg-backups:/backups -v "$PWD:/out" postgres:17-alpine cp /backups/lol-<stamp>.dump /out/`) and/or sync it off the
 VPS. `pg-data` survives `docker compose down`; only `down -v` deletes data.
 
+## Logs
+
+Every request and the important domain events are written twice: a readable line on the console and
+one NDJSON object per line in a daily file.
+
+- **local dev**: `logs/api.<YYYY-MM-DD>.<n>.log` (gitignored). `tail -f logs/*.log` follows it.
+- **docker**: the file lands in `/app/logs`, backed by the `api-logs` volume, so a redeploy or
+  `docker compose down` keeps it.
+
+```bash
+docker compose logs -f app   # console
+# read the file from the volume
+docker run --rm -v lol-team_api-logs:/logs alpine tail -n 50 /logs/api.*.log
+```
+
+Every response carries `x-request-id`; find one request's line with
+`grep '"id":"<id>"' logs/*.log | jq .`.
+
+Knobs live in `.env.example`: `LOG_LEVEL`, `LOG_TO_FILE`, `LOG_DIR`, `LOG_RETENTION_DAYS`,
+`LOG_ASSETS`, `LOG_SLOW_MS`. Files rotate daily and `pino-roll` keeps the last
+`LOG_RETENTION_DAYS` (14 by default). Only credentials are redacted — request bodies, cookies and
+invite codes are never written.
+
 ## Scripts (run from the repo root)
 
 | script                | what it does                                            |

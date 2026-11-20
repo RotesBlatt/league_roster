@@ -44,6 +44,9 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# api logs live on a compose volume; the app runs as `bun`, so it must own the directory
+RUN mkdir -p /app/logs && chown bun:bun /app/logs
+
 USER bun
 EXPOSE 3001
 
