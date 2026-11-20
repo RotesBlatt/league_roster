@@ -1,4 +1,4 @@
-import { MEMBER_STATUSES, ROLES, USER_ROLES } from '@lol/shared'
+import { MEMBER_STATUSES, ROLES, SHORT_NAME_MAX, TEAM_NAME_MAX, USER_ROLES } from '@lol/shared'
 import { t } from 'elysia'
 
 /**
@@ -17,6 +17,19 @@ export const userRoleSchema = t.UnionEnum(USER_ROLES, { default: undefined })
  * the whole params object, so a missing key is rejected as an additionalProperty (422).
  */
 export const teamParams = t.Object({ slug: t.String(), id: t.String() })
+
+/**
+ * The body both team writes take — `POST /api/teams` and `PATCH /api/teams/:slug` read the same
+ * two fields, and two copies of this object had already drifted in their comments.
+ *
+ * It only bounds the input. The real rules (slug derived from the name, reserved words, trimming,
+ * a blank tag meaning NULL) live in `lib/teams.ts`, where the routes' behaviour is tested.
+ */
+export const teamBody = t.Object({
+  name: t.String({ minLength: 1, maxLength: TEAM_NAME_MAX }),
+  // optional badge tag ("DBW"); no minimum, because blank means "no tag"
+  shortName: t.Optional(t.String({ maxLength: SHORT_NAME_MAX })),
+})
 
 /** Random url-safe invite code, ~8 chars. */
 export function inviteCode(length = 8): string {

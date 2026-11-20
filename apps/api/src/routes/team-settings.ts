@@ -1,15 +1,9 @@
-import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
-import { Elysia, t } from 'elysia'
+import { Elysia } from 'elysia'
 import type { Db } from '../db/index.ts'
 import type { TeamDto } from '../db/schema.types.ts'
 import { renameTeam } from '../lib/teams.ts'
+import { teamBody } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
-
-const teamBody = t.Object({
-  name: t.String({ minLength: 1, maxLength: TEAM_NAME_MAX }),
-  // optional badge tag ("DBW"); the rule itself lives in renameTeam, this only bounds the input
-  shortName: t.Optional(t.String({ maxLength: SHORT_NAME_MAX })),
-})
 
 /**
  * The team's own identity — the one team-scoped route that does *not* get a `TeamScope`.
