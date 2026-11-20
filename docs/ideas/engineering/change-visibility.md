@@ -1,12 +1,12 @@
 # Idea — seeing what changed in the data
 
-**Status:** idea, nothing implemented. Follows [`logging.md`](logging.md): logs answer *did it do
+**Status:** idea, nothing implemented. Follows [`logging.md`](../done/logging.md): logs answer *did it do
 the thing?*, not *what did the data look like afterwards?*
 **Scope:** backend only. No SPA work.
 
 ## 1. The gap
 
-`logging.md` deliberately logs **ids and outcomes**, never values (no names, notes, emails, Discord
+`../done/logging.md` deliberately logs **ids and outcomes**, never values (no names, notes, emails, Discord
 ids, invite codes, request bodies). That is right for a request trail, but it means a bug report
 that says "the roster is wrong" cannot be reproduced from the log alone:
 
@@ -57,7 +57,7 @@ Closes the "old value" hole for exactly the fields whose transitions are busines
 
 ### C. Redacted request payload (allowlist per route)
 
-Would help reproduction the most, but it is the thing `logging.md` §5 ruled out for good reasons
+Would help reproduction the most, but it is the thing `../done/logging.md` §5 ruled out for good reasons
 (`/api/auth/*` bodies are credentials). Only viable as a strict per-route allowlist
 (`displayName`, `role`, `isActive`; never `note`/`code`). **Not recommended** unless a real bug
 proves it necessary.

@@ -144,7 +144,7 @@ Order matters and is the entire trick:
   bounds it, so a two-week outage does not produce a burst of stale digests.
 - A missed week is a **row with `sentAt = NULL` and an `error`** — i.e. the failure is *visible and
   queryable*, not a line in a log nobody reads. That is the same "did it do the thing?" rule as
-  `logging.md`, but stored where the captain can see it.
+  `../done/logging.md`, but stored where the captain can see it.
 - No cron library, no external scheduler: a `setInterval` tick of 5–15 minutes calling
   `digestDue()` for each enabled team. Six teams × 1 query per tick is nothing. (Single-process,
   which is the same assumption as `realtime.md` §5.3 — and here the UNIQUE row makes a *second*
@@ -243,7 +243,7 @@ password:
 
 - **never returned by the API** — `GET /settings` returns `{ hasWebhook: true, tail: '…ab12' }`;
   writes accept a full URL, reads never echo it.
-- **never logged** — not the URL, not the payload-with-URL, not on error. (`logging.md` is the place
+- **never logged** — not the URL, not the payload-with-URL, not on error. (`../done/logging.md` is the place
   to state this once for the codebase: a redaction rule for known-secret fields.)
 - captain-only to set/rotate; changing it clears past failures and resets the invalid flag.
 - A leaked URL is rotated by deleting the webhook in Discord — say so in the UI copy.

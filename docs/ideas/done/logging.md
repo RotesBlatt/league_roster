@@ -1,6 +1,9 @@
 # Idea — logging that answers "did it do the thing?"
 
-**Status:** implemented — thin `pino` facade, not hand-rolled. Commits in §12.
+**Status:** done — 2026-11-21. Landed in `b26d6c5`…`7474052`: docs choice, a thin pino facade, env
+knobs, console + rotating file destinations, one `http.request` line per call with `x-request-id`
+correlation, `auth.denied`, invite/roster domain events, process lifecycle events, and the docker
+`api-logs` volume. Deviations from the draft are recorded in §12; the commits are in §13.
 **Scope:** backend only (`apps/api`), plus env/docs/docker wiring. No SPA code.
 
 ## 1. The idea
@@ -247,7 +250,7 @@ Then `bun run test`, `bun run test:db`, `bun run typecheck`, `bun run check`.
 
 | File | Change |
 | --- | --- |
-| `apps/api/src/lib/log/*` | new (4 files: logger, destinations, http, noop) |
+| `apps/api/src/lib/log/*` | new (logger, destinations, http, noop, lifecycle + `pino-roll.d.ts`) |
 | `apps/api/src/app.ts` | `createApp({ logger })`, chain hook functions, wrap better-auth `onRequest` |
 | `apps/api/src/index.ts` | build the logger from `env`, `server.start`, `server.stop`, unhandled errors |
 | `apps/api/src/env.ts` | `log` config block |
@@ -271,27 +274,47 @@ report and found with one `grep`.
 
 1. ~~**Format**~~ — resolved: pino NDJSON to file, `pino-pretty` to console.
 2. ~~**Rotation**~~ — resolved: daily + `LOG_RETENTION_DAYS` via `pino-roll`.
-3. **Container** — file logging on inside Docker with a named volume, or console-only there and let
-   the `json-file` driver (10m × 3) do the rotating? (recommend the volume: "check the log after the
-   fact" is the point)
-4. **Event detail** — ids only, as in §4? (recommend yes; names/notes live in the DB)
-5. **SPA** — surface `x-request-id` in error toasts? (recommend no for now; it is in the response
-   header if we ever want it)
+3. ~~**Container**~~ — resolved: file logging on in Docker, on the `api-logs` volume.
+4. ~~**Event detail**~~ — resolved: ids only; names/notes stay in the DB.
+5. ~~**SPA**~~ — resolved: no toast; `x-request-id` is on the response header.
 
-## 12. Suggested commits
+## 12. Decided while implementing
 
-1. `docs(ideas): choose pino for api logging` — this doc
-2. `feat(api): add pino logger facade` — `lib/log/{logger,noop}.ts` + unit tests
-3. `feat(api): console and rotating file destinations` — `lib/log/destinations.ts` + tests
-   (`env.ts` knobs landed separately as `feat(api): log config knobs in env`)
-4. `feat(api): log every http request and its outcome` — `lib/log/http.ts`, `app.ts`, `index.ts`,
-   integration test
-5. `feat(api): log domain events` — auth/access/invites/members/players/migrate + their unit tests
-6. `chore(docker): persist and rotate api log files` — compose, Dockerfile, gitignore, env example
+- **Library over hand-rolling.** Aggregating logs is plausible, and pino's NDJSON is what those
+tools parse. It is wrapped thin: `Logger` is our own type and `createLogger` is the only place
+pino is constructed, so route code never imports it and a swap stays one file.
+- **`pino-roll`'s naming and retention were accepted, not fought.** The file is
+  `api.<YYYY-MM-DD>.<n>.log`, and `LOG_RETENTION_DAYS` maps to pino-roll's **count**-based
+  `limit.count` (keep N daily files), pruned at rotation — not the `api-YYYY-MM-DD.log` + age-based
+  sweep first drafted. Owning rotation correctly is worth more than the separator.
+- **Console is `pino-pretty` as a plain `Writable`**, never a worker-thread transport (the fragile
+  part on Bun). Output is multi-line, not the aligned one-liner in §3; making `event` the headline
+  (`messageKey`) was deferred.
+- **Message extraction is synchronous.** Elysia hands `onAfterResponse` an
+  `ElysiaCustomStatusResponse` for guard denials and `undefined` for the `onError` path, so the
+  message comes from the wrapper plus `app.onError` passing its own text. **Response bodies are not
+  read** — consuming a stream after the fact is not worth it, and the async hop reordered lines.
+- **`auth.bootstrap_promote` never shipped**: the bootstrap and `CAPTAIN_DISCORD_IDS` allowlist were
+  already gone when this was implemented, so the event was removed from the catalogue.
+- **`createApp` defaults to `noopLogger`**, not an env-built logger; `index.ts` is the only place the
+  real logger is built. That keeps integration tests quiet and avoids creating files on import.
+- **`requestLogger(request)` is the DI seam** threaded into the auth plugin and the invite/claim/
+  member/player factories, so every domain event carries `requestId` (and `userId` when known).
+  `claimInvite(db, { log })` stays optional and defaults to noop.
+- **`env.ts` keeps its `console.warn`s** — the documented exception (§4).
+- **Invite `expiresAt` is logged as epoch ms**, matching the DTO; invite **codes are never logged**
+  (asserted by an integration test).
+- **Docker**: file logging on with the `api-logs` volume; the console's `json-file` driver still
+  rotates the stdout copy.
 
-One idea per commit, each green on its own. 1 and 6 can land without 2–5; 5 depends on 2–4.
+## 13. Commits
 
-## 13. Deliberately out of scope
+`b26d6c5`…`7474052` — `docs: choose pino for api logging`, `add pino logger with a simple wrapper`,
+`add log config knobs in .env`, `console and rotating file destinations`, `log every http request
+and its outcome` (×2, the second keeping lines in request order), `log auth denials`, `log invite
+events`, `log roster changes`, `log process lifecycle`, `persist api log files`.
+
+## 14. Deliberately out of scope
 
 - Log shipping (Loki/ELK) — the file is the interface; ship it later without touching call sites
 - Metrics/tracing (OpenTelemetry) — a different question with a different cost
