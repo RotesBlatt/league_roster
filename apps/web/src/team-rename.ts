@@ -2,9 +2,9 @@ import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
 
 /**
  * Everything the admin page's rename form decides, kept out of the component so it can be
- * tested without a DOM: what to send, whether the captain actually changed anything, and what
- * a refusal means to a human. The API stays authoritative — these checks only save a round trip
- * (team-rename.md §4).
+ * tested without a DOM: what to send and whether the captain actually changed anything. The API
+ * stays authoritative — these checks only save a round trip (team-rename.md §4). Failure messages
+ * live in `team-messages.ts`, shared with the create flow.
  */
 
 /** Always includes `shortName`, because `''` is how the API is told to clear the tag. */
@@ -40,16 +40,4 @@ export function draftRename(input: RenameTeamInput): RenameTeamDraft {
     body: { name, shortName },
     unchanged: name === input.currentName && shortName === (input.currentShortName ?? ''),
   }
-}
-
-/**
- * The API already says *why* it refused (a 422 carries the rule that broke, e.g. "reserved"):
- * that is the message to show. The rest need translating into what to do next — 404 is the
- * captain's membership disappearing under them, which only a reload fixes.
- */
-export function renameMessage(status: number, message: string): string {
-  if (status === 401) return 'Your session expired — sign in again.'
-  if (status === 404) return 'This team is no longer available to you — reload the page.'
-  if (status === 409) return 'That team name is taken. Try a slightly different name.'
-  return message
 }

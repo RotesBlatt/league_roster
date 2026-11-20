@@ -1,9 +1,9 @@
 import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
 
 /**
- * Everything the create-team form decides, kept out of the component so it can be tested
- * without a DOM: what to send (if anything), what a failure means to a human, and where to
- * go afterwards. the API stays authoritative — these checks only save a round trip.
+ * What the create-team form decides, kept out of the component so it can be tested without a
+ * DOM: what to send, and where to go afterwards. The API stays authoritative — these checks only
+ * save a round trip. Failure messages live in `team-messages.ts`, shared with the rename flow.
  */
 
 export type CreateTeamBody = { name: string; shortName?: string }
@@ -28,17 +28,6 @@ export function draftTeam(name: string, shortName: string): CreateTeamDraft {
       ? { name: trimmedName, shortName: trimmedShortName }
       : { name: trimmedName },
   }
-}
-
-/**
- * The API already says *why* it refused (422 carries the rule that broke, e.g. "reserved"):
- * that is the message to show. Only two statuses need translating — an expired session, and
- * a taken name, where the useful thing to say is what to do next.
- */
-export function createTeamMessage(status: number, message: string): string {
-  if (status === 401) return 'Your session expired — sign in again.'
-  if (status === 409) return 'That team name is taken. Try a slightly different name.'
-  return message
 }
 
 /** Where the app goes once the team exists: its roster, addressed by slug. */

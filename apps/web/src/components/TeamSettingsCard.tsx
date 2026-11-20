@@ -8,8 +8,9 @@ import { type SubmitEvent, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 // the pure modules: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError, api, unwrap } from '../api.ts'
+import { renameTeamMessage } from '../team-messages.ts'
 import { teamPathWithSlug } from '../team-path.ts'
-import { draftRename, renameMessage } from '../team-rename.ts'
+import { draftRename } from '../team-rename.ts'
 
 /**
  * The captain's rename (team-rename.md §3–4). The slug follows the name, so saving usually
@@ -54,7 +55,7 @@ export function TeamSettingsCard({ team }: { team: TeamSummary }) {
     },
     onError: (caught: Error) => {
       const status = caught instanceof ApiError ? caught.status : 0
-      setError(renameMessage(status, caught.message))
+      setError(renameTeamMessage(status, caught.message))
     },
   })
 

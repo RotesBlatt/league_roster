@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
-import { draftRename, renameMessage } from '../src/team-rename.ts'
+import { draftRename } from '../src/team-rename.ts'
 
 /**
  * The admin page's rename form, without a DOM: what to send, whether anything changed, and
@@ -91,29 +91,5 @@ describe('draftRename', () => {
         shortName: 'a'.repeat(SHORT_NAME_MAX),
       }),
     ).toMatchObject({ ok: true })
-  })
-})
-
-describe('renameMessage', () => {
-  test('turns a taken name into advice', () => {
-    expect(renameMessage(409, 'That team name is already taken')).toContain('different name')
-  })
-
-  test('passes the API reason for a 422 straight through', () => {
-    const reason = 'That name is reserved — pick another one'
-    expect(renameMessage(422, reason)).toBe(reason)
-  })
-
-  test('an expired session says so instead of showing a raw 401', () => {
-    expect(renameMessage(401, 'Not signed in')).toMatch(/sign in again/i)
-  })
-
-  // 404 here means the membership is gone, so a reload is the only way forward
-  test('a team no longer reachable says to reload', () => {
-    expect(renameMessage(404, 'Not found')).toMatch(/reload/i)
-  })
-
-  test('anything else keeps the message it was given', () => {
-    expect(renameMessage(500, 'Internal error')).toBe('Internal error')
   })
 })

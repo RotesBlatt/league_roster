@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { SHORT_NAME_MAX, TEAM_NAME_MAX } from '@lol/shared'
-import { createTeamMessage, draftTeam, rosterPath } from '../src/create-team.ts'
+import { draftTeam, rosterPath } from '../src/create-team.ts'
 
 /**
  * The create-team form's thinking, without a DOM: what to send, what a failure means,
@@ -40,26 +40,6 @@ describe('draftTeam', () => {
     expect(draftTeam('a'.repeat(TEAM_NAME_MAX), 'a'.repeat(SHORT_NAME_MAX))).toMatchObject({
       ok: true,
     })
-  })
-})
-
-describe('createTeamMessage', () => {
-  // 409 means the name is fine but taken, so the message has to offer a way out
-  test('turns a taken name into advice', () => {
-    expect(createTeamMessage(409, 'That team name is already taken')).toContain('different name')
-  })
-
-  test('passes the API reason for a 422 straight through', () => {
-    const reason = 'That name is reserved — pick another one'
-    expect(createTeamMessage(422, reason)).toBe(reason)
-  })
-
-  test('an expired session says so instead of showing a raw 401', () => {
-    expect(createTeamMessage(401, 'Not signed in')).toMatch(/sign in again/i)
-  })
-
-  test('anything else keeps the message it was given', () => {
-    expect(createTeamMessage(500, 'Internal error')).toBe('Internal error')
   })
 })
 

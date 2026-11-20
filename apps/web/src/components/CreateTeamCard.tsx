@@ -6,8 +6,9 @@ import { useNavigate } from 'react-router'
 // the pure module: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError } from '../api-result.ts'
 import { signOut } from '../auth-client.ts'
-import { createTeamMessage, draftTeam, rosterPath } from '../create-team.ts'
+import { draftTeam, rosterPath } from '../create-team.ts'
 import { useCreateTeam } from '../hooks.ts'
+import { teamWriteMessage } from '../team-messages.ts'
 
 /**
  * The other way into the app besides an invite link: creating a team is what makes you its
@@ -39,7 +40,7 @@ export function CreateTeamCard({ signedInAs }: { signedInAs?: string }) {
       },
       onError: (caught: Error) => {
         const status = caught instanceof ApiError ? caught.status : 0
-        setError(createTeamMessage(status, caught.message))
+        setError(teamWriteMessage(status, caught.message))
       },
     })
   }
