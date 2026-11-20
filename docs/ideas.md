@@ -8,7 +8,7 @@ a schema sketch, the decisions that were forced, and its open questions.
 without a doc is a reminder; a doc without a row is invisible.
 
 **Three states, recorded in two places.** The doc's own `**Status:**` line is authoritative; the
-`Status` column below mirrors it, so the queue is answerable without opening 13 files.
+`Status` column below mirrors it, so the queue is answerable without opening 14 files.
 
 | state | means | what changes |
 | --- | --- | --- |
@@ -27,6 +27,7 @@ it sat at the top — and why closing it (see **Done**) unblocks most of the que
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
+| [migration-safety](ideas/migration-safety.md) | A migration can never take prod down again: test the chain against a DB seeded with the previous schema, ban `NOT NULL` without a backfill by test, dump before migrating, and prove the image against legacy data in CI. Written from a real incident. | — | idea |
 | [player-profiles](ideas/player-profiles.md) | Players own their own profile (display name, Riot accounts with one main, preferred role, birthday); the captain owns the roster entry. Splits the row so edits propagate by construction. | multi-team | idea |
 | [hexserve-champion-data](ideas/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
 | [availability-planner](ideas/availability-planner.md) | Everyone fills in when they can play; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
