@@ -2,6 +2,8 @@ import { eq, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import { players } from '../db/schema.ts'
 import type { PlayerDto } from '../db/schema.types.ts'
+import type { Logger } from '../lib/log/logger.ts'
+import { noopLogger } from '../lib/log/noop.ts'
 import type { TeamScope } from '../lib/team-db.ts'
 import { roleSchema, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
@@ -35,7 +37,11 @@ const playerBody = t.Object({
  * passing its player id. The `where` that used to be remembered is now the only thing the
  * handle can express (multi-team.md §5).
  */
-export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
+export function createPlayerRoutes(
+  scope: TeamScope,
+  authPlugin: AuthPlugin,
+  requestLogger?: (request: Request) => Logger,
+) {
   return new Elysia({ prefix: '/players' })
     .use(authPlugin)
     .get(
@@ -53,7 +59,7 @@ export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
     )
     .post(
       '/',
-      async ({ body, team, status }) => {
+      async ({ body, team, status, request, me }) => {
         const now = new Date()
         // no teamId in the values: the scope injects it
         const row = await scope(team).insertInto(players, {
@@ -70,13 +76,15 @@ export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
         })
 
         if (!row) return status(500, { message: 'Could not create player' })
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('player.created', { playerId: row.id, byUserId: me.id })
         return toDto(row)
       },
       { teamCaptain: true, body: playerBody },
     )
     .patch(
       '/:id',
-      async ({ body, params: { id }, team, status }) => {
+      async ({ body, params: { id }, team, status, request, me }) => {
         // the team predicate comes from the scope; `id` only narrows within it
         const [row] = await scope(team).update(
           players,
@@ -93,6 +101,8 @@ export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
         )
 
         if (!row) return status(404, { message: 'Player not found' })
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('player.updated', { playerId: row.id, byUserId: me.id })
         return toDto(row)
       },
       {
@@ -103,12 +113,14 @@ export function createPlayerRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
     )
     .delete(
       '/:id',
-      async ({ params: { id }, team, status }) => {
+      async ({ params: { id }, team, status, request, me }) => {
         // returning rows so "not found" and "deleted" stay distinguishable: a silent 200 on
         // another team's player id would be a lie (and a cross-team one)
         const deleted = await scope(team).deleteFrom(players, eq(players.id, id))
 
         if (deleted.length === 0) return status(404, { message: 'Player not found' })
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('player.deleted', { playerId: id, byUserId: me.id })
         return { ok: true }
       },
       { teamCaptain: true, params: teamParams },

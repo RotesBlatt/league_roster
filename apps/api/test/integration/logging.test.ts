@@ -23,6 +23,7 @@ let memberId: string
 let memberCookie: string
 let inviteId: string
 let inviteCodeValue: string
+let teamId: string
 
 const lines: string[] = []
 
@@ -69,9 +70,9 @@ beforeAll(async () => {
   const owner = await createUser(ctx, { name: 'Owner' })
   captainId = await createUser(ctx, { name: 'Captain' })
   memberId = await createUser(ctx, { name: 'Member' })
-  const team = await seedTeam(ctx, { createdBy: owner, slug: 'alpha', name: 'Alpha' })
-  await addMembership(ctx, { teamId: team, userId: captainId, role: 'captain' })
-  await addMembership(ctx, { teamId: team, userId: memberId, role: 'member' })
+  teamId = await seedTeam(ctx, { createdBy: owner, slug: 'alpha', name: 'Alpha' })
+  await addMembership(ctx, { teamId, userId: captainId, role: 'captain' })
+  await addMembership(ctx, { teamId, userId: memberId, role: 'member' })
   memberCookie = await createSessionCookie(ctx, memberId)
   captainCookie = await createSessionCookie(ctx, captainId)
 })
@@ -344,5 +345,89 @@ describe('invite events', () => {
       inviteId: invite.id,
       byUserId: captainId,
     })
+  })
+})
+
+describe('roster events', () => {
+  test('player create, update and delete carry the player id and the actor', async () => {
+    const before = records().length
+    const created = await call('/api/teams/alpha/players', {
+      method: 'POST',
+      body: { displayName: 'Roster Guy', role: 'MID' },
+      cookie: captainCookie,
+    })
+    expect(created.status).toBe(200)
+    const player = (await created.json()) as { id: string }
+    await settle(before + 2)
+    expect(since(before).find((record) => record.event === 'player.created')).toMatchObject({
+      playerId: player.id,
+      byUserId: captainId,
+    })
+
+    const beforeUpdate = records().length
+    await call(`/api/teams/alpha/players/${player.id}`, {
+      method: 'PATCH',
+      body: { displayName: 'Renamed' },
+      cookie: captainCookie,
+    })
+    await settle(beforeUpdate + 2)
+    expect(since(beforeUpdate).find((record) => record.event === 'player.updated')).toMatchObject({
+      playerId: player.id,
+      byUserId: captainId,
+    })
+
+    const beforeDelete = records().length
+    await call(`/api/teams/alpha/players/${player.id}`, {
+      method: 'DELETE',
+      cookie: captainCookie,
+    })
+    await settle(beforeDelete + 2)
+    expect(since(beforeDelete).find((record) => record.event === 'player.deleted')).toMatchObject({
+      playerId: player.id,
+      byUserId: captainId,
+    })
+  })
+
+  test('a member change is logged, and rejected changes carry a reason', async () => {
+    const subject = await createUser(ctx, { name: 'Subject' })
+    await addMembership(ctx, { teamId, userId: subject, role: 'member' })
+
+    const before = records().length
+    const res = await call(`/api/teams/alpha/members/${subject}`, {
+      method: 'PATCH',
+      body: { status: 'disabled' },
+      cookie: captainCookie,
+    })
+    expect(res.status).toBe(200)
+    await settle(before + 2)
+    expect(since(before).find((record) => record.event === 'member.updated')).toMatchObject({
+      targetUserId: subject,
+      byUserId: captainId,
+      status: 'disabled',
+    })
+
+    const beforeSelf = records().length
+    const self = await call(`/api/teams/alpha/members/${captainId}`, {
+      method: 'PATCH',
+      body: { status: 'disabled' },
+      cookie: captainCookie,
+    })
+    expect(self.status).toBe(409)
+    await settle(beforeSelf + 2)
+    expect(
+      since(beforeSelf).find((record) => record.event === 'member.change_rejected'),
+    ).toMatchObject({ targetUserId: captainId, byUserId: captainId, reason: 'self_disable' })
+
+    const beforeLast = records().length
+    const demote = await call(`/api/teams/alpha/members/${captainId}`, {
+      method: 'PATCH',
+      body: { role: 'member' },
+      cookie: captainCookie,
+    })
+    expect(demote.status).toBe(409)
+    await settle(beforeLast + 2)
+    expect(
+      since(beforeLast).find((record) => record.event === 'member.change_rejected'),
+    ).toMatchObject({ reason: 'last_captain' })
   })
 })
