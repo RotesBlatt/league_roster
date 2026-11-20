@@ -18,8 +18,11 @@ let ctx: TestContext
 let server: TestServer
 let call: TestServer['call']
 let captainId: string
+let captainCookie: string
 let memberId: string
 let memberCookie: string
+let inviteId: string
+let inviteCodeValue: string
 
 const lines: string[] = []
 
@@ -70,6 +73,7 @@ beforeAll(async () => {
   await addMembership(ctx, { teamId: team, userId: captainId, role: 'captain' })
   await addMembership(ctx, { teamId: team, userId: memberId, role: 'member' })
   memberCookie = await createSessionCookie(ctx, memberId)
+  captainCookie = await createSessionCookie(ctx, captainId)
 })
 
 afterAll(async () => {
@@ -109,7 +113,8 @@ describe('request logging', () => {
       cookie: memberCookie,
     })
     expect(denied.status).toBe(403)
-    await settle(before + 2)
+    // each denial emits auth.denied + http.request, so four lines for two requests
+    await settle(before + 4)
 
     const emitted = since(before)
     expect(emitted.filter((record) => record.event === 'http.request')).toHaveLength(2)
@@ -130,7 +135,9 @@ describe('request logging', () => {
     const res = await call('/api/me', { cookie: memberCookie })
     expect(res.status).toBe(200)
     await settle(before + 1)
-    expect(since(before)[0]).toMatchObject({ path: '/api/me', status: 200, userId: memberId })
+    expect(
+      since(before).find((record) => record.event === 'http.request' && record.path === '/api/me'),
+    ).toMatchObject({ status: 200, userId: memberId })
   })
 
   test('a validation failure is a 422 warn', async () => {
@@ -237,5 +244,105 @@ describe('auth.denied', () => {
     expect(res.status).toBe(200)
     await settle(before + 1)
     expect(since(before).some((record) => record.event === 'auth.denied')).toBe(false)
+  })
+})
+
+describe('invite events', () => {
+  test('creating an invite logs its id, never the code', async () => {
+    const before = records().length
+    const res = await call('/api/teams/alpha/invites', {
+      method: 'POST',
+      body: { maxUses: 1 },
+      cookie: captainCookie,
+    })
+    expect(res.status).toBe(200)
+    const invite = (await res.json()) as { id: string; code: string }
+    inviteId = invite.id
+    inviteCodeValue = invite.code
+
+    await settle(before + 2)
+    expect(since(before).find((record) => record.event === 'invite.created')).toMatchObject({
+      inviteId,
+      byUserId: captainId,
+      maxUses: 1,
+    })
+    expect(lines.join('')).not.toContain(inviteCodeValue)
+  })
+
+  test('claiming logs the claim, and a spent code logs a rejection with a reason', async () => {
+    const claimer = await createUser(ctx, { name: 'Claimer' })
+    const claimerCookie = await createSessionCookie(ctx, claimer)
+    const secondClaimer = await createUser(ctx, { name: 'Second Claimer' })
+    const secondCookie = await createSessionCookie(ctx, secondClaimer)
+
+    const before = records().length
+    const claimed = await call('/api/invites/claim', {
+      method: 'POST',
+      body: { code: inviteCodeValue },
+      cookie: claimerCookie,
+    })
+    expect(claimed.status).toBe(200)
+    const spent = await call('/api/invites/claim', {
+      method: 'POST',
+      body: { code: inviteCodeValue },
+      cookie: secondCookie,
+    })
+    expect(spent.status).toBe(410)
+    await settle(before + 4)
+
+    const emitted = since(before)
+    expect(emitted.find((record) => record.event === 'invite.claimed')).toMatchObject({
+      inviteId,
+      userId: claimer,
+      uses: 1,
+      maxUses: 1,
+    })
+    expect(emitted.find((record) => record.event === 'invite.claim_rejected')).toMatchObject({
+      event: 'invite.claim_rejected',
+      userId: secondClaimer,
+      inviteId,
+      reason: 'used_up',
+      level: 'warn',
+    })
+  })
+
+  test('an unknown code is a not_found rejection without an invite id', async () => {
+    // a team-less account, so the claim handler does not short-circuit on an active membership
+    const stranger = await createUser(ctx, { name: 'Stranger' })
+    const strangerCookie = await createSessionCookie(ctx, stranger)
+    const before = records().length
+    const res = await call('/api/invites/claim', {
+      method: 'POST',
+      body: { code: 'no-such-code' },
+      cookie: strangerCookie,
+    })
+    expect(res.status).toBe(404)
+    await settle(before + 2)
+
+    const rejected = since(before).find((record) => record.event === 'invite.claim_rejected')
+    expect(rejected).toMatchObject({ userId: stranger, reason: 'not_found' })
+    expect(rejected).not.toHaveProperty('inviteId')
+  })
+
+  test('revoking logs the invite and who did it', async () => {
+    const created = await call('/api/teams/alpha/invites', {
+      method: 'POST',
+      body: { maxUses: 2 },
+      cookie: captainCookie,
+    })
+    const invite = (await created.json()) as { id: string }
+
+    const before = records().length
+    const res = await call(`/api/teams/alpha/invites/${invite.id}/revoke`, {
+      method: 'POST',
+      cookie: captainCookie,
+    })
+    expect(res.status).toBe(200)
+    await settle(before + 2)
+
+    expect(since(before).find((record) => record.event === 'invite.revoked')).toMatchObject({
+      inviteId: invite.id,
+      byUserId: captainId,
+    })
   })
 })

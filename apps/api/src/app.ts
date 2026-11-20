@@ -41,11 +41,8 @@ export function createApp(options: AppOptions = {}) {
     slowMs: env.log.slowMs,
     logAssets: env.log.assets,
   })
-  const authPlugin = createAuthPlugin({
-    auth,
-    db,
-    requestLogger: (request) => requestLog.requestLogger(request),
-  })
+  const requestLogger = (request: Request) => requestLog.requestLogger(request)
+  const authPlugin = createAuthPlugin({ auth, db, requestLogger })
 
   return (
     new Elysia()
@@ -125,7 +122,7 @@ export function createApp(options: AppOptions = {}) {
           // global: you can be signed in and not be in a team (yet)
           .use(createMeRoutes(authPlugin))
           // global: the code identifies the team being joined
-          .use(createClaimRoutes(db, authPlugin))
+          .use(createClaimRoutes(db, authPlugin, requestLogger))
           // global: creating a team is the act that makes you its captain, so there is
           // no tenant in the path yet
           .use(createTeamRoutes(db, authPlugin))
@@ -137,7 +134,7 @@ export function createApp(options: AppOptions = {}) {
             team
               // route factories get a scope, not the db: no team in the path, no handle
               .use(createPlayerRoutes((scoped) => forTeam(db, scoped), authPlugin))
-              .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin))
+              .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
               .use(createMemberRoutes((scoped) => forTeam(db, scoped), authPlugin)),
           ),
       )

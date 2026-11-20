@@ -2,6 +2,8 @@ import { desc, eq } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import { invites, user } from '../db/schema.ts'
 import type { InviteDto } from '../db/schema.types.ts'
+import type { Logger } from '../lib/log/logger.ts'
+import { noopLogger } from '../lib/log/noop.ts'
 import type { TeamScope } from '../lib/team-db.ts'
 import { inviteCode, teamParams } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
@@ -29,7 +31,11 @@ function toDto(row: typeof invites.$inferSelect, createdByName: string | null): 
  * predicate comes from the handle — which is what makes revoking another team's invite
  * impossible, rather than "possible but answered with a 404".
  */
-export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
+export function createInviteRoutes(
+  scope: TeamScope,
+  authPlugin: AuthPlugin,
+  requestLogger?: (request: Request) => Logger,
+) {
   return new Elysia({ prefix: '/invites' })
     .use(authPlugin)
     .get(
@@ -50,7 +56,7 @@ export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
     )
     .post(
       '/',
-      async ({ body, me, team }) => {
+      async ({ body, me, team, request }) => {
         // no teamId in the values: the scope injects it
         const row = await scope(team).insertInto(invites, {
           id: crypto.randomUUID(),
@@ -65,6 +71,13 @@ export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
         })
 
         if (!row) throw new Error('insert failed')
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('invite.created', {
+          inviteId: row.id,
+          byUserId: me.id,
+          maxUses: row.maxUses,
+          expiresAt: row.expiresAt ? row.expiresAt.getTime() : null,
+        })
         return toDto(row, me.name)
       },
       {
@@ -78,7 +91,7 @@ export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
     )
     .post(
       '/:id/revoke',
-      async ({ params: { id }, team, status }) => {
+      async ({ params: { id }, team, status, request, me }) => {
         // another team's id matches nothing here, so the 404 happens before any write
         const [row] = await scope(team).update(
           invites,
@@ -87,6 +100,8 @@ export function createInviteRoutes(scope: TeamScope, authPlugin: AuthPlugin) {
         )
 
         if (!row) return status(404, { message: 'Invite not found' })
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('invite.revoked', { inviteId: row.id, byUserId: me.id })
         return { ok: true }
       },
       { teamCaptain: true, params: teamParams },
