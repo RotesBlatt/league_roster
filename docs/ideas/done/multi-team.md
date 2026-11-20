@@ -1,12 +1,11 @@
 # Idea — from "one team" to "a team per captain"
 
-**Status:** in progress — §8 steps 1–3 landed (migrations `0001`–`0004`): two accounts can each
-create a team and neither sees the other's roster, and nothing is granted by signing in — the
-`default`-team bootstrap and the `CAPTAIN_DISCORD_IDS` allowlist are gone (§11.6). Step 4 is done too: the
-create-team form, `GET /api/teams` and the header switcher. Step 5's first half landed as well —
-`forTeam` / `TeamScope` in `lib/team-db.ts`, and no tenant-scoped route factory receives the raw
-`Db` any more (§11.8). What remains is RLS as defence in depth, which needs a deploy decision
-about connection pooling before it is worth writing.
+**Status:** done — 2026-11-20. Landed across `59cf81a`…`0b4adc8`: `team.shortName`, the slug
+rules, `createTeam` (creating a team *is* becoming its captain, one transaction), `POST` and `GET
+/api/teams`, the removal of the `default`-team bootstrap and `CAPTAIN_DISCORD_IDS`, the create-team
+form, the header switcher, and the `forTeam` / `TeamScope` handle that every tenant-scoped route
+factory now goes through. RLS (§8 step 5, second half) was deliberately **not** built, and the
+remaining §7 open items were closed as "does not exist yet" rather than decided — see §12.
 **Supersedes:** the assumption in `README.md` ("Roster app for one League team").
 **Related:** `player-profiles.md` — who owns which field. Step 4 below assumes profiles exist.
 
@@ -215,3 +214,21 @@ Still open from §7: whether team creation stays open or becomes gated (§7.1), 
    It also found a real defect while being written: `POST /invites/:id/revoke` updated by id and
    checked the team *afterwards*, so a captain could revoke another team's invite and still get a
    404 — now the scoped update matches nothing and the 404 comes first.
+
+## 12. Closed without building (2026-11-20)
+
+Recorded because "we decided not to" is a decision, and the reasons will not be obvious later.
+
+1. **RLS is not happening now.** §5 recommended the scoped handle *now* and RLS *later as defence in
+   depth*; the later stopped here. The blocker is not the SQL, it is the deploy: `SET LOCAL
+   app.team_id` only means something on the same connection, so it needs a transaction per query
+   (`forTeam` could open one) or a transaction per request (threaded through the guard) — and, more
+   importantly, an app role that is neither the table owner nor a superuser, because the owner
+   bypasses policies even with `FORCE`. That is a connection/roles decision for whoever owns the
+   deploy, and with one tenant it buys nothing today. Revisit when a second *real* tenant exists:
+   two roles (`lol_app`, `lol_migrator`), policies on `player`/`invite`/`membership`, and a test
+   that reads with the wrong `app.team_id` and expects zero rows.
+2. **The remaining §7 items are closed as "does not exist yet", not as decisions**: gated creation
+   (§7.1), ownership transfer (§7.4), team deletion (§7.5), existing data (§7.6). There is no live
+   install to migrate, no team that has changed hands, no team anyone wants deleted. When one of
+   those becomes real it deserves its own doc — guessing the rule now would be worse than nothing.

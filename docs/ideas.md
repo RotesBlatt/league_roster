@@ -22,12 +22,11 @@ line and its "decided while implementing" section in the same commit — a doc t
 and `web-architecture.md` (nothing refactored yet) are plain `idea` rows; their status lines say what
 kind of note they are.
 
-Order is dependency order, not importance: **7 of the 13 hang off `multi-team.md`**, which is why it
-sits at the top.
+Order is dependency order, not importance: **6 of the 12 still hang off `multi-team`**, which is why
+it sat at the top — and why closing it (see **Done**) unblocks most of the queue.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
-| [multi-team](ideas/multi-team.md) | One team per captain instead of one team per server: team as tenant, `membership` rows instead of role/status on the global user, plus the defences against tenant leakage. | — | **in progress** |
 | [player-profiles](ideas/player-profiles.md) | Players own their own profile (display name, Riot accounts with one main, preferred role, birthday); the captain owns the roster entry. Splits the row so edits propagate by construction. | multi-team | idea |
 | [hexserve-champion-data](ideas/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
 | [availability-planner](ideas/availability-planner.md) | Everyone fills in when they can play; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
@@ -54,4 +53,4 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
-| _(none yet)_ | `multi-team.md` is the first candidate: creation and tenancy are done, so what is left is the web half (§8 step 4) and hardening (step 5). | |
+| [multi-team](ideas/done/multi-team.md) | Team as tenant: `membership` rows replace role/status on the global user, path-scoped `/api/teams/:slug`, `POST`/`GET /api/teams`, the create-team form and header switcher, and a `TeamScope` handle every tenant route must go through. The bootstrap and `CAPTAIN_DISCORD_IDS` are gone. RLS deliberately skipped. | 2026-11-20 |
