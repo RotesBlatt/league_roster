@@ -10,6 +10,7 @@ import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlayerRoutes } from './routes/players.ts'
+import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
 
 export type AppOptions = {
@@ -96,6 +97,9 @@ export function createApp(options: AppOptions = {}) {
           // global: creating a team is the act that makes you its captain, so there is
           // no tenant in the path yet
           .use(createTeamRoutes(db, authPlugin))
+          // tenant-scoped, but the `team` table has no `teamId`: the rename needs the plain db
+          // plus the guard's team row, so it brings its own /teams/:slug prefix
+          .use(createTeamSettingsRoutes(db, authPlugin))
           // tenant-scoped: everything below is addressed by /api/teams/<slug>/...
           .group('/teams/:slug', (team) =>
             team

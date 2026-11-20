@@ -40,6 +40,15 @@ export type InviteDto = {
   path: string
 }
 
+/** A team's own editable identity: the answer to `PATCH /api/teams/:slug`. */
+export type TeamDto = {
+  id: string
+  /** derived from `name`, so a rename usually returns a different one */
+  slug: string
+  name: string
+  shortName: string | null
+}
+
 /** One row of the team switcher: `GET /api/teams` — the teams the caller may act as. */
 export type TeamSummary = {
   id: string
