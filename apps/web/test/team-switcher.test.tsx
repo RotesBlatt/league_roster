@@ -49,6 +49,11 @@ function RosterProbe() {
   return <div>roster of {slug}</div>
 }
 
+function AdminProbe() {
+  const { slug } = useParams()
+  return <div>admin of {slug}</div>
+}
+
 function renderSwitcher(entry = '/t/alpha/roster') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
@@ -63,6 +68,15 @@ function renderSwitcher(entry = '/t/alpha/roster') {
                 <>
                   <TeamSwitcher me={me} />
                   <RosterProbe />
+                </>
+              }
+            />
+            <Route
+              path="/t/:slug/admin"
+              element={
+                <>
+                  <TeamSwitcher me={me} />
+                  <AdminProbe />
                 </>
               }
             />
@@ -129,6 +143,18 @@ describe('TeamSwitcher', () => {
     fireEvent.click(await screen.findByText('Alpha'))
 
     expect(await screen.findByText('roster of alpha')).toBeDefined()
+  })
+
+  // switching team is a change of tenant, not of page: being sent back to the roster from the
+  // admin page is a demotion, and it was what the switcher did
+  test('switching from the admin page stays in the admin page', async () => {
+    renderSwitcher('/t/alpha/admin')
+
+    await openMenu()
+    fireEvent.click(await screen.findByText('Bravo'))
+
+    expect(await screen.findByText('admin of bravo')).toBeDefined()
+    expect(screen.queryByText('roster of bravo')).toBeNull()
   })
 
   test('creating another team leads to /new-team', async () => {

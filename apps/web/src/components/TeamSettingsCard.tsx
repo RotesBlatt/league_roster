@@ -5,9 +5,10 @@ import { notifications } from '@mantine/notifications'
 import { IconAlertCircle } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type SubmitEvent, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 // the pure modules: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError, api, unwrap } from '../api.ts'
+import { teamPathWithSlug } from '../team-path.ts'
 import { draftRename, renameMessage } from '../team-rename.ts'
 
 /**
@@ -22,6 +23,7 @@ export function TeamSettingsCard({ team }: { team: TeamSummary }) {
   const [shortName, setShortName] = useState(team.shortName ?? '')
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const queryClient = useQueryClient()
 
   const draft = draftRename({
@@ -46,8 +48,9 @@ export function TeamSettingsCard({ team }: { team: TeamSummary }) {
 
       notifications.show({ message: 'Team saved', color: 'brand' })
 
-      // same slug (only the tag or the letter case changed): stay put
-      if (renamed.slug !== team.slug) navigate(`/t/${renamed.slug}/admin`)
+      // same slug (only the tag or the letter case changed): stay put. Otherwise the URL moves,
+      // but the page does not: the card is on the admin page, so that is where you land
+      if (renamed.slug !== team.slug) navigate(teamPathWithSlug(pathname, renamed.slug))
     },
     onError: (caught: Error) => {
       const status = caught instanceof ApiError ? caught.status : 0

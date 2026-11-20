@@ -2,10 +2,9 @@ import type { Me } from '@lol/api/schema-types'
 import { Badge, Button, Group, Menu, Text } from '@mantine/core'
 import { IconChevronDown, IconPlus, IconUsersGroup } from '@tabler/icons-react'
 import { useLocation, useNavigate } from 'react-router'
-import { rosterPath } from '../create-team.ts'
 import { useMyTeams } from '../hooks.ts'
 import { currentTeam, otherTeams } from '../team-menu.ts'
-import { teamSlugFromPath } from '../team-path.ts'
+import { teamPathWithSlug, teamSlugFromPath } from '../team-path.ts'
 
 /**
  * One account may be in several teams (multi-team.md §7.3). The header names the team in the
@@ -17,7 +16,8 @@ export function TeamSwitcher({ me }: { me: Me }) {
   const teams = useMyTeams().data ?? []
   // the URL decides which team is current — `me.teamSlug` is the oldest membership, which is
   // only right until you switch, and is nothing but the fallback outside /t/:slug
-  const slug = teamSlugFromPath(useLocation().pathname) ?? me.teamSlug
+  const { pathname } = useLocation()
+  const slug = teamSlugFromPath(pathname) ?? me.teamSlug
   const current = currentTeam(teams, slug)
   const others = otherTeams(teams, slug)
 
@@ -48,7 +48,8 @@ export function TeamSwitcher({ me }: { me: Me }) {
           <Menu.Item
             key={team.id}
             leftSection={<IconUsersGroup size={16} />}
-            onClick={() => navigate(rosterPath(team.slug))}
+            // switching is a change of tenant, not of page: keep the admin page, etc.
+            onClick={() => navigate(teamPathWithSlug(pathname, team.slug))}
           >
             <Group justify="space-between" gap="md" wrap="nowrap">
               <Text size="sm">{team.name}</Text>
