@@ -29,6 +29,13 @@ Every code change ships with tests. "It's a small change" is not an exemption.
 - New business rule → extract the rule into a plain function and unit test it.
   A route handler that "thinks" is a route handler that can't be tested.
 - Bug fix → regression test that fails without the fix. No exceptions.
+- **A migration is tested against rows, not an empty schema.** It ships with a
+  test that applies the previous schema, seeds it, then migrates; the SQL must
+  not add `NOT NULL` without a `DEFAULT`/backfill or drop data without an
+  allowlisted reason (`apps/api/test/unit/migrations-safety.test.ts` and
+  `apps/api/test/integration/migrations.test.ts`).
+- **A deploy dumps before it migrates.** `docker-compose.yml`'s `pre-migrate`
+  service gates `app`; never remove that dependency.
 - UI: keep logic in plain modules (`api-result.ts`, `badges.tsx` mappings) and
   unit test those; don't reach for a DOM harness unless behaviour needs it.
 - Never leave `bun run test`, `bun run test:db`, `bun run typecheck` or

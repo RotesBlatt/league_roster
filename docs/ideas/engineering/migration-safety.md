@@ -1,9 +1,11 @@
 # Idea — a migration can never take prod down again
 
-**Status:** idea, nothing implemented. Written up from a real incident (2026-11-21); the failing
-migrations are still unfixed in the tree.
-**Scope:** `apps/api/drizzle`, `apps/api/test/integration`, `apps/api/test/unit`, `docker/entrypoint.sh`,
-`.github/workflows/ci.yml`, `AGENTS.md`.
+**Status:** in progress (2026-11-21). Landed: a seeded-database replay of every migration, static
+rules that reject unsafe SQL shapes, a pre-migration dump the deploy waits on, and an advisory lock
+around `runMigrations`. Open: an image smoke test against a legacy fixture (P5). The backfill (P2)
+was dropped — no database replays `0001`/`0002`, so those files stay exactly as they shipped.
+**Scope:** `apps/api/drizzle`, `apps/api/test/integration`, `apps/api/test/unit`,
+`apps/api/src/db/migrations.ts`, `docker-compose.yml`, `.github/workflows/ci.yml`, `AGENTS.md`.
 
 ## 1. The incident
 
@@ -25,8 +27,9 @@ PostgresError: column "teamId" of relation "invite" contains null values   (code
   The first action on any such failure is therefore a dump, before anything is "fixed":
   `docker compose exec -T db pg_dump -U lol -d lol > lol-team-$(date +%F).sql`.
 - **Also unfixed:** `0002_needy_puma.sql` does `ALTER TABLE "membership" ADD COLUMN "updatedAt" …
-  NOT NULL` — the same shape, and it fails as soon as `membership` has one row. Any backfill in 0001
-  that inserts memberships walks straight into it. 0001 + 0002 must be fixed together.
+  NOT NULL` — the same shape, and it fails as soon as `membership` has one row. **Decision:** both
+  stay as shipped. No live database replays them, and editing history buys nothing; the point is
+  that the *next* migration cannot repeat the shape.
 
 ### Why every check stayed green
 
@@ -49,90 +52,79 @@ that runs against *state* we do not own, and it is the only code we never exerci
 
 Two corollaries:
 
-- **Backups precede migrations, always.** The entrypoint dumps before it migrates, and refuses to
-  migrate if the dump fails.
+- **Backups precede migrations, always.** The deploy dumps before the app (and therefore its
+  entrypoint migration) starts, and refuses to start if the dump fails.
 - **Destructive statements are a decision, not a line of SQL.** `DROP COLUMN` / `DROP TABLE` /
   `SET NOT NULL` need a backfill or an explicit allowlist entry with a reason.
 
-## 3. The patches, in order (each one idea, each green)
+## 3. What landed, in order (one idea per commit)
 
-### P1 — test the migration chain against data (test first)
+### 1. Ban the shape, not the instance
 
-`integration/helpers.ts` gains `migrateTo(db, index)`: `readMigrationFiles({ migrationsFolder })` from
-`drizzle-orm/migrator`, then `db.dialect.migrate(files.slice(0, index), db.session, config)` — the
-migrator already takes the array, so no copy of the folder is needed.
-
-New `apps/api/test/integration/migrations.test.ts`: migrate through `0000`, seed a prod-shaped install
-(a `user` with the old `role`/`status`, one `invite`, one `player`), then run the full `migrate()`.
-**Expected red today: `23502 … contains null values`** — the incident reproduced as a test. That
-failure is the proof the test can catch the class; it goes green with P2.
-
-### P2 — the backfill (blocked on §5)
-
-`0001`: create the legacy team, add `teamId` **nullable** to `invite`/`player`, `UPDATE … SET
-"teamId" = '<legacy>'`, then `SET NOT NULL`; insert one `membership` per existing user from the old
-`user.role`/`user.status` **before** 0001 drops those columns.
-`0002`: `ADD COLUMN "updatedAt" … NOT NULL DEFAULT now()` then `DROP DEFAULT`.
-
-Editing shipped migrations is safe *for this case*: the migrator orders by `_journal.json`'s `when`,
-not by hash, so DBs that already ran 0001 do not re-run it — only prod (stuck at 0000) applies the
-fixed version.
-
-### P3 — ban the shape, not the instance
-
-`test/unit/migrations-safety.test.ts`, plain file parsing over `apps/api/drizzle/*.sql`, red on:
+`apps/api/test/unit/migrations-safety.test.ts` parses `apps/api/drizzle/*.sql` and fails
+`bun run test` on:
 
 - `ADD COLUMN … NOT NULL` without `DEFAULT`
 - `ALTER COLUMN … SET NOT NULL` with no preceding `UPDATE` in the same file
-- `DROP COLUMN` / `DROP TABLE` not listed in an allowlist (file → statement → reason)
+- `DROP COLUMN` / `DROP TABLE` without an allowlist entry (file → statement → reason)
 
-Milliseconds, no infrastructure, runs in `bun run test`, so nobody has to remember the rule.
+The allowlist holds the five historical statements and is checked for stale entries, so it cannot
+quietly grow. Milliseconds, no infrastructure.
 
-### P4 — prod cannot migrate without a backup, and cannot migrate twice
+### 2. Replay every migration against rows
 
-`docker/entrypoint.sh`:
+`test/integration/helpers.ts` gains `migrateTo(db, count)` (the migrator already accepts a slice of
+`readMigrationFiles`) and `createTestContext({ migrate: false })`.
+`test/integration/migrations.test.ts` then, for every step from `0003` on: applies the prefix,
+inserts one row into **every** table that exists at that point (values from `information_schema`,
+foreign keys bypassed), applies the rest, and asserts every seeded primary key survived. No fixture
+per migration and no list to maintain — a new `0005` is covered the moment it lands.
 
-1. `pg_dump` to the existing `pg-backups` volume (compose already mounts it on the `backup` service);
-   abort if the dump fails.
-2. `SELECT pg_advisory_lock(...)` around the migrate step so two replicas cannot race.
+Starting at `0003` is deliberate: `0001`/`0002` are the historical offenders above. Pointing the
+harness at step 1 reproduces the incident verbatim (`23502 … "teamId" … contains null values`),
+which is how it was shown to catch the class.
 
-A migration may then fail loudly with yesterday's data safe on disk.
+### 3. Serialise migrations
 
-### P5 — CI proves the artifact against a legacy DB
+`src/db/migrations.ts`'s `runMigrations` holds `pg_advisory_lock` on a reserved connection, so two
+replicas booting at once cannot race on the schema; `migrate.ts` is now a thin CLI over it.
+`migrations-lock.test.ts` proves a second replica blocks until the lock is released and that the
+chain is applied exactly once.
 
-In `.github/workflows/ci.yml`'s `package` job, seed the Postgres service with a pre-0001 fixture
-(`0000`-era schema + a few rows) **before** starting the image, and keep
-`docker logs lol-team | grep -q "migrations applied"`. This closes the gap between "the image is
-fine" and "the image is fine against a database shaped like prod".
+### 4. Dump before migrating
 
-### P6 — the policy line in `AGENTS.md`
-
-One sentence under *Testing policy*: a migration ships with a test that applies it to a DB seeded
-with the previous schema; a deploy dumps before it migrates.
+`docker-compose.yml` has a one-shot `pre-migrate` service that runs `docker/backup.sh once` into
+`pg-backups/pre-migrate`, and `app` waits on `service_completed_successfully`. A failed dump means
+the app — and therefore its entrypoint's migration — never starts. The `package` CI job asserts that
+wiring with `jq` over `docker compose config --format json`.
 
 ## 4. What this does *not* solve
 
-- **No prod-like data in CI.** The fixture is a *shape*, not a copy — a migration can still be wrong
-  for a row we never imagined. Real insurance is P4's dump, not the test.
+- **No prod-like data in CI.** The seeded rows are a *shape*, not a copy — a migration can still be
+  wrong for a row we never imagined. Real insurance is the dump, not the test.
 - **No down-migrations.** We do not write them; recovery is "restore the dump".
 - **No shadow database with the previous release's real rows.** Possible later (`pg_dump` of prod
   into a scratch DB as a deploy step), deliberately not in scope.
-- **Not a substitute for reading the SQL.** P3 catches three shapes; a wrong `UPDATE … WHERE` is
-  invisible to it.
+- **Not a substitute for reading the SQL.** The static rules catch three shapes; a wrong
+  `UPDATE … WHERE` is invisible to them.
+- **Bare `docker run` does not dump.** The pre-migration dump is wired in `docker-compose.yml`; the
+  image on its own (CI smoke test, ad-hoc runs) is not covered.
 
-## 5. Open questions (yours)
+## 5. Decisions and what is still open
 
-1. **Prod's existing data: fresh start or backfill?** This is still §7.6 of `done/multi-team.md` and
-   it decides P2's shape. Today: wipe `pg-data` (`docker compose down -v`) and let the empty-DB path
-   apply, or keep the data.
-2. If backfill: **legacy team name + slug** — default `Team` / `default` (matches the old
-   `ensureAccess` bootstrap).
-3. If backfill: **who is captain** — the old `user.role = 'captain'` row, or a given Discord id.
-4. If backfill: **who becomes a member** — every row in `user` as `active` (the old `status` was
-   `pending`/`active`, and `0003` already maps pending → active), or only previously `active` ones.
-5. **Where do dumps live and how long?** `pg-backups` volume, `BACKUP_KEEP_DAYS` (7) already applies
-   to the backup script; should the pre-migration dump share that retention, or be kept longer?
-6. **Does the entrypoint still migrate on boot once P4 exists**, or does the deploy become an
-   explicit `docker compose run --rm migrate` step that `app` waits on
-   (`depends_on: service_completed_successfully`)? The second makes a failed migration a *failed
-   deploy* instead of a crash-looping container — attractive, but it is a deploy-shape change.
+Decided while implementing (2026-11-21):
+
+- **No backfill.** `0001`/`0002` stay shipped; no database replays them. The guarantee is about the
+  next migration, not repairing history.
+- **Pre-migration dumps share the daily retention** (`BACKUP_KEEP_DAYS`, 7) and live in their own
+  `pg-backups/pre-migrate` subdirectory, so a dump cannot collide with a daily one.
+- **The entrypoint still migrates on boot.** The dump is a `depends_on` dependency, not a separate
+  `migrate` service; a failed dump is a failed deploy, a failed migration is still a failing
+  entrypoint.
+
+Still open:
+
+- **P5** — seed the `package` smoke test with a `0004`-era fixture so the *image* is proven against
+  legacy rows, not only the test suite.
+- **Retention** — is 7 days enough for the pre-migration dump? It is the one that matters when a
+  deploy goes wrong late.

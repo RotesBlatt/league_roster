@@ -44,7 +44,7 @@ it sat at the top — and why closing it (see **Done**) unblocks most of the que
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
-| [migration-safety](ideas/engineering/migration-safety.md) | A migration can never take prod down again: test the chain against a DB seeded with the previous schema, ban `NOT NULL` without a backfill by test, dump before migrating, and prove the image against legacy data in CI. Written from a real incident. | — | idea |
+| [migration-safety](ideas/engineering/migration-safety.md) | A migration can never take prod down again: test the chain against a DB seeded with the previous schema, ban `NOT NULL` without a backfill by test, dump before migrating, and prove the image against legacy data in CI. Written from a real incident. | — | in progress |
 | [player-profiles](ideas/roster/player-profiles.md) | Players own their own profile (display name, Riot accounts with one main, preferred role, birthday); the captain owns the roster entry. Splits the row so edits propagate by construction. | multi-team | idea |
 | [hexserve-champion-data](ideas/integrations/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
 | [availability-planner](ideas/roster/availability-planner.md) | Everyone fills in when they can play; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
