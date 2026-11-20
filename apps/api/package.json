@@ -8,7 +8,7 @@
     "./schema-types": "./src/db/schema.types.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "bun check"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.25",
