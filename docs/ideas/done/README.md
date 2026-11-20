@@ -11,7 +11,7 @@ A doc belongs in this directory only when all four are true, in the commit that 
 3. its "decided while implementing" section matches the code, including the parts that were skipped
    or done differently;
 4. its row left the queue table in [`../../ideas.md`](../../ideas.md) and sits in the **Done** table
-   there, linking to `done/<name>.md` instead of `ideas/<name>.md`.
+   there, linking to `done/<name>.md` instead of `ideas/<set>/<name>.md`.
 
-Anything short of all four stays in `docs/ideas/` as `in progress`, which is a useful state, not a
-half-failure. The convention itself is in [`../../ideas.md`](../../ideas.md).
+Anything short of all four stays in its set folder under `docs/ideas/` as `in progress`, which is a
+useful state, not a half-failure. The convention itself is in [`../../ideas.md`](../../ideas.md).

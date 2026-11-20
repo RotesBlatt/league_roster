@@ -1,8 +1,8 @@
 # Idea — old team slugs keep working
 
 **Status:** idea, nothing built. Depends on `team-rename` (done) — this is the deferred option C in
-[`done/team-rename.md`](done/team-rename.md) §2.
-**Related:** [`done/multi-team.md`](done/multi-team.md) §11.7 — the URL is the source of truth for
+[`done/team-rename.md`](../done/team-rename.md) §2.
+**Related:** [`done/multi-team.md`](../done/multi-team.md) §11.7 — the URL is the source of truth for
 which team you are looking at, and this idea changes what `/t/<slug>` means: not "the slug a team
 has", but "the slug a team had or has".
 
