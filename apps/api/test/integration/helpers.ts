@@ -9,6 +9,7 @@ import { type Auth, createAuth } from '../../src/auth.ts'
 import { createDb, type Db } from '../../src/db/index.ts'
 import { account, memberships, session, teams, user } from '../../src/db/schema.ts'
 import { env } from '../../src/env.ts'
+import type { Logger } from '../../src/lib/log/logger.ts'
 
 const adminUrl = process.env.TEST_DATABASE_URL
 if (!adminUrl) {
@@ -176,8 +177,8 @@ export type TestServer = {
  * Real HTTP on an ephemeral port. `app.handle(request)` does not route in this Elysia build
  * (routes only serve once listening), so tests go over the socket like a browser would.
  */
-export function createTestApp(ctx: TestContext, spaDist?: string): TestServer {
-  const app = createApp({ db: ctx.db, auth: ctx.auth, spaDist })
+export function createTestApp(ctx: TestContext, spaDist?: string, logger?: Logger): TestServer {
+  const app = createApp({ db: ctx.db, auth: ctx.auth, spaDist, logger })
   app.listen(0)
 
   const port = (app.server as { port?: number } | undefined)?.port

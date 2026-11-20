@@ -13,7 +13,7 @@ export type RequestLogOptions = {
 }
 
 /** The slice of an Elysia context these hooks touch. */
-type SetLike = { status?: number | string; headers: Record<string, string> }
+type SetLike = { status?: number | string; headers: Record<string, string | number> }
 type BaseContext = { request: Request; set: SetLike }
 
 type Pending = {
@@ -63,6 +63,26 @@ function messageOf(value: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * The browser-facing message of a failed request. Elysia hands `onAfterResponse` a `Response`
+ * for guard denials and validation errors, so read the (cloned) JSON body — never the whole
+ * body, and only the `message` field, which the client already received.
+ */
+async function messageFromResponse(response: unknown): Promise<string | undefined> {
+  if (response instanceof Response) {
+    try {
+      return messageOf(await response.clone().json())
+    } catch {
+      return undefined
+    }
+  }
+  // A macro guard that returns `status(403, …)` leaves an ElysiaCustomStatusResponse here.
+  if (response && typeof response === 'object' && 'response' in response) {
+    return messageOf(response.response)
+  }
+  return messageOf(response)
+}
+
 function ipOf(request: Request): string | undefined {
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) return forwarded.split(',')[0]?.trim() || undefined
@@ -84,7 +104,12 @@ export function createRequestLog(options: RequestLogOptions) {
   const generateId = options.generateId ?? defaultId
   const pending = new WeakMap<Request, Pending>()
 
-  function emit(request: Request, record: Pending, status: number, response: unknown): void {
+  function emit(
+    request: Request,
+    record: Pending,
+    status: number,
+    message: string | undefined,
+  ): void {
     pending.delete(request)
     const ms = Math.round(clock() - record.startedAt)
     const isAsset = record.path.startsWith('/assets/')
@@ -103,12 +128,15 @@ export function createRequestLog(options: RequestLogOptions) {
     if (record.ip !== undefined) fields.ip = record.ip
     if (record.ua !== undefined) fields.ua = record.ua
     if (ms > slowMs) fields.slow = true
-    if (record.errorCode !== undefined) fields.errorCode = record.errorCode
-    if (record.error !== undefined) fields.error = record.error
+    // A NOT_FOUND that became the SPA shell is a 200; a 422 is the caller's fault, not a stack
+    // worth keeping. Only a failure status carries an error code, and only a 5xx the stack.
+    if (status >= 400 && record.errorCode !== undefined) fields.errorCode = record.errorCode
+    if (status >= 500 && record.error !== undefined) fields.error = record.error
     if (status >= 400) {
-      // The response's own message is what the browser saw; the error's message is a fallback.
-      const message = messageOf(response) ?? record.message
-      if (message !== undefined) fields.message = message
+      // The message the browser saw: from the response when Elysia exposes it, otherwise the
+      // one the onError handler passed in. Never the raw error text.
+      const text = message ?? record.message
+      if (text !== undefined) fields.message = text
     }
 
     logger[level]('http.request', fields)
@@ -144,19 +172,22 @@ export function createRequestLog(options: RequestLogOptions) {
       if (ctx.me?.status) record.membership = ctx.me.status
     },
 
-    onError(ctx: BaseContext & { code?: string; error?: unknown }): void {
+    onError(
+      ctx: BaseContext & { code?: string | number; error?: unknown; message?: string },
+    ): void {
       const record = pending.get(ctx.request)
       if (!record) return
-      if (ctx.code) record.errorCode = ctx.code
+      if (ctx.code !== undefined) record.errorCode = String(ctx.code)
       record.error = ctx.error
-      const message = messageOf(ctx.error)
-      if (message !== undefined) record.message = message
+      if (ctx.message !== undefined) record.message = ctx.message
     },
 
-    onAfterResponse(ctx: BaseContext & { response?: unknown }): void {
+    async onAfterResponse(ctx: BaseContext & { response?: unknown }): Promise<void> {
       const record = pending.get(ctx.request)
       if (!record) return
-      emit(ctx.request, record, statusOf(ctx.response, ctx.set), ctx.response)
+      const status = statusOf(ctx.response, ctx.set)
+      const message = status >= 400 ? await messageFromResponse(ctx.response) : undefined
+      emit(ctx.request, record, status, message)
     },
 
     /**
@@ -166,7 +197,7 @@ export function createRequestLog(options: RequestLogOptions) {
     logShortCircuit(request: Request, response: Response): void {
       const record = pending.get(request)
       if (!record) return
-      emit(request, record, response.status, response)
+      emit(request, record, response.status, undefined)
     },
 
     /** A child logger carrying `requestId` (and `userId` once known); base logger otherwise. */

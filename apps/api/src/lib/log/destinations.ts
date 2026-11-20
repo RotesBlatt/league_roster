@@ -1,3 +1,4 @@
+/// <reference path="./pino-roll.d.ts" />
 import { join } from 'node:path'
 import type { Writable } from 'node:stream'
 import pretty from 'pino-pretty'

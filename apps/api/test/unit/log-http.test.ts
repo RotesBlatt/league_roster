@@ -45,14 +45,14 @@ function ctx(url = 'http://localhost/api/players', headers: Record<string, strin
 }
 
 describe('createRequestLog', () => {
-  test('onRequest assigns an id and echoes it on the response headers', () => {
+  test('onRequest assigns an id and echoes it on the response headers', async () => {
     const { log } = setup()
     const c = ctx()
     log.onRequest(c)
     expect(c.set.headers['x-request-id']).toBe('fixed-id')
   })
 
-  test('accepts a well-formed inbound x-request-id and ignores a malformed one', () => {
+  test('accepts a well-formed inbound x-request-id and ignores a malformed one', async () => {
     const { log } = setup()
     const good = ctx(undefined, { 'x-request-id': 'abc-123_XYZ' })
     log.onRequest(good)
@@ -63,12 +63,12 @@ describe('createRequestLog', () => {
     expect(bad.set.headers['x-request-id']).toBe('fixed-id')
   })
 
-  test('onAfterResponse emits one http.request with method, path, status and duration', () => {
+  test('onAfterResponse emits one http.request with method, path, status and duration', async () => {
     const s = setup()
     const c = ctx('http://localhost/api/players?ignored=1')
     s.log.onRequest(c)
     s.advance(12)
-    s.log.onAfterResponse({ ...c, response: { ok: true } })
+    await s.log.onAfterResponse({ ...c, response: { ok: true } })
 
     const records = s.records()
     expect(records).toHaveLength(1)
@@ -83,11 +83,11 @@ describe('createRequestLog', () => {
     })
   })
 
-  test('status comes from a Response, then set.status; warns on 4xx and errors on 5xx', () => {
+  test('status comes from a Response, then set.status; warns on 4xx and errors on 5xx', async () => {
     const s = setup()
     const created = ctx()
     s.log.onRequest(created)
-    s.log.onAfterResponse({
+    await s.log.onAfterResponse({
       ...created,
       response: new Response('', { status: 201 }),
     })
@@ -96,7 +96,7 @@ describe('createRequestLog', () => {
     const denied = ctx()
     denied.set.status = 403
     s.log.onRequest(denied)
-    s.log.onAfterResponse({ ...denied, response: { message: 'Captain only' } })
+    await s.log.onAfterResponse({ ...denied, response: { message: 'Captain only' } })
     const record = s.records()[1]
     expect(record.status).toBe(403)
     expect(record.level).toBe('warn')
@@ -105,11 +105,11 @@ describe('createRequestLog', () => {
     const boom = ctx()
     boom.set.status = 500
     s.log.onRequest(boom)
-    s.log.onAfterResponse({ ...boom, response: { message: 'Internal error' } })
+    await s.log.onAfterResponse({ ...boom, response: { message: 'Internal error' } })
     expect(s.records()[2].level).toBe('error')
   })
 
-  test('served assets are debug unless logAssets is on', () => {
+  test('served assets are debug unless logAssets is on', async () => {
     const quiet = setup()
     const asset = ctx('http://localhost/assets/app.js')
     quiet.log.onRequest(asset)
@@ -123,12 +123,12 @@ describe('createRequestLog', () => {
     expect(loud.records()[0].level).toBe('info')
   })
 
-  test('onAfterHandle stamps user, role and membership status', () => {
+  test('onAfterHandle stamps user, role and membership status', async () => {
     const s = setup()
     const c = ctx()
     s.log.onRequest(c)
     s.log.onAfterHandle({ ...c, user: { id: 'u1' }, me: { role: 'captain', status: 'active' } })
-    s.log.onAfterResponse({ ...c, response: {} })
+    await s.log.onAfterResponse({ ...c, response: {} })
     expect(s.records()[0]).toMatchObject({
       userId: 'u1',
       role: 'captain',
@@ -136,24 +136,24 @@ describe('createRequestLog', () => {
     })
   })
 
-  test('captures the client ip and user agent', () => {
+  test('captures the client ip and user agent', async () => {
     const s = setup()
     const c = ctx(undefined, {
       'x-forwarded-for': '203.0.113.7, 10.0.0.1',
       'user-agent': 'Mozilla/5.0 test',
     })
     s.log.onRequest(c)
-    s.log.onAfterResponse({ ...c, response: {} })
+    await s.log.onAfterResponse({ ...c, response: {} })
     expect(s.records()[0]).toMatchObject({ ip: '203.0.113.7', ua: 'Mozilla/5.0 test' })
   })
 
-  test('a 5xx record carries the error code, message and the serialized error', () => {
+  test('a 5xx record carries the error code, message and the serialized error', async () => {
     const s = setup()
     const c = ctx()
     s.log.onRequest(c)
     s.log.onError({ ...c, code: 'UNKNOWN', error: new Error('boom') })
     c.set.status = 500
-    s.log.onAfterResponse({ ...c, response: { message: 'Internal error' } })
+    await s.log.onAfterResponse({ ...c, response: { message: 'Internal error' } })
 
     const record = s.records()[0]
     expect(record.errorCode).toBe('UNKNOWN')
@@ -161,16 +161,65 @@ describe('createRequestLog', () => {
     expect(String(record.error.stack)).toContain('boom')
   })
 
-  test('marks a request slow when it exceeds slowMs', () => {
+  test('a 200 fallback (NOT_FOUND -> SPA) carries neither an error code nor a stack', async () => {
+    const s = setup()
+    const c = ctx('http://localhost/roster')
+    s.log.onRequest(c)
+    s.log.onError({ ...c, code: 'NOT_FOUND', error: new Error('no route') })
+    await s.log.onAfterResponse({ ...c, response: {} })
+
+    expect(s.records()[0]).not.toHaveProperty('errorCode')
+    expect(s.records()[0]).not.toHaveProperty('error')
+  })
+
+  test('a 4xx carries the error code but not the stack', async () => {
+    const s = setup()
+    const denied = ctx()
+    denied.set.status = 403
+    s.log.onRequest(denied)
+    s.log.onError({ ...denied, code: 'UNKNOWN', error: new Error('nope') })
+    await s.log.onAfterResponse({ ...denied, response: { message: 'Captain only' } })
+
+    expect(s.records()[0]).toMatchObject({ status: 403, errorCode: 'UNKNOWN' })
+    expect(s.records()[0]).not.toHaveProperty('error')
+  })
+
+  test('reads the message from a JSON Response body', async () => {
+    const s = setup()
+    const c = ctx()
+    c.set.status = 403
+    s.log.onRequest(c)
+    await s.log.onAfterResponse({
+      ...c,
+      response: new Response(JSON.stringify({ message: 'Captain only' }), { status: 403 }),
+    })
+
+    expect(s.records()[0]).toMatchObject({ status: 403, message: 'Captain only' })
+  })
+
+  test('reads the message from an Elysia status wrapper (guard denial)', async () => {
+    const s = setup()
+    const c = ctx()
+    c.set.status = 403
+    s.log.onRequest(c)
+    await s.log.onAfterResponse({
+      ...c,
+      response: { code: 403, response: { message: 'Captain only' } },
+    })
+
+    expect(s.records()[0]).toMatchObject({ status: 403, message: 'Captain only' })
+  })
+
+  test('marks a request slow when it exceeds slowMs', async () => {
     const s = setup({ slowMs: 100 })
     const c = ctx()
     s.log.onRequest(c)
     s.advance(250)
-    s.log.onAfterResponse({ ...c, response: {} })
+    await s.log.onAfterResponse({ ...c, response: {} })
     expect(s.records()[0]).toMatchObject({ ms: 250, slow: true })
   })
 
-  test('requestLogger binds the request id (and user once known) to business events', () => {
+  test('requestLogger binds the request id (and user once known) to business events', async () => {
     const s = setup()
     const c = ctx()
     s.log.onRequest(c)
@@ -185,20 +234,20 @@ describe('createRequestLog', () => {
     })
   })
 
-  test('requestLogger falls back to the base logger with no pending request', () => {
+  test('requestLogger falls back to the base logger with no pending request', async () => {
     const s = setup()
     s.log.requestLogger(new Request('http://localhost/x')).info('script.run')
     expect(s.records()[0].event).toBe('script.run')
     expect(s.records()[0]).not.toHaveProperty('requestId')
   })
 
-  test('a better-auth short-circuit is logged exactly once', () => {
+  test('a better-auth short-circuit is logged exactly once', async () => {
     const s = setup()
     const c = ctx('http://localhost/api/auth/get-session')
     s.log.onRequest(c)
     const response = new Response('{}', { status: 200 })
     s.log.logShortCircuit(c.request, response)
-    s.log.onAfterResponse({ ...c, response })
+    await s.log.onAfterResponse({ ...c, response })
 
     expect(s.records()).toHaveLength(1)
     expect(s.records()[0]).toMatchObject({

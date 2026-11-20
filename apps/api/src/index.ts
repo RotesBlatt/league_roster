@@ -2,6 +2,8 @@ import { createApp } from './app.ts'
 import { trustedOrigins } from './auth.ts'
 import { client } from './db/index.ts'
 import { env } from './env.ts'
+import { createDestinations } from './lib/log/destinations.ts'
+import { createLogger } from './lib/log/logger.ts'
 
 export type { App } from './app.ts'
 
@@ -27,7 +29,10 @@ try {
   process.exit(1)
 }
 
-const app = createApp().listen(env.port)
+const destinations = await createDestinations(env.log)
+const logger = createLogger({ level: env.log.level, destination: destinations })
+
+const app = createApp({ logger }).listen(env.port)
 
 console.info(`[api] listening on http://localhost:${app.server?.port} (db: ${env.databaseTarget})`)
 console.info(`[auth] baseURL ${env.betterAuthUrl} · trusted origins: ${trustedOrigins.join(', ')}`)

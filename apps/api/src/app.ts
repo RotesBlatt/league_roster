@@ -2,6 +2,9 @@ import { Elysia } from 'elysia'
 import { type Auth, auth as defaultAuth } from './auth.ts'
 import { type Db, db as defaultDb } from './db/index.ts'
 import { env } from './env.ts'
+import { createRequestLog } from './lib/log/http.ts'
+import type { Logger } from './lib/log/logger.ts'
+import { noopLogger } from './lib/log/noop.ts'
 import { createSpa } from './lib/spa.ts'
 import { forTeam } from './lib/team-db.ts'
 import { createAuthPlugin } from './plugins/auth.ts'
@@ -20,6 +23,8 @@ export type AppOptions = {
   auth?: Auth
   /** where the built SPA lives; tests point at a fixture */
   spaDist?: string
+  /** silent by default; `index.ts` builds the real one, tests inject a capture */
+  logger?: Logger
 }
 
 /**
@@ -29,14 +34,20 @@ export type AppOptions = {
 export function createApp(options: AppOptions = {}) {
   const db = options.db ?? defaultDb
   const auth = options.auth ?? defaultAuth
+  const logger = options.logger ?? noopLogger
   const { spaAssets, serveSpaIndex } = createSpa(options.spaDist ?? env.webDist)
   const authPlugin = createAuthPlugin({ auth, db })
+  const requestLog = createRequestLog({
+    logger,
+    slowMs: env.log.slowMs,
+    logAssets: env.log.assets,
+  })
 
   return (
     new Elysia()
       // better-auth owns /api/auth/*. Intercepted here so it always wins, regardless of which
       // other routes/fallbacks exist (a `.mount()` fetch handler only runs as a last resort).
-      .onRequest(({ request, server }) => {
+      .onRequest(async ({ request, set, server }) => {
         const { pathname } = new URL(request.url)
 
         // better-auth needs a client IP for rate limiting. Behind Caddy/nginx the header is
@@ -46,11 +57,15 @@ export function createApp(options: AppOptions = {}) {
           if (ip) request.headers.set('x-real-ip', ip.address)
         }
 
+        // after the ip header is set, so the record sees it; before any early return below
+        requestLog.onRequest({ request, set })
+
         if (pathname === '/api/auth' || pathname.startsWith('/api/auth/')) {
-          // Replace better-auth's cryptic "Provider not found" with something actionable.
-          // Happens when .env has no Discord credentials (or was edited without a restart).
+          let response: Response
           if (pathname === '/api/auth/sign-in/social' && !env.discordConfigured) {
-            return new Response(
+            // Replace better-auth's cryptic "Provider not found" with something actionable.
+            // Happens when .env has no Discord credentials (or was edited without a restart).
+            response = new Response(
               JSON.stringify({
                 message:
                   'Discord login is not configured on the server. Set DISCORD_CLIENT_ID and ' +
@@ -58,34 +73,47 @@ export function createApp(options: AppOptions = {}) {
               }),
               { status: 503, headers: { 'content-type': 'application/json' } },
             )
+          } else {
+            response = await auth.handler(request)
           }
-          return auth.handler(request)
+          // better-auth answered inside onRequest, where onAfterResponse never runs
+          requestLog.logShortCircuit(request, response)
+          return response
         }
       })
       .onError(async ({ code, error, set, request }) => {
         if (code === 'VALIDATION') {
           set.status = 422
-          return {
+          const body = {
             message: 'Invalid input',
             details: error.all.map((issue) => ({
               path: 'path' in issue ? issue.path : undefined,
               message: issue.message,
             })),
           }
+          requestLog.onError({ request, set, code, error, message: body.message })
+          return body
         }
         if (code === 'NOT_FOUND') {
           const { pathname } = new URL(request.url)
           // API and asset paths stay 404s; everything else is a client-side route -> index.html
           if (pathname.startsWith('/api') || pathname.startsWith('/assets')) {
             set.status = 404
-            return { message: 'Not found' }
+            const body = { message: 'Not found' }
+            requestLog.onError({ request, set, code, error, message: body.message })
+            return body
           }
+          requestLog.onError({ request, set, code, error })
           return serveSpaIndex()
         }
         console.error('[api]', code, error)
         set.status = 500
-        return { message: 'Internal error' }
+        const body = { message: 'Internal error' }
+        requestLog.onError({ request, set, code, error, message: body.message })
+        return body
       })
+      .onAfterHandle(requestLog.onAfterHandle)
+      .onAfterResponse(requestLog.onAfterResponse)
       .use(authPlugin)
       .group('/api', (api) =>
         api
