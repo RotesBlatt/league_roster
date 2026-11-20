@@ -133,13 +133,23 @@ one NDJSON object per line in a daily file.
   `docker compose down` keeps it.
 
 ```bash
-docker compose logs -f app   # console
-# read the file from the volume
-docker run --rm -v lol-team_api-logs:/logs alpine tail -n 50 /logs/api.*.log
+# console (stdout only; the NDJSON file is not in here)
+docker compose logs -f app
+
+# the files, while the app container runs
+docker compose exec app ls -l /app/logs
+docker compose exec app sh -c 'tail -f /app/logs/api.*.log'
+
+# or copy them out and grep/jq them on the host
+docker compose cp app:/app/logs ./logs-from-container
+
+# app stopped: read the volume directly; sh -c so the glob expands in-container
+docker run --rm -v lol-team_api-logs:/logs alpine \
+  sh -c 'ls -l /logs; tail -n 50 /logs/api.*.log'
 ```
 
 Every response carries `x-request-id`; find one request's line with
-`grep '"id":"<id>"' logs/*.log | jq .`.
+`grep '"id":"<id>"' logs/*.log | jq .` (or `logs-from-container/*.log` after copying).
 
 Knobs live in `.env.example`: `LOG_LEVEL`, `LOG_TO_FILE`, `LOG_DIR`, `LOG_RETENTION_DAYS`,
 `LOG_ASSETS`, `LOG_SLOW_MS`. Files rotate daily and `pino-roll` keeps the last
