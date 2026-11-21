@@ -39,6 +39,10 @@ const mainAccount: RiotAccountDto = {
   platform: 'euw1',
   isMain: true,
   verifiedAt: null,
+  fetchedAt: null,
+  summonerLevel: null,
+  profileIconId: null,
+  ranks: { solo: null, flex: null },
 }
 
 function renderPage() {

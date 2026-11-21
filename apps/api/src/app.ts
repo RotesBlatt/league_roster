@@ -138,7 +138,7 @@ export function createApp(options: AppOptions = {}) {
           // global: a person's own profile exists before (and without) any team
           .use(createProfileRoutes(db, authPlugin, requestLogger))
           // global: the accounts belong to the person, not to a team
-          .use(createRiotAccountRoutes(db, authPlugin, requestLogger))
+          .use(createRiotAccountRoutes(db, riot, riotThrottle, authPlugin, requestLogger))
           // global: one explicit Riot check, nothing written — the injected client is the only
           // thing that can reach Riot
           .use(createRiotLookupRoutes(riot, riotThrottle, authPlugin, requestLogger))

@@ -1,4 +1,4 @@
-import type { MemberStatus, Role, UserRole } from '@lol/shared'
+import type { Division, MemberStatus, Role, Tier, UserRole } from '@lol/shared'
 
 export type Me = {
   id: string
@@ -50,18 +50,31 @@ export type ProfileDto = {
   updatedAt: number
 }
 
+/** A stored rank: a tier, and a division only below Master. */
+export type RiotRankDto = {
+  tier: Tier
+  /** null for Master, Grandmaster and Challenger — those tiers have no divisions. */
+  division: Division | null
+}
+
 /** One of the player's League accounts (`/api/me/riot-accounts`). */
 export type RiotAccountDto = {
   id: string
   /** Together with `tagLine` this is the label the player recognises: `gameName#tagLine`. */
   gameName: string
   tagLine: string
-  /** Platform code, e.g. `euw1`. Fixed to the default until Riot validation exists. */
+  /** Platform code, e.g. `euw1`; the regional host is derived from it, never stored. */
   platform: string
   /** At most one per player, enforced by a partial unique index. */
   isMain: boolean
-  /** null = typed in but never checked against Riot; shown as "unverified", not as an error. */
+  /** null = typed in but never *verified* against Riot; shown as "unverified", not as an error. */
   verifiedAt: number | null
+  /** When the snapshot below was fetched; null = no lookup ever got data here. */
+  fetchedAt: number | null
+  summonerLevel: number | null
+  profileIconId: number | null
+  /** Both queues, independently absent: solo-only is the common case. */
+  ranks: { solo: RiotRankDto | null; flex: RiotRankDto | null }
 }
 
 export type InviteDto = {

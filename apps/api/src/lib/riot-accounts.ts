@@ -1,4 +1,6 @@
+import type { Division, Tier } from '@lol/shared'
 import type { RiotAccountDto } from '../db/schema.types.ts'
+import type { LookupResult } from '../riot/client.ts'
 
 /**
  * A Riot ID is `gameName#tagLine` — the label a player recognises. It is **not** an identity:
@@ -57,6 +59,63 @@ export function normalizeRiotAccountId(input: RiotAccountId): NormalizedRiotAcco
  * Row → wire shape. `puuid` and `fetchedAt` stay internal: the UI has nothing to do with them,
  * and `verifiedAt === null` is the badge it *does* care about.
  */
+/** The columns a lookup may write, in the shape the insert takes them. */
+export type RiotAccountSnapshot = {
+  puuid: string | null
+  summonerLevel: number | null
+  profileIconId: number | null
+  soloTier: Tier | null
+  soloDivision: Division | null
+  flexTier: Tier | null
+  flexDivision: Division | null
+  verifiedAt: Date | null
+  fetchedAt: Date | null
+}
+
+/**
+ * What one lookup is allowed to write (riot-api.md §5). Two timestamps, two meanings:
+ *
+ * - `verifiedAt` only when all three calls succeeded — "this Riot ID resolved then";
+ * - `fetchedAt` whenever data arrived at all — "the snapshot is from then" — which is why a
+ *   *partial* answer stores the puuid and the level it has, yet stays unverified.
+ *
+ * `null` means "no lookup ran" (no key, our own throttle, a dead socket): an unverified row, which
+ * is a perfectly valid row and not an error.
+ */
+export function snapshotFields(result: LookupResult | null, now: Date): RiotAccountSnapshot {
+  if (result === null || !result.ok) {
+    return {
+      puuid: null,
+      summonerLevel: null,
+      profileIconId: null,
+      soloTier: null,
+      soloDivision: null,
+      flexTier: null,
+      flexDivision: null,
+      verifiedAt: null,
+      fetchedAt: null,
+    }
+  }
+
+  const { account, partial } = result
+  const { solo, flex } = account.ranks
+
+  return {
+    puuid: account.puuid,
+    summonerLevel: account.summonerLevel,
+    profileIconId: account.profileIconId,
+    soloTier: solo?.tier ?? null,
+    soloDivision: solo?.division ?? null,
+    flexTier: flex?.tier ?? null,
+    flexDivision: flex?.division ?? null,
+    verifiedAt: partial ? null : now,
+    fetchedAt: now,
+  }
+}
+
+const toRank = (tier: Tier | null, division: Division | null) =>
+  tier === null ? null : { tier, division }
+
 export function toRiotAccountDto(row: {
   id: string
   gameName: string
@@ -64,6 +123,13 @@ export function toRiotAccountDto(row: {
   platform: string
   isMain: boolean
   verifiedAt: Date | null
+  fetchedAt: Date | null
+  summonerLevel: number | null
+  profileIconId: number | null
+  soloTier: Tier | null
+  soloDivision: Division | null
+  flexTier: Tier | null
+  flexDivision: Division | null
 }): RiotAccountDto {
   return {
     id: row.id,
@@ -72,5 +138,13 @@ export function toRiotAccountDto(row: {
     platform: row.platform,
     isMain: row.isMain,
     verifiedAt: row.verifiedAt?.getTime() ?? null,
+    fetchedAt: row.fetchedAt?.getTime() ?? null,
+    summonerLevel: row.summonerLevel,
+    profileIconId: row.profileIconId,
+    // which queue it is, the field name says: no `queue` inside a rank
+    ranks: {
+      solo: toRank(row.soloTier, row.soloDivision),
+      flex: toRank(row.flexTier, row.flexDivision),
+    },
   }
 }

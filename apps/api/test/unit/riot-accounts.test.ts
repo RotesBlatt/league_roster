@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeRiotAccountId, toRiotAccountDto } from '../../src/lib/riot-accounts.ts'
+import {
+  normalizeRiotAccountId,
+  snapshotFields,
+  toRiotAccountDto,
+} from '../../src/lib/riot-accounts.ts'
 
 /**
  * A Riot ID is `gameName#tagLine` — a *label*, not an identity (riot-api.md §2). Until validation
@@ -59,6 +63,13 @@ describe('toRiotAccountDto', () => {
       platform: 'euw1',
       isMain: true,
       verifiedAt: new Date('2026-01-02T03:04:05.000Z'),
+      fetchedAt: new Date('2026-01-02T03:04:05.000Z'),
+      summonerLevel: 512,
+      profileIconId: 4568,
+      soloTier: 'GOLD',
+      soloDivision: 'II',
+      flexTier: 'MASTER',
+      flexDivision: null,
     })
 
     expect(dto).toEqual({
@@ -68,6 +79,14 @@ describe('toRiotAccountDto', () => {
       platform: 'euw1',
       isMain: true,
       verifiedAt: Date.parse('2026-01-02T03:04:05.000Z'),
+      fetchedAt: Date.parse('2026-01-02T03:04:05.000Z'),
+      summonerLevel: 512,
+      profileIconId: 4568,
+      ranks: {
+        solo: { tier: 'GOLD', division: 'II' },
+        // Master+ has no division; the DTO says so with null, not with a fake "I"
+        flex: { tier: 'MASTER', division: null },
+      },
     })
   })
 
@@ -79,9 +98,92 @@ describe('toRiotAccountDto', () => {
       platform: 'euw1',
       isMain: false,
       verifiedAt: null,
+      fetchedAt: null,
+      summonerLevel: null,
+      profileIconId: null,
+      soloTier: null,
+      soloDivision: null,
+      flexTier: null,
+      flexDivision: null,
     })
 
     expect(dto.verifiedAt).toBeNull()
     expect(dto.isMain).toBe(false)
+  })
+})
+
+/** The two timestamps have two meanings; that is the whole point of the function (riot-api.md §5). */
+describe('snapshotFields', () => {
+  const now = new Date('2026-11-21T12:00:00.000Z')
+
+  const account = {
+    puuid: 'PUUID-1',
+    gameName: 'Hide on bush',
+    tagLine: 'EUW',
+    summonerLevel: 512,
+    profileIconId: 4568,
+    ranks: {
+      solo: { tier: 'GOLD' as const, division: 'II' as const },
+      flex: { tier: 'MASTER' as const, division: null },
+    },
+  }
+
+  test('a full lookup verifies and stamps fetchedAt with the same moment', () => {
+    expect(snapshotFields({ ok: true, account, partial: false }, now)).toEqual({
+      puuid: 'PUUID-1',
+      summonerLevel: 512,
+      profileIconId: 4568,
+      soloTier: 'GOLD',
+      soloDivision: 'II',
+      flexTier: 'MASTER',
+      flexDivision: null,
+      verifiedAt: now,
+      fetchedAt: now,
+    })
+  })
+
+  test('a partial lookup keeps what arrived and stays unverified', () => {
+    const partial = snapshotFields(
+      { ok: true, account: { ...account, summonerLevel: null }, partial: true },
+      now,
+    )
+
+    expect(partial.puuid).toBe('PUUID-1')
+    expect(partial.summonerLevel).toBeNull()
+    expect(partial.fetchedAt).toBe(now)
+    expect(partial.verifiedAt).toBeNull()
+  })
+
+  test('an unranked player still verifies — no ranks is an answer, not a failure', () => {
+    const unranked = snapshotFields(
+      { ok: true, account: { ...account, ranks: { solo: null, flex: null } }, partial: false },
+      now,
+    )
+
+    expect(unranked.verifiedAt).toBe(now)
+    expect(unranked.soloTier).toBeNull()
+    expect(unranked.flexTier).toBeNull()
+  })
+
+  test('a failed lookup writes nothing, not even fetchedAt', () => {
+    const nothing = snapshotFields({ ok: false, error: { kind: 'forbidden' } }, now)
+
+    expect(nothing).toEqual({
+      puuid: null,
+      summonerLevel: null,
+      profileIconId: null,
+      soloTier: null,
+      soloDivision: null,
+      flexTier: null,
+      flexDivision: null,
+      verifiedAt: null,
+      fetchedAt: null,
+    })
+  })
+
+  test('no lookup at all (throttled, no key) is the same as a failed one', () => {
+    expect(snapshotFields(null, now)).toEqual(
+      snapshotFields({ ok: false, error: { kind: 'timeout' } }, now),
+    )
   })
 })

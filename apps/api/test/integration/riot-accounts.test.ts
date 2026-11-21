@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { createFakeRiotClient } from '../../src/riot/client.ts'
 import {
   createSessionCookie,
   createTestApp,
@@ -56,7 +57,8 @@ const remove = (id: string, who = cookie) =>
 
 beforeAll(async () => {
   ctx = await createTestContext()
-  server = createTestApp(ctx)
+  // a dead key: these tests are about CRUD, so every save is deliberately unverified (§5)
+  server = createTestApp(ctx, { riot: createFakeRiotClient({ account: { status: 403 } }) })
   call = server.call
 
   cookie = await createSessionCookie(ctx, await createUser(ctx, { name: 'Julius' }))

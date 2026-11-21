@@ -1,3 +1,4 @@
+import { DEFAULT_RIOT_PLATFORM, isPlatform } from '@lol/shared'
 import { and, asc, count, desc, eq, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
@@ -9,13 +10,18 @@ import {
   normalizeRiotAccountId,
   RIOT_GAME_NAME_MAX,
   RIOT_TAG_LINE_MAX,
+  snapshotFields,
   toRiotAccountDto,
 } from '../lib/riot-accounts.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
+import type { RiotClient } from '../riot/client.ts'
+import type { Throttle } from '../riot/throttle.ts'
 
 const accountBody = t.Object({
   gameName: t.String({ maxLength: RIOT_GAME_NAME_MAX }),
   tagLine: t.String({ maxLength: RIOT_TAG_LINE_MAX }),
+  /** Optional so the first-login form keeps working; the default is `euw1`. */
+  platform: t.Optional(t.String({ maxLength: 8 })),
 })
 
 const RIOT_ID_TAKEN = { message: 'This Riot ID is already on your profile' }
@@ -35,6 +41,8 @@ const RIOT_ID_INDEX = 'riot_account_userId_riot_id_idx'
  */
 export function createRiotAccountRoutes(
   db: Db,
+  riot: RiotClient,
+  throttle: Throttle,
   authPlugin: AuthPlugin,
   requestLogger?: (request: Request) => Logger,
 ) {
@@ -72,6 +80,40 @@ export function createRiotAccountRoutes(
           })
         }
 
+        const platform = body.platform ?? DEFAULT_RIOT_PLATFORM
+        if (!isPlatform(platform)) {
+          return status(422, {
+            message: 'Invalid platform',
+            details: [{ path: 'platform', message: 'Unknown platform' }],
+          })
+        }
+
+        /**
+         * The server re-resolves; a client-supplied `puuid` or rank is never read (§5). Our own
+         * budget guard runs first, and being throttled skips the lookup instead of refusing the
+         * save: a comfort feature must not block onboarding.
+         */
+        const decision = throttle.take(me.id)
+        const result = decision.allowed ? await riot.lookupAccount({ ...values, platform }) : null
+
+        // a Riot ID that provably does not exist is a typo, not an unverified account
+        if (result !== null && !result.ok) {
+          if (result.error.kind === 'not_found') {
+            return status(404, { message: 'No such Riot ID on that platform — check name, tag' })
+          }
+          if (result.error.kind === 'bad_request') {
+            return status(422, { message: 'Riot rejected that Riot ID' })
+          }
+          // 403 / 429 / timeout / unavailable: degrade, never block (§5)
+        }
+
+        // Riot's canonical label wins once it answered, so a rename lands on the next save (§2)
+        const label = result?.ok
+          ? { gameName: result.account.gameName, tagLine: result.account.tagLine }
+          : values
+        const now = new Date()
+        const snapshot = snapshotFields(result, now)
+
         let row: typeof riotAccounts.$inferSelect | undefined
         try {
           row = await db.transaction(async (tx) => {
@@ -87,10 +129,12 @@ export function createRiotAccountRoutes(
                 id: crypto.randomUUID(),
                 // never from the body: an account can only ever belong to its caller
                 userId: me.id,
-                ...values,
+                ...label,
+                platform,
+                ...snapshot,
                 // the first account is the main one; switching is its own endpoint
                 isMain: (existing?.value ?? 0) === 0,
-                createdAt: new Date(),
+                createdAt: now,
               })
               .returning()
 
@@ -109,6 +153,12 @@ export function createRiotAccountRoutes(
           userId: me.id,
           accountId: row.id,
           isMain: row.isMain,
+          platform,
+          // what the lookup bought, not what the player typed
+          verified: snapshot.verifiedAt !== null,
+          partial: result?.ok === true && result.partial,
+          throttled: !decision.allowed,
+          failed: result !== null && !result.ok ? result.error.kind : null,
         })
 
         return toRiotAccountDto(row)
