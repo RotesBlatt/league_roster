@@ -37,6 +37,8 @@ export type RosterEntryDto = {
     tagLine: string
     verifiedAt: number | null
     isMain: boolean
+    /** The ranks of the account this team uses; absent until a save resolved it. */
+    ranks: { solo: RiotRankDto | null; flex: RiotRankDto | null }
   } | null
 }
 

@@ -99,6 +99,10 @@ export function createRosterRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlu
               tagLine: riotAccounts.tagLine,
               isMain: riotAccounts.isMain,
               verifiedAt: riotAccounts.verifiedAt,
+              soloTier: riotAccounts.soloTier,
+              soloDivision: riotAccounts.soloDivision,
+              flexTier: riotAccounts.flexTier,
+              flexDivision: riotAccounts.flexDivision,
             })
             .from(riotAccounts)
             // every account, not just the main one: the captain picks the account per team

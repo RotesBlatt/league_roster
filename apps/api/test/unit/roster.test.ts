@@ -94,6 +94,10 @@ describe('composeRoster', () => {
             tagLine: 'EUW',
             isMain: true,
             verifiedAt: new Date('2026-01-02T03:04:05.000Z'),
+            soloTier: 'GOLD',
+            soloDivision: 'II',
+            flexTier: 'MASTER',
+            flexDivision: null,
           },
         ],
       }),
@@ -105,7 +109,32 @@ describe('composeRoster', () => {
       tagLine: 'EUW',
       verifiedAt: Date.parse('2026-01-02T03:04:05.000Z'),
       isMain: true,
+      // the table shows what the account actually has — divisionless tiers included
+      ranks: {
+        solo: { tier: 'GOLD', division: 'II' },
+        flex: { tier: 'MASTER', division: null },
+      },
     })
+  })
+
+  test('an account that was never resolved carries no rank, not a guess', () => {
+    const rows = composeRoster(
+      sources({
+        entries: [entry()],
+        accounts: [
+          {
+            id: 'acc-main',
+            userId: 'user-1',
+            gameName: 'Hide on bush',
+            tagLine: 'EUW',
+            isMain: true,
+            verifiedAt: null,
+          },
+        ],
+      }),
+    )
+
+    expect(rows[0]?.account).toMatchObject({ ranks: { solo: null, flex: null } })
   })
 
   test('no main account is null, not an empty label', () => {

@@ -105,6 +105,19 @@ export function snapshotFields(
 const toRank = (tier: Tier | null, division: Division | null) =>
   tier === null ? null : { tier, division }
 
+/** The stored columns → the pair of ranks a DTO exposes, for the player page and the roster. */
+export function toRankPair(row: {
+  soloTier: Tier | null
+  soloDivision: Division | null
+  flexTier: Tier | null
+  flexDivision: Division | null
+}): { solo: RiotAccountDto['ranks']['solo']; flex: RiotAccountDto['ranks']['flex'] } {
+  return {
+    solo: toRank(row.soloTier, row.soloDivision),
+    flex: toRank(row.flexTier, row.flexDivision),
+  }
+}
+
 export function toRiotAccountDto(row: {
   id: string
   gameName: string
@@ -131,9 +144,6 @@ export function toRiotAccountDto(row: {
     summonerLevel: row.summonerLevel,
     profileIconId: row.profileIconId,
     // which queue it is, the field name says: no `queue` inside a rank
-    ranks: {
-      solo: toRank(row.soloTier, row.soloDivision),
-      flex: toRank(row.flexTier, row.flexDivision),
-    },
+    ranks: toRankPair(row),
   }
 }

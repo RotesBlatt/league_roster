@@ -18,7 +18,7 @@ import { notifications } from '@mantine/notifications'
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { MainBadge, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
+import { MainBadge, RankBadges, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
 import {
   useAddRosterEntry,
   useMe,
@@ -184,6 +184,8 @@ export function RosterPage() {
                         <Text size="sm">{`${entry.account.gameName}#${entry.account.tagLine}`}</Text>
                         {entry.account.isMain ? <MainBadge /> : null}
                         <UnverifiedBadge verifiedAt={entry.account.verifiedAt} />
+                        {/* "if possible": the snapshot of *this* team's account, queue included */}
+                        <RankBadges ranks={entry.account.ranks} />
                       </Group>
                     ) : (
                       <Text size="sm" c="dimmed">

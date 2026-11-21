@@ -1,6 +1,8 @@
+import type { Division, Tier } from '@lol/shared'
 import { ROLES, type Role } from '@lol/shared'
 import type { RosterEntryDto } from '../db/schema.types.ts'
 import { parseRole } from './profile.ts'
+import { toRankPair } from './riot-accounts.ts'
 
 /**
  * The roster is a **join**, not a copy (player-profiles.md §2): `roster_entry ⋈ profile ⋈ main
@@ -33,6 +35,11 @@ export type RosterSources = {
     tagLine: string
     isMain: boolean
     verifiedAt: Date | null
+    /** Optional so a unit fixture may describe only the label; the route always selects them. */
+    soloTier?: Tier | null
+    soloDivision?: Division | null
+    flexTier?: Tier | null
+    flexDivision?: Division | null
   }[]
   users: {
     id: string
@@ -77,6 +84,13 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
               tagLine: account.tagLine,
               verifiedAt: account.verifiedAt?.getTime() ?? null,
               isMain: account.isMain,
+              // "if possible": an account that was never resolved shows no rank, not a fake one
+              ranks: toRankPair({
+                soloTier: account.soloTier ?? null,
+                soloDivision: account.soloDivision ?? null,
+                flexTier: account.flexTier ?? null,
+                flexDivision: account.flexDivision ?? null,
+              }),
             }
           : null,
       }

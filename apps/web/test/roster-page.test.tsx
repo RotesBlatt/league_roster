@@ -40,6 +40,7 @@ const rows: RosterEntryDto[] = [
       tagLine: 'EUW',
       verifiedAt: null,
       isMain: true,
+      ranks: { solo: null, flex: null },
     },
   },
   {
@@ -147,5 +148,43 @@ describe('RosterPage', () => {
     expect(await screen.findByText('Jules')).toBeDefined()
     expect(screen.queryByRole('button', { name: /Add from team/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/i })).toBeNull()
+  })
+})
+
+describe('ranks on the roster', () => {
+  test('a row shows the ranks of the account this team uses, queue included', async () => {
+    const ranked: RosterEntryDto = {
+      id: 'e1',
+      userId: 'u1',
+      displayName: 'Jules',
+      role: 'MID',
+      note: null,
+      isActive: true,
+      account: {
+        id: 'acc-1',
+        gameName: 'Hide on bush',
+        tagLine: 'EUW',
+        verifiedAt: 1,
+        isMain: true,
+        ranks: {
+          solo: { tier: 'GOLD', division: 'II' },
+          flex: { tier: 'SILVER', division: 'IV' },
+        },
+      },
+    }
+
+    apiState.rosterList = { data: [ranked], error: null, status: 200 }
+    renderPage()
+
+    expect(await screen.findByText('Solo Gold II')).toBeTruthy()
+    expect(screen.getByText('Flex Silver IV')).toBeTruthy()
+  })
+
+  test('an account without ranks shows none — the badge row stays empty', async () => {
+    renderPage()
+
+    // rows[0] is unverified and unranked: the label is there, no rank badge is invented
+    expect(await screen.findByText('Hide on bush#EUW')).toBeTruthy()
+    expect(screen.queryByText(/Solo |Flex /)).toBeNull()
   })
 })
