@@ -1,4 +1,4 @@
-import { MEMBER_STATUSES, ROLES, USER_ROLES } from '@lol/shared'
+import { DIVISIONS, MEMBER_STATUSES, ROLES, TIERS, USER_ROLES } from '@lol/shared'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
@@ -131,6 +131,17 @@ export const riotAccounts = pgTable(
     /** Platform code (`euw1`, `eun1`, …) — decides which host answers summoner/rank later. */
     platform: text('platform').notNull().default('euw1'),
     puuid: text('puuid'),
+    /**
+     * The snapshot (riot-api.md §8): only facts we cannot recompute. Nullable throughout — an
+     * account Riot could not be reached for is a valid row, and "unverified" is a badge, not an
+     * error. Both queues are stored independently: solo-only is the common case.
+     */
+    summonerLevel: integer('summonerLevel'),
+    profileIconId: integer('profileIconId'),
+    soloTier: text('soloTier', { enum: TIERS }),
+    soloDivision: text('soloDivision', { enum: DIVISIONS }),
+    flexTier: text('flexTier', { enum: TIERS }),
+    flexDivision: text('flexDivision', { enum: DIVISIONS }),
     isMain: boolean('isMain').notNull().default(false),
     /** null = typed in, never checked against Riot: shown as "unverified", not as an error. */
     verifiedAt: timestamp('verifiedAt', { withTimezone: true, mode: 'date' }),

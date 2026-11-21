@@ -17,8 +17,12 @@ export type RiotError =
 /** A tier and a division, without the queue: which queue it is, the field name already says. */
 export type Rank = {
   tier: Tier
-  division: Division
+  /** null above Diamond: Master, Grandmaster and Challenger have no divisions. */
+  division: Division | null
 }
+
+/** The tiers that carry no division — LP is their only progress signal. */
+const DIVISIONLESS_TIERS: readonly Tier[] = ['MASTER', 'GRANDMASTER', 'CHALLENGER']
 
 /** Both ranked queues, independently optional — playing one and not the other is normal. */
 export type Ranks = {
@@ -48,6 +52,20 @@ export function toRiotError(status: number, retryAfter?: string | null): RiotErr
 }
 
 /**
+ * One entry → one rank. Master and above keep their tier and drop the division, because the game
+ * has none there — verified live on EUW1 (2026-11-21): all 300 challenger, 700 grandmaster and
+ * 10 000 master entries carried `rank: "I"`, and `entries/by-puuid` answered the same. Riot does
+ * not send a null we could key on, so this is a decision here, not a field to trust.
+ * Below Diamond a division is required; an unreadable one drops the rank rather than half-store it.
+ */
+function toRank(entry: WireLeagueEntry): Rank | null {
+  if (!isTier(entry.tier)) return null
+  if (DIVISIONLESS_TIERS.includes(entry.tier)) return { tier: entry.tier, division: null }
+
+  return isDivision(entry.rank) ? { tier: entry.tier, division: entry.rank } : null
+}
+
+/**
  * The league payload → the two ranks we store. Only our own queues and vocabulary survive:
  * a tier Riot invented last week is dropped, not written to a column whose CHECK would reject it.
  * The first entry for a queue wins, so the result is a snapshot rather than a merge.
@@ -57,12 +75,11 @@ export function toRanks(entries: readonly WireLeagueEntry[]): Ranks {
 
   for (const entry of entries) {
     if (entry.queueType !== 'RANKED_SOLO_5x5' && entry.queueType !== 'RANKED_FLEX_SR') continue
-    if (!isTier(entry.tier) || !isDivision(entry.rank)) continue
 
     const slot = entry.queueType === 'RANKED_SOLO_5x5' ? 'solo' : 'flex'
     if (ranks[slot]) continue
 
-    ranks[slot] = { tier: entry.tier, division: entry.rank }
+    ranks[slot] = toRank(entry)
   }
 
   return ranks

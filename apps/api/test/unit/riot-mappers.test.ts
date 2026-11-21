@@ -72,7 +72,7 @@ describe('toRanks', () => {
     })
   })
 
-  test('a missing or unknown division is dropped — half a rank is worse than none', () => {
+  test('a missing or unknown division below Master is dropped — half a rank is worse than none', () => {
     expect(toRanks([{ queueType: 'RANKED_SOLO_5x5', tier: 'GOLD', rank: '' }])).toEqual({
       solo: null,
       flex: null,
@@ -81,6 +81,17 @@ describe('toRanks', () => {
       solo: null,
       flex: null,
     })
+  })
+
+  test('Master and above have no division — the tier is the rank, LP is the progress', () => {
+    for (const tier of ['MASTER', 'GRANDMASTER', 'CHALLENGER'] as const) {
+      // Riot always sends `rank: 'I'` for these (live: 300/700/10 000 entries on EUW1, all "I");
+      // storing it would make the card say "Master I", which no player has ever been
+      expect(toRanks([{ queueType: 'RANKED_SOLO_5x5', tier, rank: 'I' }])).toEqual({
+        solo: { tier, division: null },
+        flex: null,
+      })
+    }
   })
 
   test('solo wins when Riot sends it twice — the first entry is the snapshot', () => {
@@ -174,15 +185,21 @@ describe('parseLeague', () => {
     }
   })
 
-  test('entries with no queue or tier are dropped, not coerced', () => {
+  test('entries with no queue, tier or rank are dropped, not coerced', () => {
     expect(
       parseLeague([
         { tier: 'GOLD', rank: 'I' },
         { queueType: 'RANKED_SOLO_5x5', rank: 'I' },
-        { queueType: 'RANKED_SOLO_5x5', tier: 'GOLD', rank: 'I' },
+        { queueType: 'RANKED_SOLO_5x5', tier: 'GOLD' },
         'nope',
         null,
       ]),
-    ).toEqual([{ queueType: 'RANKED_SOLO_5x5', tier: 'GOLD', rank: 'I' }])
+    ).toEqual([])
+  })
+
+  test('a Master entry keeps the "I" Riot sends — the mapper, not the parser, drops it', () => {
+    expect(parseLeague([{ queueType: 'RANKED_SOLO_5x5', tier: 'MASTER', rank: 'I' }])).toEqual([
+      { queueType: 'RANKED_SOLO_5x5', tier: 'MASTER', rank: 'I' },
+    ])
   })
 })

@@ -71,6 +71,7 @@ export function parseLeague(body: unknown): WireLeagueEntry[] | null {
     const { queueType, tier, rank } = entry
     if (!isText(queueType) || !isText(tier) || !isText(rank)) return []
 
+    // `rank` is always present — for Master and above it is a meaningless "I" that toRanks drops
     return [{ queueType, tier, rank }]
   })
 }
