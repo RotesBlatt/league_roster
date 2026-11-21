@@ -24,6 +24,20 @@ export type ProfileDto = {
   updatedAt: number
 }
 
+/** One of the player's League accounts (`/api/me/riot-accounts`). */
+export type RiotAccountDto = {
+  id: string
+  /** Together with `tagLine` this is the label the player recognises: `gameName#tagLine`. */
+  gameName: string
+  tagLine: string
+  /** Platform code, e.g. `euw1`. Fixed to the default until Riot validation exists. */
+  platform: string
+  /** At most one per player, enforced by a partial unique index. */
+  isMain: boolean
+  /** null = typed in but never checked against Riot; shown as "unverified", not as an error. */
+  verifiedAt: number | null
+}
+
 export type PlayerDto = {
   id: string
   displayName: string
