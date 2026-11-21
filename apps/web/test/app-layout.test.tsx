@@ -46,6 +46,7 @@ function renderAt(pathname: string) {
             <Route path="/t/:slug" element={<AppLayout me={me} />}>
               <Route path="roster" element={<div>roster body</div>} />
               <Route path="admin" element={<div>admin body</div>} />
+              <Route path="profile" element={<div>profile body</div>} />
             </Route>
             <Route path="/new-team" element={<AppLayout me={me} />} />
           </Routes>
@@ -78,6 +79,18 @@ describe('AppLayout navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Julius/ }))
 
     expect(await screen.findByRole('menuitem', { name: /My profile/ })).toBeDefined()
+  })
+
+  test('“My profile” keeps the team the URL names', async () => {
+    renderAt('/t/bravo/roster')
+
+    fireEvent.click(screen.getByRole('button', { name: /Julius/ }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /My profile/ }))
+
+    expect(await screen.findByText('profile body')).toBeDefined()
+    expect(screen.getByRole('link', { name: /Roster/ }).getAttribute('href')).toBe(
+      '/t/bravo/roster',
+    )
   })
 
   test('outside /t/:slug the links fall back to the account’s team', () => {

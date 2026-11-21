@@ -68,7 +68,12 @@ export function AppLayout({ me }: { me: Me }) {
                 </Group>
               </Menu.Label>
               <Menu.Divider />
-              <Menu.Item leftSection={<IconUser size={16} />} onClick={() => navigate('/profile')}>
+              <Menu.Item
+                leftSection={<IconUser size={16} />}
+                // the team stays in the URL: bare `/profile` would fall back to the oldest
+                // membership and silently switch the shell to another team
+                onClick={() => navigate(`${base}/profile`)}
+              >
                 My profile
               </Menu.Item>
               <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>

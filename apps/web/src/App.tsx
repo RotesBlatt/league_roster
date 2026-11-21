@@ -35,8 +35,8 @@ export function App() {
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/t/:slug/roster" element={<RosterPage />} />
           <Route path="/t/:slug/admin" element={<AdminPage />} />
-          {/* global: a profile belongs to a person, so no team in the path */}
-          <Route path="/profile" element={<ProfilePage />} />
+          {/* the data is global, but the URL carries the team so the shell cannot switch under you */}
+          <Route path="/t/:slug/profile" element={<ProfilePage />} />
           <Route path="/new-team" element={<NewTeamPage />} />
         </Route>
       </Route>

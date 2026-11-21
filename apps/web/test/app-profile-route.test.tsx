@@ -68,11 +68,11 @@ beforeEach(() => {
   apiState.teamList = { data: [], error: null, status: 200 }
 })
 
-describe('the /profile route', () => {
+describe('the profile route', () => {
   test('a failed profile read is shown, not mistaken for "incomplete"', async () => {
     apiState.profile = { data: null, error: { value: { message: 'Not found' } }, status: 404 }
 
-    renderAt('/profile')
+    renderAt('/t/alpha/profile')
 
     expect(await screen.findByText('Could not load your profile')).toBeDefined()
     expect(screen.queryByText('Set up your profile')).toBeNull()
@@ -82,13 +82,13 @@ describe('the /profile route', () => {
     apiState.profile = { data: null, error: null, status: 200 }
     apiState.riotAccountList = { data: [], error: null, status: 200 }
 
-    renderAt('/profile')
+    renderAt('/t/alpha/profile')
 
     expect(await screen.findByRole('heading', { name: 'Set up your profile' })).toBeDefined()
   })
 
   test('renders the page inside the app shell for a member with a complete profile', async () => {
-    renderAt('/profile')
+    renderAt('/t/alpha/profile')
 
     expect(await screen.findByRole('heading', { name: 'My profile' })).toBeDefined()
     expect(await screen.findByDisplayValue('Jules')).toBeDefined()
