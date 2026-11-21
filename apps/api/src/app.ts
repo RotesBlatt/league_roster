@@ -13,6 +13,7 @@ import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlayerRoutes } from './routes/players.ts'
+import { createProfileRoutes } from './routes/profile.ts'
 import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
 
@@ -121,6 +122,8 @@ export function createApp(options: AppOptions = {}) {
           .get('/health', () => ({ ok: true, uptime: process.uptime() }))
           // global: you can be signed in and not be in a team (yet)
           .use(createMeRoutes(authPlugin))
+          // global: a person's own profile exists before (and without) any team
+          .use(createProfileRoutes(db, authPlugin, requestLogger))
           // global: the code identifies the team being joined
           .use(createClaimRoutes(db, authPlugin, requestLogger))
           // global: creating a team is the act that makes you its captain, so there is
