@@ -143,13 +143,31 @@ describe('the accounts list', () => {
     await waitFor(() => expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW' }))
   })
 
-  test('the only account can be removed — a mistyped Riot ID must be fixable', async () => {
+  test('the last account cannot be removed here — that would bounce you to setup', async () => {
     apiState.profile = { data: saved, error: null, status: 200 }
     apiState.riotAccountList = { data: [mainAccount], error: null, status: 200 }
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    const remove = await screen.findByRole('button', { name: 'Remove' })
+    expect(remove.hasAttribute('disabled')).toBe(true)
+    // and it says why, rather than just refusing
+    expect(screen.getByText(/at least one account/i)).toBeDefined()
+  })
+
+  test('with two accounts, either one can be removed', async () => {
+    apiState.profile = { data: saved, error: null, status: 200 }
+    apiState.riotAccountList = {
+      data: [mainAccount, { ...mainAccount, id: 'acc-2', gameName: 'Smurf', isMain: false }],
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    const buttons = await screen.findAllByRole('button', { name: 'Remove' })
+    expect(buttons.every((button) => !button.hasAttribute('disabled'))).toBe(true)
+    fireEvent.click(buttons[0] as HTMLElement)
 
     await waitFor(() => expect(apiState.sentAccountId).toBe('acc-1'))
   })

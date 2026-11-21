@@ -133,14 +133,27 @@ export function ProfileSection({ saveDelayMs = 700 }: { saveDelayMs?: number } =
   )
 }
 
-/** The player's League accounts: list, add, remove, and exactly one main. */
-export function AccountsSection() {
+/**
+ * The player's League accounts: list, add, remove, and exactly one main.
+ *
+ * `allowRemovingLast` is the one difference between the two entry points: on `/welcome` a mistyped
+ * Riot ID must be deletable (down to zero, then add the right one), while on `/profile` removing
+ * the last account would make the profile incomplete and bounce the player straight back to
+ * setup — so there it is refused, with the reason shown.
+ */
+export function AccountsSection({
+  allowRemovingLast = false,
+}: {
+  allowRemovingLast?: boolean
+} = {}) {
   const accounts = useRiotAccounts()
   const add = useAddRiotAccount()
   const remove = useRemoveRiotAccount()
   const setMain = useSwitchMainRiotAccount()
   const [draft, setDraft] = useState({ gameName: '', tagLine: '' })
   const [error, setError] = useState<string | null>(null)
+
+  const removeBlocked = !allowRemovingLast && (accounts.data?.length ?? 0) <= 1
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -171,6 +184,11 @@ export function AccountsSection() {
 
         {accounts.data?.length ? (
           <Stack gap="xs">
+            {removeBlocked ? (
+              <Text size="xs" c="dimmed">
+                You need at least one account. Add the new one before removing this one.
+              </Text>
+            ) : null}
             {accounts.data.map((account) => (
               <Group key={account.id} justify="space-between" wrap="nowrap">
                 <Group gap="xs">
@@ -195,6 +213,7 @@ export function AccountsSection() {
                     size="compact-sm"
                     onClick={() => remove.mutate(account.id)}
                     loading={remove.isPending}
+                    disabled={removeBlocked}
                   >
                     Remove
                   </Button>

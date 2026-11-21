@@ -48,7 +48,8 @@ export function WelcomePage() {
       </div>
 
       <ProfileSection />
-      <AccountsSection />
+      {/* setup: a wrong Riot ID must be removable, even if it is the only one */}
+      <AccountsSection allowRemovingLast />
 
       <Group justify="space-between" align="center">
         {missing.length > 0 ? (
