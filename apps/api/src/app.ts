@@ -16,7 +16,6 @@ import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
-import { createRiotLookupRoutes } from './routes/riot-lookup.ts'
 import { createRosterRoutes } from './routes/roster.ts'
 import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
@@ -139,9 +138,6 @@ export function createApp(options: AppOptions = {}) {
           .use(createProfileRoutes(db, authPlugin, requestLogger))
           // global: the accounts belong to the person, not to a team
           .use(createRiotAccountRoutes(db, riot, riotThrottle, authPlugin, requestLogger))
-          // global: one explicit Riot check, nothing written — the injected client is the only
-          // thing that can reach Riot
-          .use(createRiotLookupRoutes(riot, riotThrottle, authPlugin, requestLogger))
           // global: the code identifies the team being joined
           .use(createClaimRoutes(db, authPlugin, requestLogger))
           // global: creating a team is the act that makes you its captain, so there is
