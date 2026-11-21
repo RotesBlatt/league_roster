@@ -87,8 +87,10 @@ describe('StatusBadge', () => {
     expect(screen.getByText('disabled')).toBeDefined()
   })
 
-  test('shows an active captain as captain', () => {
-    ui(
+  test('an active membership needs no badge at all', () => {
+    // "captain" is per team now (the switcher says which), so a role badge next to the account
+    // name says nothing. "member" said even less.
+    const { container } = ui(
       <StatusBadge
         me={{
           id: '1',
@@ -102,28 +104,11 @@ describe('StatusBadge', () => {
         }}
       />,
     )
-    expect(screen.getByText('captain')).toBeDefined()
+
+    expect(container.querySelector('[class*="mantine-Badge"]')).toBeNull()
   })
 
-  test('shows an active non-captain as member', () => {
-    ui(
-      <StatusBadge
-        me={{
-          id: '1',
-          name: 'x',
-          email: '',
-          image: null,
-          teamId: null,
-          teamSlug: null,
-          role: 'member',
-          status: 'active',
-        }}
-      />,
-    )
-    expect(screen.getByText('member')).toBeDefined()
-  })
-
-  test('disabled wins over role', () => {
+  test('disabled still shows, whatever the role', () => {
     ui(
       <StatusBadge
         me={{

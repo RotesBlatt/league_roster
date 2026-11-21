@@ -42,9 +42,14 @@ export function UnverifiedBadge({ verifiedAt }: { verifiedAt: number | null }) {
   )
 }
 
+/**
+ * Only the states that are worth a word. An active membership is the normal case, and "captain"
+ * is per team — the switcher already says which team you lead, so a role badge in the account
+ * menu would be noise that is also easy to read as a global permission.
+ */
 export function StatusBadge({ me }: { me: Me }) {
   // null status == no membership in any team (as opposed to 'disabled', a decision)
   if (!me.status) return <Badge color="gray">no team</Badge>
   if (me.status === 'disabled') return <Badge color="red">disabled</Badge>
-  return <Badge color="brand">{me.role === 'captain' ? 'captain' : 'member'}</Badge>
+  return null
 }
