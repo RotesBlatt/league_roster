@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Me, RosterEntryDto } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 
@@ -34,7 +34,13 @@ const rows: RosterEntryDto[] = [
     role: 'MID',
     note: 'shotcaller',
     isActive: true,
-    mainAccount: { gameName: 'Hide on bush', tagLine: 'EUW', verifiedAt: null },
+    account: {
+      id: 'acc-1',
+      gameName: 'Hide on bush',
+      tagLine: 'EUW',
+      verifiedAt: null,
+      isMain: true,
+    },
   },
   {
     id: 'e2',
@@ -43,7 +49,7 @@ const rows: RosterEntryDto[] = [
     role: null,
     note: null,
     isActive: false,
-    mainAccount: null,
+    account: null,
   },
 ]
 
@@ -69,6 +75,19 @@ beforeEach(() => {
   apiState.memberList = { data: [], error: null, status: 200 }
 })
 
+const jules = {
+  id: 'u1',
+  name: 'Jules',
+  email: 'j@test.local',
+  image: null,
+  role: 'member' as const,
+  status: 'active' as const,
+  createdAt: 0,
+  hasRosterEntry: true,
+  teamId: 't1',
+  accounts: [{ id: 'acc-1', gameName: 'Hide on bush', tagLine: 'EUW', isMain: true }],
+}
+
 describe('RosterPage', () => {
   test('renders what the player owns and what the captain owns, in one row', async () => {
     renderPage()
@@ -88,6 +107,37 @@ describe('RosterPage', () => {
     expect(await screen.findByRole('button', { name: /Add from team/i })).toBeDefined()
     // the old form's fields are gone: a captain cannot type a name or a Riot ID here
     expect(screen.queryByPlaceholderText('Hide on bush')).toBeNull()
+  })
+
+  test('removing asks first, and sends nothing until you confirm', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Remove Jules/ }))
+
+    // the dialog names the player and promises the profile stays untouched
+    expect(await screen.findByText(/will be removed from this team/)).toBeDefined()
+    expect(apiState.sentRosterPatch).toBeUndefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove from roster' }))
+
+    await waitFor(() => expect(apiState.sentRosterPatch).toEqual({ id: 'e1' }))
+  })
+
+  test('the pencil opens the entry, and saving sends the account chosen for this team', async () => {
+    apiState.memberList = { data: [jules], error: null, status: 200 }
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Edit Jules/ }))
+    expect(await screen.findByText('Edit roster entry')).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(apiState.sentRosterPatch).toMatchObject({
+        id: 'e1',
+        body: { accountId: 'acc-1', note: 'shotcaller', roleOverride: 'MID', isActive: true },
+      }),
+    )
   })
 
   test('a plain member sees the roster but no write controls', async () => {

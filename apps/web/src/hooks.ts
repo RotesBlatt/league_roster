@@ -143,6 +143,8 @@ export function useRoster(slug: string) {
 }
 
 export type RosterWrite = {
+  /** which of his accounts this team uses; null/absent = follow his main */
+  accountId?: string | null
   note?: string | null
   roleOverride?: Role | null
   isActive?: boolean

@@ -15,10 +15,10 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
+import { MainBadge, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
 import {
   useAddRosterEntry,
   useMe,
@@ -27,16 +27,17 @@ import {
   useRoster,
   useUpdateRosterEntry,
 } from '../hooks.ts'
+import { defaultAccountId, accountOptions as optionsFor, pickableMembers } from '../roster-form.ts'
 
 const roleData = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 
 /**
- * The roster is a **join**, and this page is the place it shows: the name and the main account come
- * from the player, the note / active flag / position override from the captain
- * (player-profiles.md §2).
+ * The roster is a **join**, and this page is where it shows: name and accounts come from the
+ * player, the note / active flag / position override / **account used for this team** from the
+ * captain (player-profiles.md §2, §10).
  *
- * There is no name field and no Riot ID field here, on purpose. A captain who could edit them would
- * be editing somebody else's profile — the split exists so that the page cannot even offer it.
+ * No name field and no Riot ID field here, on purpose: a captain who could edit them would be
+ * editing somebody else's profile.
  */
 export function RosterPage() {
   const { slug = '' } = useParams()
@@ -48,33 +49,60 @@ export function RosterPage() {
   const remove = useRemoveRosterEntry(slug)
   const isCaptain = me.data?.role === 'captain'
 
-  const [opened, setOpened] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<RosterEntryDto | null>(null)
+  const [confirming, setConfirming] = useState<RosterEntryDto | null>(null)
+
   const [userId, setUserId] = useState<string | null>(null)
+  const [accountId, setAccountId] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [roleOverride, setRoleOverride] = useState<Role | null>(null)
+  const [isActive, setIsActive] = useState(true)
 
   const rows = roster.data ?? []
-  // only members who are not on the roster yet — you cannot add the same person twice
-  const pickable = (members.data ?? [])
-    .filter((member) => !rows.some((row) => row.userId === member.id))
-    .map((member) => ({ value: member.id, label: member.name }))
+  const memberList = members.data ?? []
+  const memberOf = (id: string) => memberList.find((member) => member.id === id)
+
+  const pickable = pickableMembers(memberList, rows).map((member) => ({
+    value: member.id,
+    label: member.name,
+  }))
+
+  /** The accounts the captain may choose from — always the member's own. */
+  const accountOptions = (forUserId: string | null) =>
+    optionsFor(forUserId ? memberOf(forUserId) : undefined)
 
   const onError = (error: Error) => notifications.show({ message: error.message, color: 'red' })
 
   const openAdd = () => {
     setUserId(null)
+    setAccountId(null)
     setNote('')
     setRoleOverride(null)
-    setOpened(true)
+    setAdding(true)
+  }
+
+  /** Picking a member preselects his main account; the captain may choose another. */
+  const pickMember = (id: string | null) => {
+    setUserId(id)
+    setAccountId(defaultAccountId(id ? memberOf(id) : undefined))
+  }
+
+  const openEdit = (entry: RosterEntryDto) => {
+    setEditing(entry)
+    setAccountId(entry.account?.id ?? null)
+    setNote(entry.note ?? '')
+    setRoleOverride(entry.role)
+    setIsActive(entry.isActive)
   }
 
   const submitAdd = () => {
     if (!userId) return
     add.mutate(
-      { userId, note: note || null, roleOverride },
+      { userId, accountId, note: note || null, roleOverride },
       {
         onSuccess: () => {
-          setOpened(false)
+          setAdding(false)
           notifications.show({ message: 'Added to the roster', color: 'brand' })
         },
         onError,
@@ -82,14 +110,30 @@ export function RosterPage() {
     )
   }
 
-  const setActive = (entry: RosterEntryDto, isActive: boolean) =>
-    update.mutate({ id: entry.id, isActive }, { onError })
+  const submitEdit = () => {
+    if (!editing) return
+    update.mutate(
+      { id: editing.id, accountId, note: note || null, roleOverride, isActive },
+      {
+        onSuccess: () => {
+          setEditing(null)
+          notifications.show({ message: 'Roster entry updated', color: 'brand' })
+        },
+        onError,
+      },
+    )
+  }
 
-  const removeEntry = (entry: RosterEntryDto) =>
-    remove.mutate(entry.id, {
-      onSuccess: () => notifications.show({ message: 'Removed from the roster', color: 'brand' }),
+  const confirmRemove = () => {
+    if (!confirming) return
+    remove.mutate(confirming.id, {
+      onSuccess: () => {
+        setConfirming(null)
+        notifications.show({ message: 'Removed from the roster', color: 'brand' })
+      },
       onError,
     })
+  }
 
   return (
     <Stack gap="md">
@@ -107,13 +151,13 @@ export function RosterPage() {
           Nobody on the roster yet. Members join the team with an invite link; then add them here.
         </Text>
       ) : (
-        <Table.ScrollContainer minWidth={720}>
+        <Table.ScrollContainer minWidth={820}>
           <Table verticalSpacing="sm">
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Player</Table.Th>
                 <Table.Th>Role</Table.Th>
-                <Table.Th>Main account</Table.Th>
+                <Table.Th>Account</Table.Th>
                 <Table.Th>Note</Table.Th>
                 <Table.Th>Active</Table.Th>
                 {isCaptain && <Table.Th />}
@@ -135,10 +179,11 @@ export function RosterPage() {
                     )}
                   </Table.Td>
                   <Table.Td>
-                    {entry.mainAccount ? (
+                    {entry.account ? (
                       <Group gap="xs">
-                        <Text size="sm">{`${entry.mainAccount.gameName}#${entry.mainAccount.tagLine}`}</Text>
-                        <UnverifiedBadge verifiedAt={entry.mainAccount.verifiedAt} />
+                        <Text size="sm">{`${entry.account.gameName}#${entry.account.tagLine}`}</Text>
+                        {entry.account.isMain ? <MainBadge /> : null}
+                        <UnverifiedBadge verifiedAt={entry.account.verifiedAt} />
                       </Group>
                     ) : (
                       <Text size="sm" c="dimmed">
@@ -155,7 +200,12 @@ export function RosterPage() {
                     {isCaptain ? (
                       <Switch
                         checked={entry.isActive}
-                        onChange={(event) => setActive(entry, event.currentTarget.checked)}
+                        onChange={(event) =>
+                          update.mutate(
+                            { id: entry.id, isActive: event.currentTarget.checked },
+                            { onError },
+                          )
+                        }
                         aria-label={`${entry.displayName} active`}
                       />
                     ) : (
@@ -166,14 +216,23 @@ export function RosterPage() {
                   </Table.Td>
                   {isCaptain && (
                     <Table.Td align="right">
-                      <ActionIcon
-                        color="red"
-                        variant="subtle"
-                        aria-label={`Remove ${entry.displayName}`}
-                        onClick={() => removeEntry(entry)}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <ActionIcon
+                          variant="subtle"
+                          aria-label={`Edit ${entry.displayName}`}
+                          onClick={() => openEdit(entry)}
+                        >
+                          <IconPencil size={16} />
+                        </ActionIcon>
+                        <ActionIcon
+                          color="red"
+                          variant="subtle"
+                          aria-label={`Remove ${entry.displayName}`}
+                          onClick={() => setConfirming(entry)}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
                     </Table.Td>
                   )}
                 </Table.Tr>
@@ -183,16 +242,26 @@ export function RosterPage() {
         </Table.ScrollContainer>
       )}
 
-      <Modal opened={opened} onClose={() => setOpened(false)} title="Add a team member">
+      <Modal opened={adding} onClose={() => setAdding(false)} title="Add a team member">
         <Stack>
           <Select
             label="Member"
             description="Only people who already joined this team can be added"
             data={pickable}
             value={userId}
-            onChange={setUserId}
+            onChange={pickMember}
             searchable
             nothingFoundMessage="Everyone on the team is already on the roster"
+          />
+          <Select
+            label="Account for this team"
+            description="Defaults to his main — pick another if he plays on a different account here"
+            data={accountOptions(userId)}
+            value={accountId}
+            onChange={setAccountId}
+            clearable
+            placeholder={userId ? 'His main account' : 'Pick a member first'}
+            disabled={!userId}
           />
           <Select
             label="Role override"
@@ -211,6 +280,64 @@ export function RosterPage() {
           <Group justify="flex-end">
             <Button onClick={submitAdd} disabled={!userId} loading={add.isPending}>
               Add
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={editing !== null} onClose={() => setEditing(null)} title="Edit roster entry">
+        <Stack>
+          <Select
+            label="Account for this team"
+            description="Blank follows his main account"
+            data={accountOptions(editing?.userId ?? null)}
+            value={accountId}
+            onChange={setAccountId}
+            clearable
+            placeholder="His main account"
+          />
+          <Select
+            label="Role override"
+            description="Blank uses the position the player stated"
+            data={roleData}
+            value={roleOverride}
+            onChange={(value) => setRoleOverride(value as Role | null)}
+            clearable
+          />
+          <TextInput
+            label="Note"
+            value={note}
+            onChange={(event) => setNote(event.currentTarget.value)}
+          />
+          <Switch
+            label="On the roster"
+            checked={isActive}
+            onChange={(event) => setIsActive(event.currentTarget.checked)}
+          />
+          <Group justify="flex-end">
+            <Button onClick={submitEdit} loading={update.isPending}>
+              Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={confirming !== null}
+        onClose={() => setConfirming(null)}
+        title="Remove from the roster?"
+      >
+        <Stack>
+          <Text size="sm">
+            {confirming?.displayName} will be removed from this team’s roster. His profile and
+            accounts stay untouched.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirming(null)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmRemove} loading={remove.isPending}>
+              Remove from roster
             </Button>
           </Group>
         </Stack>
