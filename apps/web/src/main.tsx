@@ -7,6 +7,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import { App } from './App.tsx'
+import { AppErrorBoundary } from './components/AppErrorBoundary.tsx'
 import { theme } from './theme.ts'
 
 const queryClient = new QueryClient({
@@ -22,7 +23,10 @@ createRoot(root).render(
       <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          {/* no boundary means any render error is a white page, shell included */}
+          <AppErrorBoundary>
+            <App />
+          </AppErrorBoundary>
         </BrowserRouter>
       </QueryClientProvider>
     </MantineProvider>

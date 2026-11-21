@@ -69,6 +69,18 @@ describe('the profile form', () => {
     expect(screen.getByDisplayValue('2001-07-14')).toBeDefined()
   })
 
+  test('a failed load says so, instead of showing an empty form', async () => {
+    apiState.profile = {
+      data: null,
+      error: { value: { message: 'Not found' } },
+      status: 404,
+    }
+
+    renderPage()
+
+    expect(await screen.findByText(/Could not load your profile/)).toBeDefined()
+  })
+
   test('with nothing saved yet, the Discord name is offered as the display name', async () => {
     apiState.profile = { data: null, error: null, status: 200 }
 
