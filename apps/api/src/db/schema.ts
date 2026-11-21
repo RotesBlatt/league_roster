@@ -186,31 +186,6 @@ export const rosterEntries = pgTable(
   ],
 )
 
-/**
- * The **old** roster row: captain-owned from top to bottom, one per team, with the player's own
- * fields duplicated onto it. Kept while `roster_entry` is adopted (0006 backfills it); it is
- * dropped in a later migration, never in the one that stops writing to it.
- */
-export const players = pgTable(
-  'player',
-  {
-    id: text('id').primaryKey(),
-    displayName: text('displayName').notNull(),
-    role: text('role', { enum: ROLES }).notNull(),
-    riotGameName: text('riotGameName'),
-    riotTagLine: text('riotTagLine'),
-    note: text('note'),
-    isActive: boolean('isActive').notNull().default(true),
-    userId: text('userId').references(() => user.id, { onDelete: 'set null' }),
-    teamId: text('teamId')
-      .notNull()
-      .references(() => teams.id, { onDelete: 'cascade' }),
-    createdAt: createdAt.notNull(),
-    updatedAt: updatedAt.notNull(),
-  },
-  (table) => [index('player_role_idx').on(table.role, table.teamId)],
-)
-
 /** A team of players. */
 export const teams = pgTable(
   'team',
@@ -273,5 +248,4 @@ export type UserRow = typeof user.$inferSelect
 export type ProfileRow = typeof profile.$inferSelect
 export type RosterEntryRow = typeof rosterEntries.$inferSelect
 export type RiotAccountRow = typeof riotAccounts.$inferSelect
-export type PlayerRow = typeof players.$inferSelect
 export type InviteRow = typeof invites.$inferSelect

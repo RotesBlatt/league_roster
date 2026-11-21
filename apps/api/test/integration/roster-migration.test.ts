@@ -3,7 +3,6 @@ import { eq, sql } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import {
   memberships,
-  players,
   profile,
   riotAccounts,
   rosterEntries,
@@ -75,7 +74,9 @@ beforeAll(async () => {
     updatedAt: now,
   })
 
-  await ctx.db.insert(players).values([
+  // raw SQL on purpose: `player` was dropped in 0007, so it is not in the schema module any more —
+  // this fixture writes into the shape 0006 met in production
+  for (const row of [
     {
       id: 'player-linked',
       displayName: 'Jules',
@@ -85,12 +86,8 @@ beforeAll(async () => {
       note: 'shotcaller',
       isActive: true,
       userId: member,
-      teamId,
-      createdAt: now,
-      updatedAt: now,
     },
     {
-      // linked to a user who is not a member of this team: no entry may be created for them
       id: 'player-outsider',
       displayName: 'Guest',
       role: 'TOP',
@@ -99,13 +96,9 @@ beforeAll(async () => {
       note: null,
       isActive: true,
       userId: outsider,
-      teamId,
-      createdAt: now,
-      updatedAt: now,
     },
     {
-      // someone the captain typed in that never had an account at all
-      id: freeTyped,
+      id: 'player-free',
       displayName: 'Sprinter',
       role: 'TOP',
       riotGameName: null,
@@ -113,11 +106,16 @@ beforeAll(async () => {
       note: null,
       isActive: false,
       userId: null,
-      teamId,
-      createdAt: now,
-      updatedAt: now,
     },
-  ])
+  ]) {
+    await ctx.db.execute(sql`
+      insert into "player" ("id", "displayName", "role", "riotGameName", "riotTagLine", "note",
+                            "isActive", "userId", "teamId", "createdAt", "updatedAt")
+      values (${row.id}, ${row.displayName}, ${row.role}, ${row.riotGameName}, ${row.riotTagLine},
+              ${row.note}, ${row.isActive}, ${row.userId}, ${teamId},
+              ${now.toISOString()}, ${now.toISOString()})
+    `)
+  }
 
   await migrate(ctx.db, { migrationsFolder })
 })

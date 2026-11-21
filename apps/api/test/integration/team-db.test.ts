@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq } from 'drizzle-orm'
-import { memberships, players, user } from '../../src/db/schema.ts'
+import { invites, memberships, user } from '../../src/db/schema.ts'
 import { forTeam } from '../../src/lib/team-db.ts'
 import { getTeamBySlug } from '../../src/lib/teams.ts'
 import {
@@ -14,32 +14,36 @@ import {
 /**
  * The point of `forTeam` (multi-team.md §5): a route cannot reach another team's rows, not
  * because it remembered a `WHERE`, but because the only handle it gets cannot express one.
+ *
+ * The sample team-scoped table is `invite`: `player` used to play this role and has been dropped,
+ * and `invite` has a `teamId` with no dependency on a membership, which keeps this file about the
+ * scope and nothing else.
  */
 let ctx: TestContext
 let alphaId: string
 let bravoId: string
-let bravoPlayerId: string
+let bravoInviteId: string
+let ownerId: string
 
 beforeAll(async () => {
   ctx = await createTestContext()
-  const owner = await createUser(ctx, { name: 'Owner' })
-  alphaId = await seedTeam(ctx, { createdBy: owner, slug: 'alpha', name: 'Alpha' })
-  bravoId = await seedTeam(ctx, { createdBy: owner, slug: 'bravo', name: 'Bravo' })
+  ownerId = await createUser(ctx, { name: 'Owner' })
+  alphaId = await seedTeam(ctx, { createdBy: ownerId, slug: 'alpha', name: 'Alpha' })
+  bravoId = await seedTeam(ctx, { createdBy: ownerId, slug: 'bravo', name: 'Bravo' })
 
-  const now = new Date()
-  const [bravoPlayer] = await ctx.db
-    .insert(players)
+  const [bravoInvite] = await ctx.db
+    .insert(invites)
     .values({
       id: crypto.randomUUID(),
       teamId: bravoId,
-      displayName: 'Bravo mid',
-      role: 'MID',
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
+      code: 'bravo-only',
+      note: 'bravo only',
+      createdBy: ownerId,
+      createdAt: new Date(),
     })
     .returning()
-  bravoPlayerId = bravoPlayer!.id
+
+  bravoInviteId = bravoInvite!.id
 })
 
 afterAll(async () => {
@@ -52,77 +56,68 @@ async function alphaScope() {
   return forTeam(ctx.db, team)
 }
 
+const inviteValues = (code: string) => ({
+  id: crypto.randomUUID(),
+  code,
+  note: null,
+  createdBy: ownerId,
+  createdAt: new Date(),
+})
+
 describe('forTeam', () => {
   test('inserts a row into its own team without being told the team', async () => {
     const scope = await alphaScope()
 
     // note: no teamId in the values — the type does not allow one
-    const row = await scope.insertInto(players, {
-      id: crypto.randomUUID(),
-      displayName: 'Alpha top',
-      role: 'TOP',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    const row = await scope.insertInto(invites, inviteValues('alpha-inserted'))
 
     expect(row?.teamId).toBe(alphaId)
   })
 
   test('reads only its own team’s rows', async () => {
     const scope = await alphaScope()
-    const rows = await scope.selectFrom(players)
 
-    expect(rows.map((row) => row.displayName)).toEqual(['Alpha top'])
-  })
+    const rows = await scope.selectFrom(invites)
+    expect(rows.every((row) => row.teamId === alphaId)).toBe(true)
 
-  test('cannot read another team’s row even when asked for its id', async () => {
-    const scope = await alphaScope()
-
-    expect(await scope.selectFrom(players, eq(players.id, bravoPlayerId))).toEqual([])
+    // the same query, narrowed to another team's id, still finds nothing
+    expect(await scope.selectFrom(invites, eq(invites.id, bravoInviteId))).toEqual([])
   })
 
   test('cannot update another team’s row', async () => {
     const scope = await alphaScope()
 
-    const updated = await scope.update(players, { note: 'stolen' }, eq(players.id, bravoPlayerId))
+    const updated = await scope.update(invites, { note: 'stolen' }, eq(invites.id, bravoInviteId))
     expect(updated).toEqual([])
 
-    const untouched = await scope.selectFrom(players, eq(players.id, bravoPlayerId))
-    expect(untouched).toEqual([])
-    // and really untouched, checked without the scope
-    const [row] = await ctx.db.select().from(players).where(eq(players.id, bravoPlayerId))
-    expect(row?.note).toBeNull()
+    const [row] = await ctx.db.select().from(invites).where(eq(invites.id, bravoInviteId))
+    expect(row?.note).toBe('bravo only')
   })
 
   test('cannot delete another team’s row', async () => {
     const scope = await alphaScope()
 
-    expect(await scope.deleteFrom(players, eq(players.id, bravoPlayerId))).toEqual([])
+    expect(await scope.deleteFrom(invites, eq(invites.id, bravoInviteId))).toEqual([])
 
-    const [row] = await ctx.db.select().from(players).where(eq(players.id, bravoPlayerId))
-    expect(row?.id).toBe(bravoPlayerId)
+    const [row] = await ctx.db.select().from(invites).where(eq(invites.id, bravoInviteId))
+    expect(row?.id).toBe(bravoInviteId)
   })
 
   test('refuses a teamId in the payload at compile time', async () => {
     const scope = await alphaScope()
 
-    await scope.insertInto(players, {
-      id: crypto.randomUUID(),
+    await scope.insertInto(invites, {
+      ...inviteValues('smuggled'),
       // @ts-expect-error teamId is injected by the scope, so passing one must not compile
       teamId: bravoId,
-      displayName: 'Smuggled',
-      role: 'MID',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     })
 
     // types are erased at runtime, so prove the real guarantee: the scope overwrites teamId
-    const bravoRows = await ctx.db.select().from(players).where(eq(players.teamId, bravoId))
-    expect(bravoRows.map((row) => row.displayName)).not.toContain('Smuggled')
+    const bravoRows = await ctx.db.select().from(invites).where(eq(invites.teamId, bravoId))
+    expect(bravoRows.map((row) => row.code)).not.toContain('smuggled')
 
-    const alphaRows = await ctx.db.select().from(players).where(eq(players.teamId, alphaId))
-    expect(alphaRows.find((row) => row.displayName === 'Smuggled')?.teamId).toBe(alphaId)
+    const alphaRows = await ctx.db.select().from(invites).where(eq(invites.teamId, alphaId))
+    expect(alphaRows.find((row) => row.code === 'smuggled')?.teamId).toBe(alphaId)
   })
 
   // the pair invites.ts and members.ts need: a team table joined to a global one (`user`)
@@ -147,18 +142,11 @@ describe('forTeam', () => {
 
   test('orders what it returns when asked', async () => {
     const scope = await alphaScope()
-    await scope.insertInto(players, {
-      id: crypto.randomUUID(),
-      displayName: 'Alpha support',
-      role: 'SUP',
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    await scope.insertInto(invites, inviteValues('alpha-support'))
 
-    const rows = await scope.selectFrom(players, undefined, { orderBy: [players.displayName] })
+    const rows = await scope.selectFrom(invites, undefined, { orderBy: [invites.code] })
     // only this test's rows: sibling tests share the alpha team
-    const names = rows.map((row) => row.displayName).filter((name) => name.startsWith('Alpha'))
-    expect(names).toEqual(['Alpha support', 'Alpha top'])
+    const codes = rows.map((row) => row.code).filter((code) => code.startsWith('alpha-'))
+    expect(codes).toEqual(['alpha-inserted', 'alpha-support'])
   })
 })

@@ -50,6 +50,13 @@
       "when": 1795275246098,
       "tag": "0006_parallel_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795276680025,
+      "tag": "0007_open_stepford_cuckoos",
+      "breakpoints": true
     }
   ]
 }

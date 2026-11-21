@@ -37,6 +37,13 @@ const ALLOWLIST: { file: string; match: string; reason: string }[] = [
     reason: 'historical: replaced by membership.status; allowlisted before the rule',
   },
   {
+    file: '0007_open_stepford_cuckoos.sql',
+    match: 'DROP TABLE "player"',
+    reason:
+      'the demo-era roster row: replaced by roster_entry in 0006, which deliberately carried over ' +
+      'only rows that belonged to a member. Dropping it is the point, not an accident',
+  },
+  {
     file: '0002_needy_puma.sql',
     match: 'ALTER TABLE "membership" ADD COLUMN "updatedAt" timestamp with time zone NOT NULL',
     reason: 'historical: written before the rule; every live database is past 0002',
