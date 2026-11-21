@@ -1,10 +1,11 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import type { Me } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { installApiMock } from './api-mock.ts'
+import { installAuthMock } from './auth-mock.ts'
 
 /**
  * Regression: the header's links used to be built from `me.teamSlug`, which `/api/me` pins to
@@ -16,10 +17,9 @@ import { installApiMock } from './api-mock.ts'
  */
 
 installApiMock()
+installAuthMock()
 
-mock.module('../src/auth-client.ts', () => ({
-  signOut: async () => {},
-}))
+installAuthMock()
 
 const { AppLayout } = await import('../src/components/AppLayout.tsx')
 

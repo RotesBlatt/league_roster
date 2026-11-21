@@ -1,10 +1,11 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Me } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { installAuthMock } from './auth-mock.ts'
 
 /**
  * `RequireMember` decides the whole screen state from `useMe`, so these tests drive the *network*
@@ -16,10 +17,9 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  * time this hazard bit us — see the note in `api-mock.ts`.
  */
 installApiMock()
+installAuthMock()
 
-mock.module('../src/auth-client.ts', () => ({
-  signOut: async () => {},
-}))
+installAuthMock()
 
 const { RequireMember } = await import('../src/components/RequireMember.tsx')
 
