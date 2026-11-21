@@ -1,4 +1,4 @@
-import type { PlayerDto } from '@lol/api/schema-types'
+import type { RosterEntryDto } from '@lol/api/schema-types'
 import type { Role } from '@lol/shared'
 import { ROLE_LABELS, ROLES } from '@lol/shared'
 import {
@@ -11,239 +11,209 @@ import {
   Switch,
   Table,
   Text,
-  Textarea,
   TextInput,
   Title,
 } from '@mantine/core'
-import { useForm } from '@mantine/form'
 import { notifications } from '@mantine/notifications'
-import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { api, unwrap } from '../api.ts'
-import { RoleBadge } from '../components/badges.tsx'
-import { useMe, usePlayers } from '../hooks.ts'
+import { RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
+import {
+  useAddRosterEntry,
+  useMe,
+  useMembers,
+  useRemoveRosterEntry,
+  useRoster,
+  useUpdateRosterEntry,
+} from '../hooks.ts'
 
 const roleData = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 
-type FormValues = {
-  displayName: string
-  role: Role
-  riotGameName: string
-  riotTagLine: string
-  note: string
-  isActive: boolean
-}
-
-const emptyValues: FormValues = {
-  displayName: '',
-  role: 'TOP',
-  riotGameName: '',
-  riotTagLine: '',
-  note: '',
-  isActive: true,
-}
-
+/**
+ * The roster is a **join**, and this page is the place it shows: the name and the main account come
+ * from the player, the note / active flag / position override from the captain
+ * (player-profiles.md §2).
+ *
+ * There is no name field and no Riot ID field here, on purpose. A captain who could edit them would
+ * be editing somebody else's profile — the split exists so that the page cannot even offer it.
+ */
 export function RosterPage() {
   const { slug = '' } = useParams()
   const me = useMe()
-  const players = usePlayers(slug)
-  const queryClient = useQueryClient()
+  const roster = useRoster(slug)
+  const members = useMembers(slug)
+  const add = useAddRosterEntry(slug)
+  const update = useUpdateRosterEntry(slug)
+  const remove = useRemoveRosterEntry(slug)
   const isCaptain = me.data?.role === 'captain'
 
   const [opened, setOpened] = useState(false)
-  const [editing, setEditing] = useState<PlayerDto | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [roleOverride, setRoleOverride] = useState<Role | null>(null)
 
-  const form = useForm<FormValues>({
-    initialValues: emptyValues,
-    validate: {
-      displayName: (value) => (value.trim().length > 0 ? null : 'Name is required'),
-    },
-  })
+  const rows = roster.data ?? []
+  // only members who are not on the roster yet — you cannot add the same person twice
+  const pickable = (members.data ?? [])
+    .filter((member) => !rows.some((row) => row.userId === member.id))
+    .map((member) => ({ value: member.id, label: member.name }))
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['players', slug] })
+  const onError = (error: Error) => notifications.show({ message: error.message, color: 'red' })
 
-  const save = useMutation({
-    mutationFn: (values: FormValues) =>
-      editing
-        ? unwrap(api.teams({ slug }).players({ id: editing.id }).patch(values))
-        : unwrap(api.teams({ slug }).players.post(values)),
-    onSuccess: () => {
-      void invalidate()
-      notifications.show({ message: editing ? 'Player updated' : 'Player added', color: 'brand' })
-      setOpened(false)
-    },
-    onError: (error) => notifications.show({ message: error.message, color: 'red' }),
-  })
-
-  const remove = useMutation({
-    mutationFn: (id: string) => unwrap(api.teams({ slug }).players({ id }).delete()),
-    onSuccess: () => {
-      void invalidate()
-      notifications.show({ message: 'Player removed', color: 'brand' })
-    },
-    onError: (error) => notifications.show({ message: error.message, color: 'red' }),
-  })
-
-  const openCreate = () => {
-    setEditing(null)
-    form.setValues(emptyValues)
-    form.resetDirty()
+  const openAdd = () => {
+    setUserId(null)
+    setNote('')
+    setRoleOverride(null)
     setOpened(true)
   }
 
-  const openEdit = (player: PlayerDto) => {
-    setEditing(player)
-    form.setValues({
-      displayName: player.displayName,
-      role: player.role,
-      riotGameName: player.riotGameName ?? '',
-      riotTagLine: player.riotTagLine ?? '',
-      note: player.note ?? '',
-      isActive: player.isActive,
+  const submitAdd = () => {
+    if (!userId) return
+    add.mutate(
+      { userId, note: note || null, roleOverride },
+      {
+        onSuccess: () => {
+          setOpened(false)
+          notifications.show({ message: 'Added to the roster', color: 'brand' })
+        },
+        onError,
+      },
+    )
+  }
+
+  const setActive = (entry: RosterEntryDto, isActive: boolean) =>
+    update.mutate({ id: entry.id, isActive }, { onError })
+
+  const removeEntry = (entry: RosterEntryDto) =>
+    remove.mutate(entry.id, {
+      onSuccess: () => notifications.show({ message: 'Removed from the roster', color: 'brand' }),
+      onError,
     })
-    setOpened(true)
-  }
-
-  const rows = players.data ?? []
 
   return (
     <Stack gap="md">
       <Group justify="space-between">
         <Title order={2}>Roster</Title>
         {isCaptain && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Add player
+          <Button leftSection={<IconPlus size={16} />} onClick={openAdd}>
+            Add from team
           </Button>
         )}
       </Group>
 
-      <Table.ScrollContainer minWidth={640}>
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th w={110}>Role</Table.Th>
-              <Table.Th>Player</Table.Th>
-              <Table.Th>Riot ID</Table.Th>
-              <Table.Th>Note</Table.Th>
-              <Table.Th w={90}>Status</Table.Th>
-              {isCaptain && <Table.Th w={96} />}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((player) => (
-              <Table.Tr key={player.id} opacity={player.isActive ? 1 : 0.55}>
-                <Table.Td>
-                  <RoleBadge role={player.role} />
-                </Table.Td>
-                <Table.Td fw={600}>{player.displayName}</Table.Td>
-                <Table.Td>
-                  <Text size="sm" c={player.riotGameName ? undefined : 'dimmed'}>
-                    {player.riotGameName
-                      ? `${player.riotGameName}#${player.riotTagLine ?? ''}`
-                      : 'not linked'}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c="dimmed" lineClamp={1}>
-                    {player.note ?? ''}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c={player.isActive ? 'brand' : 'dimmed'}>
-                    {player.isActive ? 'active' : 'inactive'}
-                  </Text>
-                </Table.Td>
-                {isCaptain && (
+      {rows.length === 0 ? (
+        <Text c="dimmed">
+          Nobody on the roster yet. Members join the team with an invite link; then add them here.
+        </Text>
+      ) : (
+        <Table.ScrollContainer minWidth={720}>
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Player</Table.Th>
+                <Table.Th>Role</Table.Th>
+                <Table.Th>Main account</Table.Th>
+                <Table.Th>Note</Table.Th>
+                <Table.Th>Active</Table.Th>
+                {isCaptain && <Table.Th />}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((entry) => (
+                <Table.Tr key={entry.id}>
                   <Table.Td>
-                    <Group gap={4} justify="flex-end">
+                    <Text fw={500}>{entry.displayName}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {entry.role ? (
+                      <RoleBadge role={entry.role} />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        unassigned
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    {entry.mainAccount ? (
+                      <Group gap="xs">
+                        <Text size="sm">{`${entry.mainAccount.gameName}#${entry.mainAccount.tagLine}`}</Text>
+                        <UnverifiedBadge verifiedAt={entry.mainAccount.verifiedAt} />
+                      </Group>
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        no account
+                      </Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c={entry.note ? undefined : 'dimmed'}>
+                      {entry.note ?? '—'}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {isCaptain ? (
+                      <Switch
+                        checked={entry.isActive}
+                        onChange={(event) => setActive(entry, event.currentTarget.checked)}
+                        aria-label={`${entry.displayName} active`}
+                      />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        {entry.isActive ? 'yes' : 'no'}
+                      </Text>
+                    )}
+                  </Table.Td>
+                  {isCaptain && (
+                    <Table.Td align="right">
                       <ActionIcon
-                        variant="subtle"
-                        aria-label="Edit"
-                        onClick={() => openEdit(player)}
-                      >
-                        <IconPencil size={16} />
-                      </ActionIcon>
-                      <ActionIcon
-                        variant="subtle"
                         color="red"
-                        aria-label="Delete"
-                        onClick={() => {
-                          if (confirm(`Remove ${player.displayName} from the roster?`)) {
-                            remove.mutate(player.id)
-                          }
-                        }}
+                        variant="subtle"
+                        aria-label={`Remove ${entry.displayName}`}
+                        onClick={() => removeEntry(entry)}
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
-                    </Group>
-                  </Table.Td>
-                )}
-              </Table.Tr>
-            ))}
-            {rows.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={isCaptain ? 6 : 5}>
-                  <Text c="dimmed" ta="center" py="md">
-                    No players yet.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+                    </Table.Td>
+                  )}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
 
-      <Modal
-        opened={opened}
-        onClose={() => setOpened(false)}
-        title={editing ? `Edit ${editing.displayName}` : 'Add player'}
-        centered
-      >
-        <form onSubmit={form.onSubmit((values) => save.mutate(values))}>
-          <Stack>
-            <TextInput
-              label="Name"
-              placeholder="Faker"
-              withAsterisk
-              {...form.getInputProps('displayName')}
-            />
-            <Select
-              label="Role"
-              data={roleData}
-              allowDeselect={false}
-              {...form.getInputProps('role')}
-            />
-            <Group grow>
-              <TextInput
-                label="Riot name"
-                placeholder="Hide on bush"
-                {...form.getInputProps('riotGameName')}
-              />
-              <TextInput label="Tag" placeholder="EUW" {...form.getInputProps('riotTagLine')} />
-            </Group>
-            <Textarea
-              label="Note"
-              autosize
-              minRows={2}
-              maxLength={500}
-              {...form.getInputProps('note')}
-            />
-            <Switch
-              label="On the active roster"
-              {...form.getInputProps('isActive', { type: 'checkbox' })}
-            />
-            <Group justify="flex-end">
-              <Button variant="default" onClick={() => setOpened(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" loading={save.isPending}>
-                Save
-              </Button>
-            </Group>
-          </Stack>
-        </form>
+      <Modal opened={opened} onClose={() => setOpened(false)} title="Add a team member">
+        <Stack>
+          <Select
+            label="Member"
+            description="Only people who already joined this team can be added"
+            data={pickable}
+            value={userId}
+            onChange={setUserId}
+            searchable
+            nothingFoundMessage="Everyone on the team is already on the roster"
+          />
+          <Select
+            label="Role override"
+            description="Optional — blank uses the position the player stated"
+            data={roleData}
+            value={roleOverride}
+            onChange={(value) => setRoleOverride(value as Role | null)}
+            clearable
+          />
+          <TextInput
+            label="Note"
+            placeholder="sub, coach, …"
+            value={note}
+            onChange={(event) => setNote(event.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button onClick={submitAdd} disabled={!userId} loading={add.isPending}>
+              Add
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
     </Stack>
   )
