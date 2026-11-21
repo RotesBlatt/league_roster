@@ -7,6 +7,8 @@
       "!**/node_modules",
       "!**/dist",
       "!**/drizzle",
+      "!apps/api/src/riot/generated",
+      "!tools/riot-types/riot-api.json",
       "!**/*.db",
       "!**/*.md",
       "!**/*.mdx"
