@@ -255,6 +255,23 @@ describe('createFakeRiotClient', () => {
     }
   })
 
+  test('echo answers any Riot ID with a puuid derived from it', async () => {
+    const riot = createFakeRiotClient({
+      account: 'echo',
+      summoner: { body: SUMMONER },
+      league: { body: [] },
+    })
+
+    const first = await riot.lookupAccount(lookup)
+    const second = await riot.lookupAccount({ ...lookup, gameName: 'Smurf' })
+
+    expect(first.ok && first.account).toMatchObject({
+      gameName: 'Hide on bush',
+      puuid: 'puuid-Hide on bush-EUW',
+    })
+    expect(second.ok && second.account.puuid).toBe('puuid-Smurf-EUW')
+  })
+
   test('with no account answer it is not_found, like an unknown Riot ID', async () => {
     expect(await createFakeRiotClient().lookupAccount(lookup)).toEqual({
       ok: false,

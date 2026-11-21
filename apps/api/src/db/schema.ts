@@ -130,7 +130,12 @@ export const riotAccounts = pgTable(
     tagLine: text('tagLine').notNull(),
     /** Platform code (`euw1`, `eun1`, …) — decides which host answers summoner/rank later. */
     platform: text('platform').notNull().default('euw1'),
-    puuid: text('puuid'),
+    /**
+     * Riot's stable identity. **Required**: an account is only stored when Riot resolved it, so
+     * there is no such thing as a row without one (decided 2026-11-21, see the docs patch —
+     * it reverses "degrade, never block" for adding an account).
+     */
+    puuid: text('puuid').notNull(),
     /**
      * The snapshot (riot-api.md §8): only facts we cannot recompute. Nullable throughout — an
      * account Riot could not be reached for is a valid row, and "unverified" is a badge, not an

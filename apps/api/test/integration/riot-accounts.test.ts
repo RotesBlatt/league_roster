@@ -57,8 +57,14 @@ const remove = (id: string, who = cookie) =>
 
 beforeAll(async () => {
   ctx = await createTestContext()
-  // a dead key: these tests are about CRUD, so every save is deliberately unverified (§5)
-  server = createTestApp(ctx, { riot: createFakeRiotClient({ account: { status: 403 } }) })
+  // `echo` resolves every Riot ID it is asked for, so each add is a distinct verified account
+  server = createTestApp(ctx, {
+    riot: createFakeRiotClient({
+      account: 'echo',
+      summoner: { body: { summonerLevel: 100, profileIconId: 1 } },
+      league: { body: [] },
+    }),
+  })
   call = server.call
 
   cookie = await createSessionCookie(ctx, await createUser(ctx, { name: 'Julius' }))
@@ -85,7 +91,7 @@ describe('POST /api/me/riot-accounts', () => {
     expect((await add({ gameName: 'Hide on bush', tagLine: 'EUW' }, '')).status).toBe(401)
   })
 
-  test('the first account becomes main and is stored unverified', async () => {
+  test('the first account becomes main, with what Riot answered', async () => {
     const response = await add({ gameName: '  Hide on bush ', tagLine: 'EUW' })
 
     expect(response.status).toBe(200)
@@ -93,7 +99,8 @@ describe('POST /api/me/riot-accounts', () => {
       gameName: 'Hide on bush',
       tagLine: 'EUW',
       isMain: true,
-      verifiedAt: null,
+      summonerLevel: 100,
+      verifiedAt: expect.any(Number),
     })
   })
 

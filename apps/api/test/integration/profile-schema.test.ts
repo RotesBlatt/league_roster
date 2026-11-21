@@ -74,6 +74,8 @@ function insertAccount(input: {
     gameName: input.gameName,
     tagLine: input.tagLine ?? 'EUW',
     platform: 'euw1',
+    // required since 0010: an account row is always one Riot resolved
+    puuid: `puuid-${crypto.randomUUID()}`,
     isMain: input.isMain ?? false,
     createdAt: new Date(),
   })

@@ -61,7 +61,7 @@ export function normalizeRiotAccountId(input: RiotAccountId): NormalizedRiotAcco
  */
 /** The columns a lookup may write, in the shape the insert takes them. */
 export type RiotAccountSnapshot = {
-  puuid: string | null
+  puuid: string
   summonerLevel: number | null
   profileIconId: number | null
   soloTier: Tier | null
@@ -76,27 +76,16 @@ export type RiotAccountSnapshot = {
  * What one lookup is allowed to write (riot-api.md §5). Two timestamps, two meanings:
  *
  * - `verifiedAt` only when all three calls succeeded — "this Riot ID resolved then";
- * - `fetchedAt` whenever data arrived at all — "the snapshot is from then" — which is why a
- *   *partial* answer stores the puuid and the level it has, yet stays unverified.
+ * - `fetchedAt` whenever data arrived — so a *partial* answer stores the puuid and what it has,
+ *   yet stays unverified.
  *
- * `null` means "no lookup ran" (no key, our own throttle, a dead socket): an unverified row, which
- * is a perfectly valid row and not an error.
+ * There is no "nothing to write" branch: `puuid` is required, so the route refuses the save
+ * instead of calling this with a failure. The types say so.
  */
-export function snapshotFields(result: LookupResult | null, now: Date): RiotAccountSnapshot {
-  if (result === null || !result.ok) {
-    return {
-      puuid: null,
-      summonerLevel: null,
-      profileIconId: null,
-      soloTier: null,
-      soloDivision: null,
-      flexTier: null,
-      flexDivision: null,
-      verifiedAt: null,
-      fetchedAt: null,
-    }
-  }
-
+export function snapshotFields(
+  result: Extract<LookupResult, { ok: true }>,
+  now: Date,
+): RiotAccountSnapshot {
   const { account, partial } = result
   const { solo, flex } = account.ranks
 

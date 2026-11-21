@@ -165,8 +165,14 @@ export function createRiotClient({
 /** One canned answer per step; an unconfigured step answers 404, never a plausible invention. */
 export type FakeAnswer = { body: unknown } | { status: number; retryAfter?: string }
 
+/**
+ * `'echo'` answers the Riot ID that was asked for, with a puuid derived from it. Route tests that
+ * add several accounts need each one to be a distinct player, which a single canned body is not.
+ */
+type FakeAccountAnswer = FakeAnswer | 'echo'
+
 export type FakeRiotOptions = {
-  account?: FakeAnswer
+  account?: FakeAccountAnswer
   summoner?: FakeAnswer
   league?: FakeAnswer
 }
@@ -196,10 +202,24 @@ export function createFakeRiotClient(options: FakeRiotOptions = {}): FakeRiotCli
 
   const notFound = () => new Response(JSON.stringify({ status: 404 }), { status: 404 })
 
+  /** `…/accounts/by-riot-id/{gameName}/{tagLine}` answered as the caller asked it. */
+  const echo = (url: string) => {
+    const [, , , , , , rawName, rawTag] = new URL(url).pathname.split('/')
+    const gameName = decodeURIComponent(rawName ?? '')
+    const tagLine = decodeURIComponent(rawTag ?? '')
+
+    return new Response(
+      JSON.stringify({ puuid: `puuid-${gameName}-${tagLine}`, gameName, tagLine }),
+      { status: 200 },
+    )
+  }
+
   const fetch: FetchLike = async (url) => {
     calls.push(url)
 
-    if (url.includes('/riot/account/v1/')) return answer(options.account, notFound)
+    if (url.includes('/riot/account/v1/')) {
+      return options.account === 'echo' ? echo(url) : answer(options.account, notFound)
+    }
     if (url.includes('/lol/summoner/v4/')) return answer(options.summoner, notFound)
 
     return answer(options.league, () => new Response('[]', { status: 200 }))

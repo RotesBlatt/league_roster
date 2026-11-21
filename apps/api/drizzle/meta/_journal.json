@@ -71,6 +71,13 @@
       "when": 1795291173578,
       "tag": "0009_greedy_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795295018007,
+      "tag": "0010_rare_black_tarantula",
+      "breakpoints": true
     }
   ]
 }

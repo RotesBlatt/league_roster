@@ -164,26 +164,4 @@ describe('snapshotFields', () => {
     expect(unranked.soloTier).toBeNull()
     expect(unranked.flexTier).toBeNull()
   })
-
-  test('a failed lookup writes nothing, not even fetchedAt', () => {
-    const nothing = snapshotFields({ ok: false, error: { kind: 'forbidden' } }, now)
-
-    expect(nothing).toEqual({
-      puuid: null,
-      summonerLevel: null,
-      profileIconId: null,
-      soloTier: null,
-      soloDivision: null,
-      flexTier: null,
-      flexDivision: null,
-      verifiedAt: null,
-      fetchedAt: null,
-    })
-  })
-
-  test('no lookup at all (throttled, no key) is the same as a failed one', () => {
-    expect(snapshotFields(null, now)).toEqual(
-      snapshotFields({ ok: false, error: { kind: 'timeout' } }, now),
-    )
-  })
 })

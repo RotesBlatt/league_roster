@@ -133,20 +133,15 @@ describe('POST /api/me/riot-accounts writes what Riot said', () => {
     })
   })
 
-  test('a dead key still saves: unverified, no puuid, no snapshot, and no error', async () => {
+  test('a dead key refuses the save — a row without a puuid no longer exists', async () => {
     await withApp({ account: { status: 403 } }, async ({ add, list }) => {
-      expect((await add()).status).toBe(200)
+      const refused = await add()
 
-      const [row] = await list()
-      expect(row).toMatchObject({
-        // the player's own label is all we have
-        gameName: typed.gameName,
-        tagLine: typed.tagLine,
-        verifiedAt: null,
-        fetchedAt: null,
-        summonerLevel: null,
-        ranks: { solo: null, flex: null },
+      expect(refused.status).toBe(503)
+      expect(refused.body).toMatchObject({
+        message: 'Riot check is unavailable — try again in a moment',
       })
+      expect(await list()).toEqual([])
     })
   })
 
@@ -171,27 +166,25 @@ describe('POST /api/me/riot-accounts writes what Riot said', () => {
 
       expect(refused.status).toBe(404)
       expect(refused.body).toMatchObject({
-        message: 'No such Riot ID on that platform — check name, tag',
+        message: 'No such Riot ID on that platform — check name, tag and platform',
       })
       expect(await list()).toEqual([])
     })
   })
 
-  test('being throttled saves unverified instead of blocking onboarding', async () => {
+  test('being throttled refuses the save before Riot is called', async () => {
     await withApp(
       fullFake(),
       async ({ add, list }) => {
         expect((await add()).status).toBe(200)
 
         const second = await add({ gameName: 'another name', tagLine: 'EUW' })
-        expect(second.status).toBe(200)
+        expect(second.status).toBe(429)
+        expect(second.body).toMatchObject({ retryAfterSeconds: 60 })
         // the first save's three calls only: the throttled one never reached Riot
         expect(second.calls).toHaveLength(3)
 
-        const rows = await list()
-        const throttled = rows.find((row) => row.gameName === 'another name')
-        expect(throttled?.verifiedAt).toBeNull()
-        expect(throttled?.fetchedAt).toBeNull()
+        expect((await list()).map((row) => row.gameName)).toEqual(['Canonical Name'])
       },
       { limit: 1 },
     )

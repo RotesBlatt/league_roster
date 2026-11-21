@@ -15,6 +15,7 @@ import {
 } from '../lib/riot-accounts.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 import type { RiotClient } from '../riot/client.ts'
+import type { RiotError } from '../riot/mappers.ts'
 import type { Throttle } from '../riot/throttle.ts'
 
 const accountBody = t.Object({
@@ -26,6 +27,24 @@ const accountBody = t.Object({
 
 const RIOT_ID_TAKEN = { message: 'This Riot ID is already on your profile' }
 const NOT_FOUND = { message: 'Account not found' }
+const TOO_MANY = 'Too many Riot checks — try again in a moment'
+
+/**
+ * One status, one sentence (riot-api.md §6). Since `puuid` is required, every failure here is a
+ * refusal: a typo points at the form, a dead key or a dead socket says "try again" because the
+ * account cannot be stored without Riot's answer.
+ */
+const SENTENCES: Record<RiotError['kind'], { status: number; message: string }> = {
+  not_found: {
+    status: 404,
+    message: 'No such Riot ID on that platform — check name, tag and platform',
+  },
+  bad_request: { status: 422, message: 'Riot rejected that Riot ID' },
+  rate_limited: { status: 429, message: TOO_MANY },
+  forbidden: { status: 503, message: 'Riot check is unavailable — try again in a moment' },
+  unavailable: { status: 503, message: 'Riot check is unavailable — try again in a moment' },
+  timeout: { status: 503, message: 'Riot check is unavailable — try again in a moment' },
+}
 
 /** The unique index that guards `(userId, gameName, tagLine)`. */
 const RIOT_ID_INDEX = 'riot_account_userId_riot_id_idx'
@@ -68,7 +87,7 @@ export function createRiotAccountRoutes(
     )
     .post(
       '/',
-      async ({ body, me, status, request }) => {
+      async ({ body, me, set, status, request }) => {
         const { values, problems } = normalizeRiotAccountId(body)
         if (problems.length > 0) {
           return status(422, {
@@ -88,29 +107,30 @@ export function createRiotAccountRoutes(
           })
         }
 
-        /**
-         * The server re-resolves; a client-supplied `puuid` or rank is never read (§5). Our own
-         * budget guard runs first, and being throttled skips the lookup instead of refusing the
-         * save: a comfort feature must not block onboarding.
-         */
+        // our own budget guard runs before Riot: a denied save costs zero requests
         const decision = throttle.take(me.id)
-        const result = decision.allowed ? await riot.lookupAccount({ ...values, platform }) : null
-
-        // a Riot ID that provably does not exist is a typo, not an unverified account
-        if (result !== null && !result.ok) {
-          if (result.error.kind === 'not_found') {
-            return status(404, { message: 'No such Riot ID on that platform — check name, tag' })
-          }
-          if (result.error.kind === 'bad_request') {
-            return status(422, { message: 'Riot rejected that Riot ID' })
-          }
-          // 403 / 429 / timeout / unavailable: degrade, never block (§5)
+        if (!decision.allowed) {
+          set.headers['retry-after'] = String(decision.retryAfterSeconds)
+          return status(429, {
+            message: TOO_MANY,
+            retryAfterSeconds: decision.retryAfterSeconds,
+          })
         }
 
-        // Riot's canonical label wins once it answered, so a rename lands on the next save (§2)
-        const label = result?.ok
-          ? { gameName: result.account.gameName, tagLine: result.account.tagLine }
-          : values
+        // The server re-resolves; a client-supplied `puuid` or rank is never read. A failed
+        // lookup is a refused save: `puuid` is required, so there is no unverified row to write.
+        const result = await riot.lookupAccount({ ...values, platform })
+        if (!result.ok) {
+          if (result.error.kind === 'rate_limited' && result.error.retryAfterSeconds !== null) {
+            set.headers['retry-after'] = String(result.error.retryAfterSeconds)
+          }
+
+          const sentence = SENTENCES[result.error.kind]
+          return status(sentence.status, { message: sentence.message })
+        }
+
+        // Riot's canonical label wins, so a rename lands on the next save (§2)
+        const label = { gameName: result.account.gameName, tagLine: result.account.tagLine }
         const now = new Date()
         const snapshot = snapshotFields(result, now)
 
@@ -156,9 +176,7 @@ export function createRiotAccountRoutes(
           platform,
           // what the lookup bought, not what the player typed
           verified: snapshot.verifiedAt !== null,
-          partial: result?.ok === true && result.partial,
-          throttled: !decision.allowed,
-          failed: result !== null && !result.ok ? result.error.kind : null,
+          partial: result.partial,
         })
 
         return toRiotAccountDto(row)

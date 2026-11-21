@@ -163,30 +163,19 @@ describe('0006 — player is split into roster_entry, profile and riot_account',
     })
   })
 
-  test('the Riot ID becomes a main account, unverified', async () => {
-    const [account] = await ctx.db
-      .select()
-      .from(riotAccounts)
-      .where(eq(riotAccounts.userId, member))
-
-    expect(account).toMatchObject({
-      gameName: 'Hide on bush',
-      tagLine: 'EUW',
-      isMain: true,
-      // the migration cannot call Riot; verified is a claim only the API may make
-      verifiedAt: null,
-    })
+  test('0006 lifts the Riot ID into an account; 0010 then removes it for having no puuid', async () => {
+    // The chain ends without it on purpose: a migrated label is not an identity, and since 0010
+    // `puuid` is required. Anyone whose old row is dropped re-adds the account once, resolved.
+    expect(await ctx.db.select().from(riotAccounts).where(eq(riotAccounts.userId, member))).toEqual(
+      [],
+    )
   })
 
-  test('0008 gives every existing entry its member’s main account', async () => {
+  test('0008 linked the main account; 0010 clears that link, not the roster entry', async () => {
     const [entry] = await ctx.db.select().from(rosterEntries)
-    const [account] = await ctx.db
-      .select()
-      .from(riotAccounts)
-      .where(eq(riotAccounts.userId, member))
 
-    // "the account for this team" starts as the main one, so nothing changes on deploy
-    expect(entry?.accountId).toBe(account?.id)
+    // the foreign key is ON DELETE SET NULL, so the captain keeps his entry and picks again
+    expect(entry?.accountId ?? null).toBeNull()
   })
 
   test('the database refuses a roster entry without a user', async () => {

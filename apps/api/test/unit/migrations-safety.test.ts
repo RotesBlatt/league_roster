@@ -50,7 +50,12 @@ const ALLOWLIST: { file: string; match: string; reason: string }[] = [
   },
 ]
 
-const normalize = (sql: string) => sql.replace(/\s+/g, ' ').trim()
+// Comments are not SQL: a `-- why` above the DELETE must not hide it from the rules.
+const normalize = (sql: string) =>
+  sql
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 /** Pure: the rules, so they are testable without touching the real migration files. */
 function problemsIn(file: string, statements: string[]): Problem[] {
@@ -66,11 +71,18 @@ function problemsIn(file: string, statements: string[]): Problem[] {
     const setNotNull = sql.match(/^ALTER TABLE "?(\w+)"? ALTER COLUMN "?\w+"? SET NOT NULL/i)
     if (setNotNull) {
       const table = setNotNull[1]
-      const backfilled = normalized
+      // A DELETE of the rows that held nulls is just as valid as an UPDATE: both leave the
+      // column with no null behind. The pattern is table-scoped on purpose — deleting from
+      // another table clears nothing here.
+      const cleared = normalized
         .slice(0, index)
-        .some((earlier) => new RegExp(`^UPDATE "?${table}"? `, 'i').test(earlier))
-      if (!backfilled) {
-        problems.push({ file, rule: 'SET NOT NULL needs a preceding UPDATE in the file', sql })
+        .some((earlier) => new RegExp(`^(?:UPDATE|DELETE FROM) "?${table}"? `, 'i').test(earlier))
+      if (!cleared) {
+        problems.push({
+          file,
+          rule: 'SET NOT NULL needs a preceding UPDATE or DELETE in the file',
+          sql,
+        })
       }
     }
 
@@ -127,13 +139,13 @@ describe('migration safety rules', () => {
     expect(problemsIn('x.sql', ['ALTER TABLE "team" ADD COLUMN "shortName" text'])).toEqual([])
   })
 
-  test('flags SET NOT NULL without an UPDATE earlier in the file', () => {
+  test('flags SET NOT NULL without a preceding UPDATE or DELETE in the file', () => {
     const problems = problemsIn('x.sql', [
       'ALTER TABLE "invite" ADD COLUMN "teamId" text',
       'ALTER TABLE "invite" ALTER COLUMN "teamId" SET NOT NULL',
     ])
     expect(problems.map((p) => p.rule)).toEqual([
-      'SET NOT NULL needs a preceding UPDATE in the file',
+      'SET NOT NULL needs a preceding UPDATE or DELETE in the file',
     ])
   })
 
@@ -145,6 +157,33 @@ describe('migration safety rules', () => {
         'ALTER TABLE "invite" ALTER COLUMN "teamId" SET NOT NULL',
       ]),
     ).toEqual([])
+  })
+
+  test('accepts SET NOT NULL after the rows that had nulls were deleted', () => {
+    expect(
+      problemsIn('x.sql', [
+        'DELETE FROM "riot_account" WHERE "puuid" IS NULL',
+        'ALTER TABLE "riot_account" ALTER COLUMN "puuid" SET NOT NULL',
+      ]),
+    ).toEqual([])
+  })
+
+  test('a comment above the backfill does not hide it', () => {
+    expect(
+      problemsIn('x.sql', [
+        '-- these rows cannot get a value\nDELETE FROM "riot_account" WHERE "puuid" IS NULL',
+        'ALTER TABLE "riot_account" ALTER COLUMN "puuid" SET NOT NULL',
+      ]),
+    ).toEqual([])
+  })
+
+  test('a DELETE on another table clears nothing — the rule stays table-scoped', () => {
+    expect(
+      problemsIn('x.sql', [
+        'DELETE FROM "invite" WHERE true',
+        'ALTER TABLE "riot_account" ALTER COLUMN "puuid" SET NOT NULL',
+      ]).map((problem) => problem.rule),
+    ).toEqual(['SET NOT NULL needs a preceding UPDATE or DELETE in the file'])
   })
 
   test('flags dropping a column or a table', () => {

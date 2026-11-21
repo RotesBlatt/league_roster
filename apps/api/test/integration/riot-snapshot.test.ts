@@ -33,6 +33,7 @@ function insertAccount(values: Partial<AccountValues> = {}) {
       // one label per row: the per-player unique index is doing its job
       gameName: `Hide on bush ${crypto.randomUUID().slice(0, 6)}`,
       tagLine: 'EUW',
+      puuid: `puuid-${crypto.randomUUID()}`,
       createdAt: new Date(),
       ...values,
     })
