@@ -86,11 +86,22 @@ describe('draftProfile', () => {
 })
 
 describe('draftAccount', () => {
-  test('trims both halves of the Riot ID', () => {
-    expect(draftAccount(' Hide on bush ', ' EUW ')).toEqual({
+  test('trims both halves and carries the chosen platform', () => {
+    expect(draftAccount(' Hide on bush ', ' EUW ', 'eun1')).toEqual({
       ok: true,
-      body: { gameName: 'Hide on bush', tagLine: 'EUW' },
+      body: { gameName: 'Hide on bush', tagLine: 'EUW', platform: 'eun1' },
     })
+  })
+
+  test('the platform defaults to euw1, which is what most of this team plays', () => {
+    expect(draftAccount('Hide on bush', 'EUW')).toEqual({
+      ok: true,
+      body: { gameName: 'Hide on bush', tagLine: 'EUW', platform: 'euw1' },
+    })
+  })
+
+  test('a platform outside the Riot list is refused before a round trip', () => {
+    expect(draftAccount('Hide on bush', 'EUW', 'europe')).toMatchObject({ ok: false })
   })
 
   test('a missing half is refused before a round trip', () => {

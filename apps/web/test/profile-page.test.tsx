@@ -131,7 +131,7 @@ describe('the accounts list', () => {
     expect(screen.getByText('unverified')).toBeDefined()
   })
 
-  test('adding an account sends both halves of the Riot ID', async () => {
+  test('adding an account sends both halves of the Riot ID and the default platform', async () => {
     apiState.profile = { data: saved, error: null, status: 200 }
     apiState.riotAccountList = { data: [mainAccount], error: null, status: 200 }
     apiState.riotAccountAdd = { data: mainAccount, error: null, status: 200 }
@@ -144,7 +144,14 @@ describe('the accounts list', () => {
     fireEvent.change(screen.getByLabelText('Tag line'), { target: { value: 'EUW' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
 
-    await waitFor(() => expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW' }))
+    await waitFor(() =>
+      expect(apiState.sentAccount).toEqual({
+        gameName: 'Smurf',
+        tagLine: 'EUW',
+        // EU West is the default until the select lands (next patch)
+        platform: 'euw1',
+      }),
+    )
   })
 
   test('the last account cannot be removed here — that would bounce you to setup', async () => {

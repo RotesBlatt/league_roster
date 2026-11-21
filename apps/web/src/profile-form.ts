@@ -1,5 +1,13 @@
 import type { ProfileDto } from '@lol/api/schema-types'
-import { DISPLAY_NAME_MAX, isValidBirthday, ROLES, type Role } from '@lol/shared'
+import {
+  DEFAULT_RIOT_PLATFORM,
+  DISPLAY_NAME_MAX,
+  isPlatform,
+  isValidBirthday,
+  type Platform,
+  ROLES,
+  type Role,
+} from '@lol/shared'
 
 /**
  * Everything the profile form decides, kept out of the component so it can be tested without a
@@ -21,7 +29,7 @@ export type ProfileBody = {
   birthday: string | null
 }
 
-export type AccountBody = { gameName: string; tagLine: string }
+export type AccountBody = { gameName: string; tagLine: string; platform: Platform }
 
 export type Drafted<T> = { ok: true; body: T } | { ok: false; message: string }
 
@@ -85,18 +93,29 @@ export function draftProfile(draft: ProfileDraftState, today: string): Drafted<P
 }
 
 /**
- * A Riot ID, split in two. Length limits are deliberately **not** duplicated here: they live with
- * the API's rules (`RIOT_*_MAX` in lib/riot-accounts.ts), the inputs carry `maxLength`, and the
- * API answers 422. A second copy of a number is a second thing to keep in sync.
+ * A Riot ID, split in two, plus the platform it lives on — the region is what decides which host
+ * answers, so it is part of the account, not a detail of the form (§2).
+ *
+ * Length limits are deliberately **not** duplicated here: they live with the API's rules
+ * (`RIOT_*_MAX` in lib/riot-accounts.ts), the inputs carry `maxLength`, and the API answers 422.
+ * A second copy of a number is a second thing to keep in sync.
  */
-export function draftAccount(gameName: string, tagLine: string): Drafted<AccountBody> {
+export function draftAccount(
+  gameName: string,
+  tagLine: string,
+  platform: string = DEFAULT_RIOT_PLATFORM,
+): Drafted<AccountBody> {
   const trimmedGameName = gameName.trim()
   if (!trimmedGameName) return { ok: false, message: 'Give the game name.' }
 
   const trimmedTagLine = tagLine.trim()
   if (!trimmedTagLine) return { ok: false, message: 'Give the tag line.' }
 
-  return { ok: true, body: { gameName: trimmedGameName, tagLine: trimmedTagLine } }
+  // the platform comes from a select of ours, but a stale cache or a hand-crafted call is cheap
+  // to refuse here instead of letting the API answer 422 for it
+  if (!isPlatform(platform)) return { ok: false, message: 'Pick a platform.' }
+
+  return { ok: true, body: { gameName: trimmedGameName, tagLine: trimmedTagLine, platform } }
 }
 
 /**

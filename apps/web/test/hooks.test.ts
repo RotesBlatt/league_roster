@@ -113,10 +113,10 @@ describe('useRiotAccounts', () => {
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
     const readsBefore = apiState.calls.riotAccountsGet
 
-    result.current.add.mutate({ gameName: 'Smurf', tagLine: 'EUW' })
+    result.current.add.mutate({ gameName: 'Smurf', tagLine: 'EUW', platform: 'na1' })
 
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true))
-    expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW' })
+    expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW', platform: 'na1' })
     await waitFor(() => expect(apiState.calls.riotAccountsGet).toBe(readsBefore + 1))
   })
 })
