@@ -204,9 +204,9 @@ jobs:
 
           # roster is tenant-scoped, but the guard answers 401 before it
           # looks the slug up: a fresh db still proves the route is mounted
-          players_code=$(curl -s -o /dev/null -w '%{http_code}' \
-            http://127.0.0.1:3001/api/teams/ci/players)
-          test "$players_code" = "401"
+          roster_code=$(curl -s -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:3001/api/teams/ci/roster)
+          test "$roster_code" = "401"
 
           curl -fsS http://127.0.0.1:3001/roster | grep -q 'id="root"'
 
