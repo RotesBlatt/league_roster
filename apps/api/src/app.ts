@@ -15,6 +15,7 @@ import { createMemberRoutes } from './routes/members.ts'
 import { createPlayerRoutes } from './routes/players.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
+import { createRosterRoutes } from './routes/roster.ts'
 import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
 
@@ -140,6 +141,8 @@ export function createApp(options: AppOptions = {}) {
             team
               // route factories get a scope, not the db: no team in the path, no handle
               .use(createPlayerRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
+              // the new roster: a join over what replaced the old `player` table
+              .use(createRosterRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
               .use(createMemberRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger)),
           ),
