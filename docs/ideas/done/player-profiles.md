@@ -1,9 +1,12 @@
 # Idea — player-owned profiles, captain-owned roster
 
-**Status:** in progress — the split (`profile`, `riot_account`, `roster_entry`), the player's own
-profile and accounts, the blocking first-login gate and the joined roster are implemented
-(2026-11-21). **Riot validation (§4) is not**, and is specified in
-`../integrations/riot-api.md`; everything that depends on it degrades to "unverified".
+**Status:** done — 2026-11-21. Landed across `07b29a9`…`ab47c91`: the split (`profile`,
+`riot_account`, `roster_entry`), the player's own profile and accounts (routes, hooks, the
+`/profile` page with autosave), the blocking first-login gate, the roster read as a join with the
+captain picking team members instead of typing them, per-entry account choice and `roleOverride`,
+and `player` dropped. **Riot validation (§4) was not built** and moved whole to
+`../integrations/riot-api.md`; until it lands every account is "unverified" and `platform` is
+`euw1`, which the app is designed to live with.
 **Companion to:** `multi-team.md` (tenancy). This doc is about *who owns which field*.
 **Decisions taken while implementing:** §10.
 
@@ -278,14 +281,17 @@ typing a name.
    and "only the main account" are rules; in SQL they would be untestable here. This is the one
    place a join was *deliberately* not written as a single statement.
 
-### Still open
+### Deferred — carried elsewhere, not part of this idea
 
-- **§4 in full** — the Riot client, endpoint chain, rate budget and error mapping:
+This doc is closed because the ownership split shipped. What is left was never a gap in the split;
+recorded so the next reader does not think it was forgotten:
+
+- **§4 in full** — the Riot client, endpoint chain, rate budget and error mapping. Own idea:
   `../integrations/riot-api.md`. Until then `verifiedAt` is always `NULL` and `platform` is `euw1`.
-- **`puuid` becomes `NOT NULL`** in the patch that can fill it, together with the lookup.
-- **Captain "add from team" in the §6 sense** — the picker shipped, but it lists every member, not
-  only those with a *complete* profile. That distinction costs nothing to add when the captain
-  needs it, and `missingProfileFields` is already there.
-- **§9.1, §9.5, §9.6 still stand**: validated vs verified (Riot Sign On or a profile-icon
-  challenge), non-LoL accounts, Prime League roster locks. §9.2 (global profile) and §9.3 (captain
-  override) are decided: global, and yes — `roleOverride`.
+- **`puuid` becomes `NOT NULL`** in the patch that can fill it, together with that lookup. The
+  column stays nullable on purpose, not by accident (§3).
+- **The captain's picker lists every member**, not only those with a *complete* profile. That is the
+  §6 flow minus a filter: when it matters, `missingProfileFields` is already the rule to filter by.
+- **§9.1, §9.5, §9.6 remain open questions**, not commitments: validated vs verified (Riot Sign On
+  or a profile-icon challenge), non-LoL accounts, Prime League roster locks. §9.2 (global profile)
+  and §9.3 (captain override) are decided: global, and yes — `roleOverride`.
