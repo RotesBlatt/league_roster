@@ -1,4 +1,5 @@
 import type { Me, ProfileDto } from '@lol/api/schema-types'
+import type { Role } from '@lol/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, unwrap } from './api.ts'
 import type { AccountBody, ProfileBody } from './profile-form.ts'
@@ -133,6 +134,56 @@ export function useSwitchMainRiotAccount() {
   return useMutation({
     mutationFn: (id: string) => unwrap(api.me['riot-accounts']({ id }).main.put()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: RIOT_ACCOUNTS_KEY }),
+  })
+}
+
+export const ROSTER_KEY = ['roster'] as const
+
+/**
+ * A team's roster — the join, not a copy. `slug` is in the key because two teams can be open in
+ * two tabs, and they are different lists.
+ */
+export function useRoster(slug: string) {
+  return useQuery({
+    queryKey: [...ROSTER_KEY, slug],
+    queryFn: () => unwrap(api.teams({ slug }).roster.get()),
+    enabled: slug.length > 0,
+  })
+}
+
+export type RosterWrite = {
+  note?: string | null
+  roleOverride?: Role | null
+  isActive?: boolean
+}
+
+/**
+ * Every roster write invalidates the list rather than patching it: the server decides ordering and
+ * the join, so a locally guessed row would disagree with what the next render shows.
+ */
+export function useAddRosterEntry(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { userId: string } & RosterWrite) =>
+      unwrap(api.teams({ slug }).roster.post(body)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...ROSTER_KEY, slug] }),
+  })
+}
+
+export function useUpdateRosterEntry(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & RosterWrite) =>
+      unwrap(api.teams({ slug }).roster({ id }).patch(body)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...ROSTER_KEY, slug] }),
+  })
+}
+
+export function useRemoveRosterEntry(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => unwrap(api.teams({ slug }).roster({ id }).delete()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...ROSTER_KEY, slug] }),
   })
 }
 

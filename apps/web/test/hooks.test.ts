@@ -12,9 +12,14 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { useAddRiotAccount, useProfile, useRiotAccounts, useSaveProfile } = await import(
-  '../src/hooks.ts'
-)
+const {
+  useAddRiotAccount,
+  useAddRosterEntry,
+  useProfile,
+  useRiotAccounts,
+  useRoster,
+  useSaveProfile,
+} = await import('../src/hooks.ts')
 
 const profile: ProfileDto = {
   displayName: 'Julius',
@@ -109,5 +114,39 @@ describe('useRiotAccounts', () => {
     await waitFor(() => expect(result.current.add.isSuccess).toBe(true))
     expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW' })
     await waitFor(() => expect(apiState.calls.riotAccountsGet).toBe(readsBefore + 1))
+  })
+})
+
+describe('useRoster', () => {
+  test('reads the team in the URL, and a write refreshes that list', async () => {
+    apiState.rosterList = {
+      data: [
+        {
+          id: 'e1',
+          userId: 'u1',
+          displayName: 'Jules',
+          role: 'MID',
+          note: null,
+          isActive: true,
+          mainAccount: null,
+        },
+      ],
+      error: null,
+      status: 200,
+    }
+
+    const { result } = renderWithQuery(() => ({
+      list: useRoster('alpha'),
+      add: useAddRosterEntry('alpha'),
+    }))
+
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+    const readsBefore = apiState.calls.rosterGet
+
+    result.current.add.mutate({ userId: 'u2', note: 'sub' })
+
+    await waitFor(() => expect(result.current.add.isSuccess).toBe(true))
+    expect(apiState.sentRoster).toEqual({ userId: 'u2', note: 'sub' })
+    await waitFor(() => expect(apiState.calls.rosterGet).toBe(readsBefore + 1))
   })
 })

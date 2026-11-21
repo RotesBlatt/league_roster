@@ -29,6 +29,14 @@ export const apiState: {
   profile: Result
   /** PUT /api/me/profile */
   profileSave: Result
+  /** GET /api/teams/:slug/roster */
+  rosterList: Result
+  /** POST /api/teams/:slug/roster */
+  rosterAdd: Result
+  /** PATCH /api/teams/:slug/roster/:id */
+  rosterUpdate: Result
+  /** DELETE /api/teams/:slug/roster/:id */
+  rosterRemove: Result
   /** GET /api/me/riot-accounts */
   riotAccountList: Result
   /** POST /api/me/riot-accounts */
@@ -47,8 +55,11 @@ export const apiState: {
   sentAccount: unknown
   /** the id handed to a riot-account delete or switch */
   sentAccountId: string | undefined
+  /** the bodies handed to the roster writes, for assertions */
+  sentRoster: unknown
+  sentRosterPatch: unknown
   /** how often each GET was called, so cache behaviour is observable */
-  calls: { profileGet: number; riotAccountsGet: number }
+  calls: { profileGet: number; riotAccountsGet: number; rosterGet: number }
   /** a never-resolving GET, for testing loaders without a real slow network */
   pending: { me: boolean }
 } = {
@@ -60,6 +71,10 @@ export const apiState: {
   renameTeam: { data: null, error: null, status: 200 },
   profile: { data: null, error: null, status: 200 },
   profileSave: { data: null, error: null, status: 200 },
+  rosterList: { data: [], error: null, status: 200 },
+  rosterAdd: { data: { ok: true }, error: null, status: 200 },
+  rosterUpdate: { data: { ok: true }, error: null, status: 200 },
+  rosterRemove: { data: { ok: true }, error: null, status: 200 },
   riotAccountList: { data: [], error: null, status: 200 },
   riotAccountAdd: { data: null, error: null, status: 200 },
   riotAccountRemove: { data: { ok: true }, error: null, status: 200 },
@@ -69,7 +84,9 @@ export const apiState: {
   sentProfile: undefined,
   sentAccount: undefined,
   sentAccountId: undefined,
-  calls: { profileGet: 0, riotAccountsGet: 0 },
+  sentRoster: undefined,
+  sentRosterPatch: undefined,
+  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0 },
   pending: { me: false },
 }
 
@@ -82,6 +99,10 @@ export function resetApiState() {
   apiState.renameTeam = { data: null, error: null, status: 200 }
   apiState.profile = { data: null, error: null, status: 200 }
   apiState.profileSave = { data: null, error: null, status: 200 }
+  apiState.rosterList = { data: [], error: null, status: 200 }
+  apiState.rosterAdd = { data: { ok: true }, error: null, status: 200 }
+  apiState.rosterUpdate = { data: { ok: true }, error: null, status: 200 }
+  apiState.rosterRemove = { data: { ok: true }, error: null, status: 200 }
   apiState.riotAccountList = { data: [], error: null, status: 200 }
   apiState.riotAccountAdd = { data: null, error: null, status: 200 }
   apiState.riotAccountRemove = { data: { ok: true }, error: null, status: 200 }
@@ -91,7 +112,9 @@ export function resetApiState() {
   apiState.sentProfile = undefined
   apiState.sentAccount = undefined
   apiState.sentAccountId = undefined
-  apiState.calls = { profileGet: 0, riotAccountsGet: 0 }
+  apiState.sentRoster = undefined
+  apiState.sentRosterPatch = undefined
+  apiState.calls = { profileGet: 0, riotAccountsGet: 0, rosterGet: 0 }
   apiState.pending = { me: false }
 }
 
@@ -151,6 +174,29 @@ export function installApiMock() {
             return Promise.resolve(apiState.renameTeam)
           },
           invites: { get: () => Promise.resolve(apiState.inviteList) },
+          // same shape again: callable for :id, verbs on the collection
+          roster: Object.assign(
+            (params: { id: string }) => ({
+              patch: (body: unknown) => {
+                apiState.sentRosterPatch = { id: params.id, body }
+                return Promise.resolve(apiState.rosterUpdate)
+              },
+              delete: () => {
+                apiState.sentRosterPatch = { id: params.id }
+                return Promise.resolve(apiState.rosterRemove)
+              },
+            }),
+            {
+              get: () => {
+                apiState.calls.rosterGet += 1
+                return Promise.resolve(apiState.rosterList)
+              },
+              post: (body: unknown) => {
+                apiState.sentRoster = body
+                return Promise.resolve(apiState.rosterAdd)
+              },
+            },
+          ),
           members: { get: () => Promise.resolve(apiState.memberList) },
         }),
         {
