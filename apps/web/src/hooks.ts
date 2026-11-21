@@ -1,6 +1,7 @@
-import type { Me } from '@lol/api/schema-types'
+import type { Me, ProfileDto } from '@lol/api/schema-types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, unwrap } from './api.ts'
+import type { AccountBody, ProfileBody } from './profile-form.ts'
 
 export function useMe() {
   return useQuery({
@@ -67,6 +68,71 @@ export function useRefreshMe() {
   return useMutation({
     mutationFn: () => unwrap(api.me.get()),
     onSuccess: (me: Me) => queryClient.setQueryData(['me'], me),
+  })
+}
+
+/** Cache keys in one place, so "what does saving invalidate?" is answerable here. */
+export const PROFILE_KEY = ['profile'] as const
+export const RIOT_ACCOUNTS_KEY = ['riot-accounts'] as const
+
+/**
+ * The player's own profile — global, not team-scoped, like the API route behind it.
+ * `null` data is the normal "never set up" answer, not an error.
+ */
+export function useProfile() {
+  return useQuery({
+    queryKey: PROFILE_KEY,
+    queryFn: () => unwrap(api.me.profile.get()),
+    retry: false,
+  })
+}
+
+/**
+ * A save returns the stored row, so it is seeded into the cache instead of invalidated: the form
+ * would otherwise refetch exactly the value it just received (and flash while doing it).
+ */
+export function useSaveProfile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ProfileBody) => unwrap(api.me.profile.put(body)),
+    onSuccess: (profile: ProfileDto) => queryClient.setQueryData(PROFILE_KEY, profile),
+  })
+}
+
+export function useRiotAccounts() {
+  return useQuery({
+    queryKey: RIOT_ACCOUNTS_KEY,
+    queryFn: () => unwrap(api.me['riot-accounts'].get()),
+    retry: false,
+  })
+}
+
+/**
+ * The three account writes invalidate the list rather than patching it: the server decides
+ * ordering (main first) and promotion (deleting the main promotes another), and a client-side
+ * guess would disagree with it.
+ */
+export function useAddRiotAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: AccountBody) => unwrap(api.me['riot-accounts'].post(body)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: RIOT_ACCOUNTS_KEY }),
+  })
+}
+
+export function useRemoveRiotAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => unwrap(api.me['riot-accounts']({ id }).delete()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: RIOT_ACCOUNTS_KEY }),
+  })
+}
+
+export function useSwitchMainRiotAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => unwrap(api.me['riot-accounts']({ id }).main.put()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: RIOT_ACCOUNTS_KEY }),
   })
 }
 

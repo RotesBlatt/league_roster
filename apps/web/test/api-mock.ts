@@ -25,10 +25,30 @@ export const apiState: {
   createTeam: Result
   /** PATCH /api/teams/:slug */
   renameTeam: Result
+  /** GET /api/me/profile */
+  profile: Result
+  /** PUT /api/me/profile */
+  profileSave: Result
+  /** GET /api/me/riot-accounts */
+  riotAccountList: Result
+  /** POST /api/me/riot-accounts */
+  riotAccountAdd: Result
+  /** DELETE /api/me/riot-accounts/:id */
+  riotAccountRemove: Result
+  /** PUT /api/me/riot-accounts/:id/main */
+  riotAccountSwitch: Result
   /** the body handed to POST /api/teams, for assertions */
   sentBody: unknown
   /** the body handed to PATCH /api/teams/:slug, for assertions */
   sentRename: unknown
+  /** the body handed to PUT /api/me/profile */
+  sentProfile: unknown
+  /** the body handed to POST /api/me/riot-accounts */
+  sentAccount: unknown
+  /** the id handed to a riot-account delete or switch */
+  sentAccountId: string | undefined
+  /** how often each GET was called, so cache behaviour is observable */
+  calls: { profileGet: number; riotAccountsGet: number }
 } = {
   me: { data: null, error: null, status: 200 },
   inviteList: { data: [], error: null, status: 200 },
@@ -36,8 +56,18 @@ export const apiState: {
   teamList: { data: [], error: null, status: 200 },
   createTeam: { data: null, error: null, status: 200 },
   renameTeam: { data: null, error: null, status: 200 },
+  profile: { data: null, error: null, status: 200 },
+  profileSave: { data: null, error: null, status: 200 },
+  riotAccountList: { data: [], error: null, status: 200 },
+  riotAccountAdd: { data: null, error: null, status: 200 },
+  riotAccountRemove: { data: { ok: true }, error: null, status: 200 },
+  riotAccountSwitch: { data: null, error: null, status: 200 },
   sentBody: undefined,
   sentRename: undefined,
+  sentProfile: undefined,
+  sentAccount: undefined,
+  sentAccountId: undefined,
+  calls: { profileGet: 0, riotAccountsGet: 0 },
 }
 
 export function resetApiState() {
@@ -47,8 +77,18 @@ export function resetApiState() {
   apiState.teamList = { data: [], error: null, status: 200 }
   apiState.createTeam = { data: null, error: null, status: 200 }
   apiState.renameTeam = { data: null, error: null, status: 200 }
+  apiState.profile = { data: null, error: null, status: 200 }
+  apiState.profileSave = { data: null, error: null, status: 200 }
+  apiState.riotAccountList = { data: [], error: null, status: 200 }
+  apiState.riotAccountAdd = { data: null, error: null, status: 200 }
+  apiState.riotAccountRemove = { data: { ok: true }, error: null, status: 200 }
+  apiState.riotAccountSwitch = { data: null, error: null, status: 200 }
   apiState.sentBody = undefined
   apiState.sentRename = undefined
+  apiState.sentProfile = undefined
+  apiState.sentAccount = undefined
+  apiState.sentAccountId = undefined
+  apiState.calls = { profileGet: 0, riotAccountsGet: 0 }
 }
 
 /** Call once per test file, before importing the components under test. */
@@ -59,6 +99,42 @@ export function installApiMock() {
     api: {
       me: {
         get: () => Promise.resolve(apiState.me),
+        profile: {
+          get: () => {
+            apiState.calls.profileGet += 1
+            return Promise.resolve(apiState.profile)
+          },
+          put: (body: unknown) => {
+            apiState.sentProfile = body
+            return Promise.resolve(apiState.profileSave)
+          },
+        },
+        // same shape as `teams`: callable for the path param, verbs on the collection.
+        // The key is Eden's: it keeps the dash from `/riot-accounts`.
+        'riot-accounts': Object.assign(
+          (params: { id: string }) => ({
+            delete: () => {
+              apiState.sentAccountId = params.id
+              return Promise.resolve(apiState.riotAccountRemove)
+            },
+            main: {
+              put: () => {
+                apiState.sentAccountId = params.id
+                return Promise.resolve(apiState.riotAccountSwitch)
+              },
+            },
+          }),
+          {
+            get: () => {
+              apiState.calls.riotAccountsGet += 1
+              return Promise.resolve(apiState.riotAccountList)
+            },
+            post: (body: unknown) => {
+              apiState.sentAccount = body
+              return Promise.resolve(apiState.riotAccountAdd)
+            },
+          },
+        ),
       },
       // Eden's `teams` is callable (it takes the path params) *and* carries the collection
       // verbs, so the mock has to be both, or one surface silently stops working
