@@ -49,6 +49,8 @@ export const apiState: {
   sentAccountId: string | undefined
   /** how often each GET was called, so cache behaviour is observable */
   calls: { profileGet: number; riotAccountsGet: number }
+  /** a never-resolving GET, for testing loaders without a real slow network */
+  pending: { me: boolean }
 } = {
   me: { data: null, error: null, status: 200 },
   inviteList: { data: [], error: null, status: 200 },
@@ -68,6 +70,7 @@ export const apiState: {
   sentAccount: undefined,
   sentAccountId: undefined,
   calls: { profileGet: 0, riotAccountsGet: 0 },
+  pending: { me: false },
 }
 
 export function resetApiState() {
@@ -89,6 +92,7 @@ export function resetApiState() {
   apiState.sentAccount = undefined
   apiState.sentAccountId = undefined
   apiState.calls = { profileGet: 0, riotAccountsGet: 0 }
+  apiState.pending = { me: false }
 }
 
 /** Call once per test file, before importing the components under test. */
@@ -98,7 +102,9 @@ export function installApiMock() {
     unwrap,
     api: {
       me: {
-        get: () => Promise.resolve(apiState.me),
+        // a pending query is a promise that never settles — no timers, no fake slow network
+        get: () =>
+          apiState.pending.me ? new Promise<never>(() => {}) : Promise.resolve(apiState.me),
         profile: {
           get: () => {
             apiState.calls.profileGet += 1
