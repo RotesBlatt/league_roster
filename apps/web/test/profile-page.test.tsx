@@ -79,22 +79,26 @@ describe('the profile form', () => {
     expect(screen.getByLabelText('Birthday')).toBeDefined()
   })
 
-  test('saving sends the trimmed draft, not the raw input', async () => {
+  test('editing saves itself after a pause, trimmed, with no Save button', async () => {
     apiState.profile = { data: saved, error: null, status: 200 }
     apiState.profileSave = { data: saved, error: null, status: 200 }
 
     renderPage()
 
     const name = await screen.findByDisplayValue('Jules')
-    fireEvent.change(name, { target: { value: '  Jules  ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    // a real change (and surrounding spaces, to prove the save is trimmed)
+    fireEvent.change(name, { target: { value: '  Jules2  ' } })
+    // the button is gone on purpose: the form saves itself
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
 
-    await waitFor(() =>
-      expect(apiState.sentProfile).toEqual({
-        displayName: 'Jules',
-        preferredRole: 'JGL',
-        birthday: '2001-07-14',
-      }),
+    await waitFor(
+      () =>
+        expect(apiState.sentProfile).toEqual({
+          displayName: 'Jules2',
+          preferredRole: 'JGL',
+          birthday: '2001-07-14',
+        }),
+      { timeout: 3000 },
     )
   })
 })
@@ -125,6 +129,17 @@ describe('the accounts list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
 
     await waitFor(() => expect(apiState.sentAccount).toEqual({ gameName: 'Smurf', tagLine: 'EUW' }))
+  })
+
+  test('the only account can be removed — a mistyped Riot ID must be fixable', async () => {
+    apiState.profile = { data: saved, error: null, status: 200 }
+    apiState.riotAccountList = { data: [mainAccount], error: null, status: 200 }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => expect(apiState.sentAccountId).toBe('acc-1'))
   })
 
   test('the main account offers no "set main" button, the others do', async () => {

@@ -2,7 +2,7 @@ import type { Role } from '@lol/shared'
 import { DISPLAY_NAME_MAX, ROLE_LABELS, ROLES } from '@lol/shared'
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle } from '@tabler/icons-react'
-import { type SubmitEvent, useState } from 'react'
+import { type SubmitEvent, useEffect, useMemo, useState } from 'react'
 import {
   useAddRiotAccount,
   useMe,
@@ -17,6 +17,7 @@ import {
   draftProfile,
   type ProfileDraftState,
   prefillProfile,
+  profileChanged,
   todayIso,
 } from '../profile-form.ts'
 import { MainBadge, UnverifiedBadge } from './badges.tsx'
@@ -33,40 +34,58 @@ const roleOptions = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role]
  */
 
 /** Display name, position preference and the optional birthday. */
-export function ProfileSection() {
+export function ProfileSection({ saveDelayMs = 700 }: { saveDelayMs?: number } = {}) {
   const me = useMe()
   const profile = useProfile()
   const save = useSaveProfile()
   const [edited, setEdited] = useState<ProfileDraftState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
-  // `null` until the player touches a field: until then the form is derived from what was saved,
-  // so the async profile arriving late still fills the inputs.
-  const draft = edited ?? prefillProfile(profile.data ?? null, me.data?.name ?? '')
-  const update = (patch: Partial<ProfileDraftState>) => setEdited({ ...draft, ...patch })
+  // `null` until the player touches a field: until then the form derives from what was saved, so
+  // the async profile arriving late still fills the inputs. Memoised so the autosave timer is not
+  // reset by every unrelated render.
+  const current = useMemo(
+    () => edited ?? prefillProfile(profile.data ?? null, me.data?.name ?? ''),
+    [edited, profile.data, me.data?.name],
+  )
 
-  function submit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const result = draftProfile(draft, todayIso())
-    if (!result.ok) {
-      setError(result.message)
-      return
-    }
-
-    setError(null)
-    save.mutate(result.body, {
-      onError: (caught: Error) => setError(caught.message),
-    })
+  const update = (patch: Partial<ProfileDraftState>) => {
+    setSaved(false)
+    setEdited({ ...current, ...patch })
   }
+
+  /**
+   * Autosave: a short pause after the last keystroke, and only when the draft is valid **and**
+   * would change something. Both rules are pure (`profile-form.ts`), so "opening the page" or
+   * "typing and undoing" hooks never write.
+   */
+  const mutate = save.mutate
+  useEffect(() => {
+    const result = draftProfile(current, todayIso())
+    if (!result.ok || !profileChanged(profile.data ?? null, result.body)) return
+
+    const timer = setTimeout(() => {
+      mutate(result.body, {
+        onSuccess: () => {
+          setSaved(true)
+          setError(null)
+        },
+        onError: (caught: Error) => setError(caught.message),
+      })
+    }, saveDelayMs)
+
+    return () => clearTimeout(timer)
+  }, [current, profile.data, saveDelayMs, mutate])
 
   return (
     <Card padding="lg">
-      <form onSubmit={submit}>
+      {/* no submit: the fields save themselves; Enter just must not reload the page */}
+      <form onSubmit={(event) => event.preventDefault()}>
         <Stack gap="md">
           <TextInput
             label="Display name"
-            value={draft.displayName}
+            value={current.displayName}
             onChange={(event) => update({ displayName: event.currentTarget.value })}
             maxLength={DISPLAY_NAME_MAX}
             required
@@ -75,7 +94,7 @@ export function ProfileSection() {
             label="Role"
             description="The position you want to play, not a permission"
             data={roleOptions}
-            value={draft.preferredRole}
+            value={current.preferredRole}
             onChange={(value) => update({ preferredRole: value as Role | null })}
             allowDeselect={false}
           />
@@ -83,7 +102,7 @@ export function ProfileSection() {
             label="Birthday"
             description="Optional — used for the team's birthday list, and skippable"
             type="date"
-            value={draft.birthday}
+            value={current.birthday}
             onChange={(event) => update({ birthday: event.currentTarget.value })}
           />
 
@@ -91,13 +110,11 @@ export function ProfileSection() {
             <Alert color="red" icon={<IconAlertCircle size={16} />}>
               {error}
             </Alert>
-          ) : null}
-
-          <Group justify="flex-end">
-            <Button type="submit" loading={save.isPending}>
-              Save
-            </Button>
-          </Group>
+          ) : (
+            <Text size="xs" c="dimmed" ta="right" aria-live="polite">
+              {save.isPending ? 'Saving…' : saved ? 'Saved' : 'Changes save automatically'}
+            </Text>
+          )}
         </Stack>
       </form>
     </Card>

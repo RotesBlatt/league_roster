@@ -83,6 +83,20 @@ export function prefillProfile(profile: ProfileDto | null, discordName: string):
   }
 }
 
+/**
+ * Whether a save would actually change anything. Autosave runs on every edit, so this is what keeps
+ * opening the page, or typing and undoing, from writing to the database.
+ */
+export function profileChanged(saved: ProfileDto | null, body: ProfileBody): boolean {
+  if (!saved) return true
+
+  return (
+    saved.displayName !== body.displayName ||
+    saved.preferredRole !== body.preferredRole ||
+    saved.birthday !== body.birthday
+  )
+}
+
 /** Today as `YYYY-MM-DD`, the format the birthday rule compares against. */
 export function todayIso(now: Date = new Date()): string {
   return now.toISOString().slice(0, 10)

@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { DISPLAY_NAME_MAX } from '@lol/shared'
-import { draftAccount, draftProfile, prefillProfile, todayIso } from '../src/profile-form.ts'
+import {
+  draftAccount,
+  draftProfile,
+  prefillProfile,
+  profileChanged,
+  todayIso,
+} from '../src/profile-form.ts'
 
 /**
  * The profile form's thinking, without a DOM: what to send, and what the form starts with.
@@ -115,5 +121,27 @@ describe('prefillProfile', () => {
 describe('todayIso', () => {
   test('is the YYYY-MM-DD the birthday rule compares against', () => {
     expect(todayIso(new Date('2026-02-01T23:59:00.000Z'))).toBe('2026-02-01')
+  })
+})
+
+describe('profileChanged', () => {
+  const body = { displayName: 'Jules', preferredRole: 'JGL' as const, birthday: null }
+
+  test('nothing saved yet means the first draft is a change', () => {
+    expect(profileChanged(null, body)).toBe(true)
+  })
+
+  test('the same values are not a change — opening the page must not save', () => {
+    expect(profileChanged({ ...body, updatedAt: 0 }, body)).toBe(false)
+  })
+
+  test('a different name, role or birthday is a change', () => {
+    expect(profileChanged({ ...body, displayName: 'X', updatedAt: 0 }, body)).toBe(true)
+    expect(profileChanged({ ...body, preferredRole: 'MID', updatedAt: 0 }, body)).toBe(true)
+    expect(profileChanged({ ...body, birthday: '2001-07-14', updatedAt: 0 }, body)).toBe(true)
+  })
+
+  test('clearing the birthday is a change, not "no value"', () => {
+    expect(profileChanged({ ...body, birthday: '2001-07-14', updatedAt: 0 }, body)).toBe(true)
   })
 })
