@@ -39,13 +39,12 @@ line and its "decided while implementing" section in the same commit — a doc t
 and `web-architecture.md` (nothing refactored yet) are plain `idea` rows; their status lines say what
 kind of note they are.
 
-Order is dependency order, not importance: **4 of the 13 still hang off `multi-team`**, which is why
+Order is dependency order, not importance: **4 of the 12 still hang off `multi-team`**, which is why
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
 profiles are both done, so `availability-planner` is the next thing that is actually buildable.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
-| [riot-api](ideas/integrations/riot-api.md) | The only module that speaks Riot — an injected client over two host families, a summoner/rank snapshot, and a status→sentence mapping so saving still works when the 24-hour dev key is dead; used by player-profiles and, later, match-history. | — | idea |
 | [hexserve-champion-data](ideas/integrations/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
 | [availability-planner](ideas/roster/availability-planner.md) | Everyone fills in when they can play; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
 | [team-home](ideas/frontend/team-home.md) | The front page per team: patch, next playable window, next match, roster by role incl. sub and coach, next birthdays, tasks/goals, meeting topics, useful links. Read-only composition of the other features. | multi-team, player-profiles, availability-planner, matchdays, hexserve | idea |
@@ -72,7 +71,8 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
-| [player-profiles](ideas/done/player-profiles.md) | Two owners for one row, separated instead of negotiated: `profile` and `riot_account` are player-owned (names, accounts with a DB-enforced single main, preferred role, optional birthday), `roster_entry` stays captain-owned and is always a member; the roster is a join, so an edit propagates because there is no copy. Includes the blocking first-login gate and `DROP TABLE player`. Riot validation was split out into `riot-api` and never landed here — every account is unverified by design. | 2026-11-21 |
+| [riot-api](ideas/done/riot-api.md) | The only module that speaks Riot: an injected client over two host families, types generated from a pinned spec, and a snapshot (level, icon, both ranks) written on save by re-resolving server-side. Adding an account **is** the check — no separate endpoint — and since `puuid` is required, an account Riot cannot resolve is refused and the rows that never resolved were deleted. | 2026-11-21 |
+| [player-profiles](ideas/done/player-profiles.md) | Two owners for one row, separated instead of negotiated: `profile` and `riot_account` are player-owned (names, accounts with a DB-enforced single main, preferred role, optional birthday), `roster_entry` stays captain-owned and is always a member; the roster is a join, so an edit propagates because there is no copy. Includes the blocking first-login gate and `DROP TABLE player`. Riot validation was split out into `riot-api`, which landed the same day (see above). | 2026-11-21 |
 | [logging](ideas/done/logging.md) | One line per request plus domain events, to the console and a rotating NDJSON file, so "did it do the thing?" is answerable: a thin pino facade, `x-request-id` correlation with a request-scoped `WeakMap`, credential redaction, `auth.denied`, invite/roster/lifecycle events, and the docker `api-logs` volume. Not an audit log. | 2026-11-21 |
 | [migration-safety](ideas/done/migration-safety.md) | A migration can no longer take prod down silently: static rules reject `ADD COLUMN … NOT NULL` without a default, `SET NOT NULL` without an `UPDATE`, and un-allowlisted drops; every migration from `0003` on is replayed against a database with a row in every table; an advisory lock keeps replicas from migrating at once; and `docker compose up` refuses to start the app unless a pre-migration dump succeeded. Written from a real incident; the historical backfill and the image-vs-legacy fixture were deliberately dropped. | 2026-11-21 |
 | [team-rename](ideas/done/team-rename.md) | A captain renames their team from the admin page; the slug follows the name (option A), so the SPA navigates to the new URL and old links 404. Found and fixed a page-level bug on the way: captaincy came from `/api/me` (the oldest membership) instead of the team in the URL. | 2026-11-20 |

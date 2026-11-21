@@ -1,8 +1,12 @@
 # Idea — the Riot API is one injected client, not a fetch in a route
 
-**Status:** idea, nothing implemented. **Decided 2026-11-21:** direct — this API calls Riot with
-its own production key; Hex-Tractor is not a dependency (§10). **Typing decided:** generated wire
-types from a pinned community spec, narrow TypeBox schemas at runtime (§2.1).
+**Status:** done — 2026-11-21. Landed: types generated from a pinned spec (`tools/riot-types/`),
+the injected client (`apps/api/src/riot/`), the snapshot columns and `puuid NOT NULL` (migration
+`0010`), a save that re-resolves and writes what Riot said, and rank badges on the profile and the
+roster. **Trail:** `git log --follow -- apps/api/src/riot apps/api/src/routes/riot-accounts.ts`.
+**Two reversals against this doc:** the Check endpoint was built and then removed (adding an
+account *is* the check), and a save Riot cannot answer is now refused instead of stored unverified —
+§12 has the reasons and the cost.
 **Used by:** `player-profiles.md` §4 (validate a Riot ID, snapshot level/icon/rank) and later
 `match-history.md` §4 (match-v5, tournament-v5 — same key, same budget).
 **Not the same thing as:** anything about *ownership* of an account. This doc answers "can the server
@@ -150,6 +154,9 @@ Re-verify the numbers in the portal before implementing; the dev tier is not a c
 
 ## 5. Degrade, never block
 
+> **Revised while implementing:** with `puuid` required, there is no unverified row to degrade to.
+> A save Riot cannot answer is refused with `503`/`429`. See §12.
+
 If the key is missing, expired, rate-limited or the host hangs, **saving the account still works**.
 The row is written with `verifiedAt = null`, and the UI shows it as **unverified** (no level, no
 rank, just the typed Riot ID). A key that dies every morning must not stop onboarding every morning.
@@ -192,8 +199,8 @@ recorded payloads rather than a live key. This is also what finally gives `TIERS
 
 - `riotConfigured` — key present and non-empty. Same shape as `discordConfigured`, and the same
   consequence: a clear message instead of a cryptic failure when it is missing.
-- `riotEnabled` — set to `false` to switch the integration off entirely without unsetting the key
-  (useful for a prod instance that should not spend the budget).
+- ~~`riotEnabled` — set to `false` to switch the integration off entirely without unsetting the
+  key.~~ **Dropped while implementing:** the key is the only switch (§12).
 
 The SPA never talks to Riot: it would leak the key and hit CORS anyway. So every Riot value the UI
 shows has been through our API and our database — which is also why the snapshot is stored, not
@@ -254,11 +261,55 @@ the key in this API's env (§7).
 ## 11. Open questions
 
 1. ~~**Direct or through our own proxy?**~~ **Resolved:** direct (§10).
-2. **Which platform(s) do we offer?** A select with the EU platforms, or the full list? `euw1`
-   default is settled; the length of the select is not.
-3. **Do we refresh snapshots on a schedule, or only on demand?** On demand is enough for a profile
-   card; `match-history.md` will want the `puuid` regardless and may make staleness visible.
-4. **What is the shape of `rank` when a player is ranked in both solo and flex?** One primary queue
-   stored (§8) — decide whether the column is a snapshot of solo queue or "the best of the two".
-5. **Do we surface `wins`/`losses`?** They come free in the same payload and are cheap to store later;
-   not needed for the profile card.
+2. ~~**Which platform(s) do we offer?**~~ **Resolved:** all 15 in one select, `euw1` default.
+3. ~~**Do we refresh snapshots on a schedule, or only on demand?**~~ **Resolved for now:** the save
+   is the only refresh. A stale badge is not shown, so nothing lies; a later refresh is a new patch.
+4. ~~**What is the shape of `rank` when a player is ranked in both solo and flex?**~~ **Resolved:**
+   both are stored, as their own columns — no "primary" queue to explain.
+5. ~~**Do we surface `wins`/`losses`?**~~ **Deferred on purpose:** ranks go stale fast, and keeping
+   them fresh is its own problem. Nothing is stored that we would then have to maintain.
+
+## 12. Decided while implementing (2026-11-21)
+
+### What shipped
+
+| Area | Where |
+| --- | --- |
+| Generated wire types | `tools/riot-types/` (own `openapi-typescript` + TypeScript 5), spec pinned at `tools/riot-types/riot-api.json`, output `apps/api/src/riot/generated/riot-api.d.ts`, `bun run riot:types` |
+| The client | `apps/api/src/riot/client.ts` (`createRiotClient`, `createFakeRiotClient`), `wire.ts`, `mappers.ts`, `throttle.ts`; injected via `createApp({ riot, riotThrottle })` |
+| Schema | `riot_account` snapshot columns; `puuid NOT NULL` (migration `0010`, deletes the rows that never resolved) |
+| Save path | `POST /api/me/riot-accounts` re-resolves, writes Riot's canonical label + snapshot; client-supplied `puuid`/rank are never read |
+| UI | platform select, "Add account" runs the check, `RankBadges` on the profile and the roster |
+| Env | `RIOT_API_KEY` only; `riotConfigured` is the whole switch |
+
+### Deviations from this idea
+
+1. **§2.1 codegen.** The spec is a committed file in the tool package, not a URL + hash lock the
+   generator re-downloads; nothing is pruned (all 78 paths → 12 979 generated lines); the tool
+   carries its own TypeScript 5 because the repo compiles with TypeScript 7, whose package exposes
+   no compiler API; the generated file is committed so `bun run typecheck` works on a fresh clone.
+2. **§3 rank shape.** Both queues are stored (`soloTier/soloDivision`, `flexTier/flexDivision`)
+   instead of one primary rank, so there is no `rankQueue` column to explain.
+3. **§6 divisionless tiers.** Riot *does* send `rank: "I"` for Master, Grandmaster and Challenger —
+   measured live on EUW1: all 300 challenger, 700 grandmaster and 10 000 master entries, and
+   `entries/by-puuid` answered the same. The mapper drops the division (`null`) because the game has
+   none; the payload gives nothing to key on.
+4. **§7 `RIOT_ENABLED` dropped.** Two flags meant a state ("configured but disabled") nobody could
+   explain in a bug report. The key present means the lookup may call; absent means nothing calls.
+5. **§4 "Check button".** Built first (`POST /api/me/riot-accounts/lookup`), then removed: pressing
+   **Add account** is the explicit check, and there is no second thing to keep in sync. The save
+   already re-resolved server-side, so the preview was redundant.
+6. **§5 reversed: a failed lookup refuses the save.** `puuid` is required, so an unverified row
+   cannot exist; `0010` deletes the ones that did. Consequences, accepted: **with no key nobody can
+   add an account**, and a dead key blocks the first-login gate until it is fixed. In exchange every
+   stored account is one Riot actually resolved, and `puuid` is a real identity for match-history.
+7. **Throttle.** 10 lookups/minute/user, in-process; the save takes the budget *before* calling Riot,
+   so a throttled press costs zero requests and is answered `429` with `Retry-After`.
+
+### Deliberately not done
+
+- `leaguePoints`, `wins`, `losses` — see §11.5.
+- Scheduled or on-demand snapshot refresh (§11.3); the save is the only refresh.
+- `match-v5` / `tournament-v5` — the generated types already cover the paths, the client does not.
+- Ownership proof (player-profiles §9.1): resolving an account proves it exists, not that it is
+  yours.

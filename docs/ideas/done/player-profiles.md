@@ -4,9 +4,9 @@
 `riot_account`, `roster_entry`), the player's own profile and accounts (routes, hooks, the
 `/profile` page with autosave), the blocking first-login gate, the roster read as a join with the
 captain picking team members instead of typing them, per-entry account choice and `roleOverride`,
-and `player` dropped. **Riot validation (§4) was not built** and moved whole to
-`../integrations/riot-api.md`; until it lands every account is "unverified" and `platform` is
-`euw1`, which the app is designed to live with.
+and `player` dropped. **Riot validation (§4) was not built here** and moved whole to
+[`riot-api.md`](riot-api.md), which landed on 2026-11-21: an account is resolved on save, `puuid` is
+required, and the unverified rows this release wrote were deleted by that idea's migration `0010`.
 **Companion to:** `multi-team.md` (tenancy). This doc is about *who owns which field*.
 **Decisions taken while implementing:** §10.
 
@@ -80,8 +80,8 @@ privilege escalation. I'd skip it.
 - **Riot ID is a display string, not an identity.** Renames change it. Because validation calls
   Riot anyway (§4), `puuid` is **required** on insert — it is the stable key for renames and for
   every later lookup. `gameName#tagLine` is the label, `puuid` is the identity.
-  *While validation is unimplemented, `puuid` is nullable; it becomes `NOT NULL` in the patch that
-  can actually fill it, never before (§10).*
+  *While validation was unimplemented `puuid` was nullable; it became `NOT NULL` in `0010`
+  (2026-11-21), together with deleting the rows that had no puuid (`riot-api.md` §12).*
 - **`platform` is required** (`euw1` default). It decides which host serves the summoner and rank
   calls; an account without a region cannot be resolved at all (§4).
 - Validation limits (game name / tag length, allowed characters) must be taken from Riot's current
@@ -90,8 +90,10 @@ privilege escalation. I'd skip it.
 ## 4. Riot API validation (server-side)
 
 **The client, the endpoint chain, the rate budget and the error mapping are their own idea:**
-`../integrations/riot-api.md`. This section keeps only what the profile row needs from it: the two
-endpoints, `verifiedAt`, and the "degrade, never block" rule.
+[`riot-api.md`](riot-api.md). This section keeps only what the profile row needs from it: the two
+endpoints, `verifiedAt`, and the "degrade, never block" rule — which `riot-api.md` §12 later
+**reversed**: a save Riot cannot answer is refused, because a row without a `puuid` no longer
+exists.
 
 Typing `Hide on bush#EUW` proves nothing. Resolving it against Riot proves the account **exists**,
 and hands us a level, an icon and (cheaply) a rank — enough for the player to recognise their own

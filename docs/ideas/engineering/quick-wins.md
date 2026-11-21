@@ -22,6 +22,10 @@ needs DB reads, the helper takes a plain object). Deleting is honest until somet
 the rank vocabulary — or delete it too and re-add it with the feature. Don't delete it and then be
 surprised when the Riot work needs it back.
 
+**Resolved 2026-11-21:** `riot-api` landed and consumes all three — `isTier`/`isDivision`/`isQueue`
+guard payloads, and `QUEUES` orders the two rank badges. `canManageTeam` is still dead and still the
+only deletion here.
+
 ## B. Small inconsistencies — one line each, needs a test
 
 | # | Finding | Where |
