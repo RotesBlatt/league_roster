@@ -1,7 +1,11 @@
 # Idea — player-owned profiles, captain-owned roster
 
-**Status:** idea, nothing implemented.
+**Status:** in progress — the split (`profile`, `riot_account`, `roster_entry`), the player's own
+profile and accounts, the blocking first-login gate and the joined roster are implemented
+(2026-11-21). **Riot validation (§4) is not**, and is specified in
+`../integrations/riot-api.md`; everything that depends on it degrades to "unverified".
 **Companion to:** `multi-team.md` (tenancy). This doc is about *who owns which field*.
+**Decisions taken while implementing:** §10.
 
 ## 1. The idea
 
@@ -67,9 +71,14 @@ privilege escalation. I'd skip it.
 - **One main, enforced in the DB.** Partial unique index (`WHERE is_main`) rather than a
   `mainAccountId` on `profile` — the latter allows a dangling or missing main across two updates.
 - Changing the main = a transaction (unset old, set new), not two independent requests.
+- Deleting the main **promotes the oldest remaining account** in the same transaction: the unique
+  index can only say "at most one", and "has accounts but no main" would silently break the roster
+  join later (§10).
 - **Riot ID is a display string, not an identity.** Renames change it. Because validation calls
   Riot anyway (§4), `puuid` is **required** on insert — it is the stable key for renames and for
   every later lookup. `gameName#tagLine` is the label, `puuid` is the identity.
+  *While validation is unimplemented, `puuid` is nullable; it becomes `NOT NULL` in the patch that
+  can actually fill it, never before (§10).*
 - **`platform` is required** (`euw1` default). It decides which host serves the summoner and rank
   calls; an account without a region cannot be resolved at all (§4).
 - Validation limits (game name / tag length, allowed characters) must be taken from Riot's current
@@ -173,10 +182,13 @@ Discord login → /welcome (first time)
 - Gate: **`{ auth: true }`**, not member — otherwise a pending user can never complete onboarding
   and the whole flow deadlocks.
 - "Profile complete" should be **computed** (`displayName && ≥1 riot account && preferredRole`),
-  not a stored boolean. A stored flag goes stale the moment an account is deleted.
-- Skippable? A player who wants to look around first shouldn't be trapped. Suggest: skippable, but
-  the roster pool only shows complete profiles. That makes "complete your profile" self-motivating
-  instead of a hard gate.
+  not a stored boolean. A stored flag goes stale the moment an account is deleted. Implemented as
+  `missingProfileFields` in `packages/shared`, read by the profile page, the setup gate and (later)
+  the captain's picker — one rule, several readers. **The birthday is not part of it** (§10).
+- Skippable? **No — decided against** (§10). A roster entry is a *member* now, so a player without
+  a profile cannot be picked by their captain at all; a skip would only move the confusion to the
+  captain. `/welcome` is blocking, and no separate nudge is needed because nothing else is
+  reachable until it is done.
 
 ## 6. Captain's roster flow
 
@@ -186,13 +198,19 @@ Picking from team members with complete profiles:
 2. Sees members with a complete profile: name, main Riot ID, preferred role.
 3. Adds → creates `roster_entry` with the note and (optionally) a role override for the team.
 
-Free-typed roster entries (someone without an account yet) should probably stay possible — that's
-why `roster_entry.userId` is nullable, mirroring today's nullable `players.userId`.
+~~Free-typed roster entries (someone without an account yet) should probably stay possible — that's
+why `roster_entry.userId` is nullable, mirroring today's nullable `players.userId`.~~
+**Reversed while implementing** (§10): a roster entry is always a **member** of the team.
+`userId` is `NOT NULL`, and a composite foreign key onto `membership (teamId, userId)` with
+`ON DELETE CASCADE` makes that a database fact rather than a route convention. The flow is
+therefore invite → join → add to roster, and the captain picks from `GET /members` instead of
+typing a name.
 
 ## 7. UI touch points
 
-- `AppLayout.tsx:49` user menu: currently email + status badge + **Log out**. Add
-  **"My profile"** (and, once teams exist, **"Switch team"**). Same menu, one new item.
+- `AppLayout.tsx` user menu: email + **"My profile"** + **Log out**. Shipped — and the `captain`
+  badge next to the email was **removed** (§10): captaincy is per team now, and the switcher already
+  names the team you lead.
 - New page `/profile` (or `/welcome` when incomplete) reusing the roster form fields, minus the
   captain-only ones.
 - Profile form: **region select (EUW default)**, name + tag, a **Check** button, and the resolved
@@ -220,3 +238,54 @@ why `roster_entry.userId` is nullable, mirroring today's nullable `players.userI
 5. Do we ever need accounts **beyond LoL** (Riot's other games)? Assume no, keep it Leagues-shaped.
 6. Prime League specifics: do we need to record the **roster lock date** / registered squad, or is
    "main account + note" enough for v1?
+
+## 10. Decided while implementing (2026-11-21)
+
+### What shipped
+
+| Area | Where |
+| --- | --- |
+| `profile` (one per user, `userId` UNIQUE) | migration `0005`, `GET/PUT /api/me/profile` |
+| `riot_account` (several, ≤1 main) | migration `0005`, `GET/POST/DELETE /api/me/riot-accounts`, `PUT …/:id/main` |
+| `roster_entry` (captain-owned, member-only) | migration `0006`, `GET/POST/PATCH/DELETE /api/teams/:slug/roster` |
+| the split of the old `player` rows | migration `0006` backfill: profile ← name/role, account ← Riot ID, entry ← note/active/override |
+| `player` removed | migration `0007` (`DROP TABLE`); the old `/players` route, `PlayerDto` and `usePlayers` are deleted |
+| first-login gate | `/welcome`, blocking, `RequireCompleteProfile` around every member route |
+| the roster as a join | `composeRoster` in `apps/api/src/lib/roster.ts`, unit-tested; four reads, not one SQL join |
+
+### Decisions, with the reason they were made
+
+1. **A roster entry is always a member** (`userId NOT NULL`, composite FK → `membership`). "A player
+   comes from the team's members" is a constraint, not a check a future route could forget.
+   Consequence accepted: no typing a name before the person joins.
+2. **The first-login page is blocking, not skippable.** With (1) in place an incomplete profile
+   means a captain cannot use you; letting someone wander off would hide that, not spare them.
+3. **The birthday is optional and nullable.** Personal data: forcing it invites fake dates. It is
+   therefore **not** part of `missingProfileFields`, and a birthday list simply skips whoever
+   declined.
+4. **`preferredRole` stays `NOT NULL` on `profile`**, because a profile only exists once the
+   blocking page has asked for it. A missing position on the roster therefore means *no profile
+   yet* (`role: null`, rendered `unassigned`) — never a profile without a role.
+5. **`platform` is fixed to `euw1`** until Riot validation exists. A region select would be a label
+   nobody can check; it becomes meaningful in the same patch as the lookup.
+6. **Deleting the main account promotes the oldest remaining**, in one transaction under a row lock
+   on the player. "At most one main" is the index; "always one while accounts exist" is this.
+7. **`hasPlayer` → `hasRosterEntry`** on the member list: after the split, "on the roster" is the
+   fact that exists, and the old name described a table that no longer does.
+8. **Unverified is a neutral badge, not an error.** Every account is unverified today; the app must
+   be fully usable that way — which is also its state whenever the Riot key is missing or expired.
+9. **The roster is composed from four queries, not one SQL join.** `roleOverride ?? preferredRole`
+   and "only the main account" are rules; in SQL they would be untestable here. This is the one
+   place a join was *deliberately* not written as a single statement.
+
+### Still open
+
+- **§4 in full** — the Riot client, endpoint chain, rate budget and error mapping:
+  `../integrations/riot-api.md`. Until then `verifiedAt` is always `NULL` and `platform` is `euw1`.
+- **`puuid` becomes `NOT NULL`** in the patch that can fill it, together with the lookup.
+- **Captain "add from team" in the §6 sense** — the picker shipped, but it lists every member, not
+  only those with a *complete* profile. That distinction costs nothing to add when the captain
+  needs it, and `missingProfileFields` is already there.
+- **§9.1, §9.5, §9.6 still stand**: validated vs verified (Riot Sign On or a profile-icon
+  challenge), non-LoL accounts, Prime League roster locks. §9.2 (global profile) and §9.3 (captain
+  override) are decided: global, and yes — `roleOverride`.

@@ -44,7 +44,7 @@ it sat at the top — and why closing it (see **Done**) unblocks most of the que
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
-| [player-profiles](ideas/roster/player-profiles.md) | Players own their own profile (display name, Riot accounts with one main, preferred role, birthday); the captain owns the roster entry. Splits the row so edits propagate by construction. | multi-team, riot-api | idea |
+| [player-profiles](ideas/roster/player-profiles.md) | Players own their own profile (display name, Riot accounts with one main, preferred role, optional birthday); the captain owns the roster entry, and an entry is always a member. Splits the row so edits propagate by construction. | multi-team, riot-api | in progress |
 | [riot-api](ideas/integrations/riot-api.md) | The only module that speaks Riot — an injected client over two host families, a summoner/rank snapshot, and a status→sentence mapping so saving still works when the 24-hour dev key is dead; used by player-profiles and, later, match-history. | — | idea |
 | [hexserve-champion-data](ideas/integrations/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
 | [availability-planner](ideas/roster/availability-planner.md) | Everyone fills in when they can play; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
