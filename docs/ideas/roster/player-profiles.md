@@ -77,6 +77,10 @@ privilege escalation. I'd skip it.
 
 ## 4. Riot API validation (server-side)
 
+**The client, the endpoint chain, the rate budget and the error mapping are their own idea:**
+`../integrations/riot-api.md`. This section keeps only what the profile row needs from it: the two
+endpoints, `verifiedAt`, and the "degrade, never block" rule.
+
 Typing `Hide on bush#EUW` proves nothing. Resolving it against Riot proves the account **exists**,
 and hands us a level, an icon and (cheaply) a rank — enough for the player to recognise their own
 account and catch a typo before it reaches the roster.
