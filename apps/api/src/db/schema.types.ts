@@ -14,6 +14,16 @@ export type Me = {
   status: MemberStatus | null
 }
 
+/** The player's own profile (`/api/me/profile`). Global: no team is involved. */
+export type ProfileDto = {
+  displayName: string
+  /** Position preference, not the permission — that is `membership.role`. */
+  preferredRole: Role
+  /** `YYYY-MM-DD`, or null when the player declined to share it. */
+  birthday: string | null
+  updatedAt: number
+}
+
 export type PlayerDto = {
   id: string
   displayName: string
