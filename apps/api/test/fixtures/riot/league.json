@@ -1,0 +1,35 @@
+[
+  {
+    "leagueId": "00000000-0000-0000-0000-000000000000",
+    "puuid": "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789-_aBcDeFgHiJkLmNoPqRsTuVwXyZ",
+    "queueType": "RANKED_SOLO_5x5",
+    "tier": "GOLD",
+    "rank": "II",
+    "leaguePoints": 45,
+    "wins": 120,
+    "losses": 110,
+    "hotStreak": false,
+    "veteran": true,
+    "freshBlood": false,
+    "inactive": false
+  },
+  {
+    "leagueId": "11111111-1111-1111-1111-111111111111",
+    "puuid": "aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789-_aBcDeFgHiJkLmNoPqRsTuVwXyZ",
+    "queueType": "RANKED_FLEX_SR",
+    "tier": "SILVER",
+    "rank": "IV",
+    "leaguePoints": 12,
+    "wins": 22,
+    "losses": 20,
+    "hotStreak": false,
+    "veteran": false,
+    "freshBlood": true,
+    "inactive": false
+  },
+  {
+    "queueType": "RANKED_TFT",
+    "tier": "PLATINUM",
+    "rank": "I"
+  }
+]
