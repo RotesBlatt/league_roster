@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { composeRoster, type RosterSources } from '../../src/lib/roster.ts'
+import { composeRoster, normalizeRosterWrite, type RosterSources } from '../../src/lib/roster.ts'
 
 /**
  * The roster read is a join of four things — entry, profile, main account, user — and the rules
@@ -152,5 +152,36 @@ describe('composeRoster', () => {
     )
 
     expect(rows[0]).toMatchObject({ note: 'shotcaller', isActive: false })
+  })
+})
+
+describe('normalizeRosterWrite', () => {
+  test('a blank note becomes null, a real one is trimmed', () => {
+    expect(normalizeRosterWrite({ note: '   ' }).values.note).toBeNull()
+    expect(normalizeRosterWrite({ note: ' shotcaller ' }).values.note).toBe('shotcaller')
+  })
+
+  test('an omitted field stays omitted — a PATCH must not clear what it did not mention', () => {
+    const { values } = normalizeRosterWrite({})
+
+    expect(values).toEqual({})
+    expect('note' in values).toBe(false)
+    expect('roleOverride' in values).toBe(false)
+    expect('isActive' in values).toBe(false)
+  })
+
+  test('an explicit null is how the captain clears the override', () => {
+    expect(normalizeRosterWrite({ roleOverride: null }).values.roleOverride).toBeNull()
+  })
+
+  test('a known role is accepted, an unknown one is a field problem', () => {
+    expect(normalizeRosterWrite({ roleOverride: 'SUP' }).values.roleOverride).toBe('SUP')
+    expect(normalizeRosterWrite({ roleOverride: 'JUNGLE' }).problems).toEqual([
+      { field: 'roleOverride', message: 'Unknown role' },
+    ])
+  })
+
+  test('isActive passes through untouched', () => {
+    expect(normalizeRosterWrite({ isActive: false }).values.isActive).toBe(false)
   })
 })

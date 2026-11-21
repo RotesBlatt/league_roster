@@ -170,3 +170,90 @@ describe('GET /api/teams/:slug/roster', () => {
     expect(row).toMatchObject({ displayName: 'Captain Renamed', role: 'TOP' })
   })
 })
+
+describe('captain writes on the roster', () => {
+  let extraId: string
+  let memberCookie: string
+  let entryId: string
+
+  const post = (body: unknown, cookie = captainCookie) =>
+    call('/api/teams/alpha/roster', { method: 'POST', body, cookie })
+  const patch = (id: string, body: unknown, cookie = captainCookie) =>
+    call(`/api/teams/alpha/roster/${id}`, { method: 'PATCH', body, cookie })
+  const remove = (id: string, cookie = captainCookie) =>
+    call(`/api/teams/alpha/roster/${id}`, { method: 'DELETE', cookie })
+
+  beforeAll(async () => {
+    // a member who is not on the roster yet, and a plain member to prove the captain guard
+    extraId = await createUser(ctx, { name: 'Extra Member' })
+    await addMembership(ctx, { teamId, userId: extraId })
+    memberCookie = await createSessionCookie(ctx, midId)
+  })
+
+  test('is closed to anonymous callers', async () => {
+    expect((await post({ userId: extraId }, '')).status).toBe(401)
+  })
+
+  test('a plain member cannot write — captain only', async () => {
+    expect((await post({ userId: extraId }, memberCookie)).status).toBe(403)
+  })
+
+  test('adding a member puts them on the roster', async () => {
+    const response = await post({ userId: extraId, note: 'sub' })
+
+    expect(response.status).toBe(200)
+    const row = (await roster()).find((entry) => entry.userId === extraId)
+    expect(row).toMatchObject({ displayName: 'Extra Member', note: 'sub', isActive: true })
+  })
+
+  test('somebody who is not a member of this team cannot be added', async () => {
+    const outsider = await createUser(ctx, { name: 'Not A Member' })
+    const response = await post({ userId: outsider })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ message: expect.stringContaining('member') })
+  })
+
+  test('the same member twice is a conflict, not a second row', async () => {
+    const response = await post({ userId: extraId })
+
+    expect(response.status).toBe(409)
+  })
+
+  test('an unknown role override is a field error', async () => {
+    const row = (await roster()).find((entry) => entry.userId === extraId)
+    entryId = row?.id ?? ''
+
+    const response = await patch(entryId, { roleOverride: 'JUNGLE' })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ details: [{ path: 'roleOverride' }] })
+  })
+
+  test('the note and the override can be set, and the override cleared again', async () => {
+    expect((await patch(entryId, { note: '  sub  ', roleOverride: 'SUP' })).status).toBe(200)
+    expect((await roster()).find((entry) => entry.userId === extraId)).toMatchObject({
+      note: 'sub',
+      role: 'SUP',
+    })
+
+    // explicit null = back to what the player stated (none here), not "leave it"
+    expect((await patch(entryId, { roleOverride: null })).status).toBe(200)
+    expect((await roster()).find((entry) => entry.userId === extraId)?.role).toBeNull()
+  })
+
+  test('isActive can be switched off without touching the position', async () => {
+    expect((await patch(entryId, { isActive: false, roleOverride: 'ADC' })).status).toBe(200)
+    expect((await roster()).find((entry) => entry.userId === extraId)).toMatchObject({
+      isActive: false,
+      role: 'ADC',
+    })
+  })
+
+  test('a member leaving the roster is a delete, and an unknown id is a 404', async () => {
+    expect((await remove(entryId)).status).toBe(200)
+    expect((await roster()).map((entry) => entry.userId)).not.toContain(extraId)
+
+    expect((await remove(entryId)).status).toBe(404)
+  })
+})

@@ -1,5 +1,6 @@
 import { ROLES, type Role } from '@lol/shared'
 import type { RosterEntryDto } from '../db/schema.types.ts'
+import { parseRole } from './profile.ts'
 
 /**
  * The roster is a **join**, not a copy (player-profiles.md §2): `roster_entry ⋈ profile ⋈ main
@@ -78,4 +79,52 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
         a.displayName.localeCompare(b.displayName) ||
         a.id.localeCompare(b.id),
     )
+}
+
+/** What a captain may change on an entry. `undefined` = "not mentioned", which is not "clear it". */
+export type RosterWriteInput = {
+  note?: string | null
+  /** A role string from the body: `null` clears the override, `undefined` leaves it alone. */
+  roleOverride?: string | null
+  isActive?: boolean
+}
+
+export type RosterWriteValues = {
+  note?: string | null
+  roleOverride?: Role | null
+  isActive?: boolean
+}
+
+export type RosterWriteProblem = { field: 'roleOverride'; message: string }
+
+/**
+ * Normalises a captain's write. The three-way distinction is the whole point: an absent field must
+ * stay absent (a PATCH that only changes the note must not wipe the override), an explicit `null`
+ * is how the override is cleared, and a string must be a role we know.
+ */
+export function normalizeRosterWrite(input: RosterWriteInput): {
+  values: RosterWriteValues
+  problems: RosterWriteProblem[]
+} {
+  const values: RosterWriteValues = {}
+  const problems: RosterWriteProblem[] = []
+
+  if (input.note !== undefined) {
+    const note = (input.note ?? '').trim()
+    values.note = note === '' ? null : note
+  }
+
+  if (input.roleOverride !== undefined) {
+    if (input.roleOverride === null) {
+      values.roleOverride = null
+    } else {
+      const role = parseRole(input.roleOverride)
+      if (role === null) problems.push({ field: 'roleOverride', message: 'Unknown role' })
+      else values.roleOverride = role
+    }
+  }
+
+  if (input.isActive !== undefined) values.isActive = input.isActive
+
+  return { values, problems }
 }
