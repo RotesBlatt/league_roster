@@ -31,7 +31,10 @@ try {
   await probe.end({ timeout: 5 })
 }
 
-const proc = Bun.spawn([process.execPath, 'test', 'apps/api/test/integration'], {
+// `--parallel`: every integration file owns a throwaway database named after a UUID, so the
+// files cannot collide. 14s sequential, ~4s here. Not for the unit or web suite: the web tests
+// mock whole modules, which `--parallel` (it implies `--isolate`) does not survive.
+const proc = Bun.spawn([process.execPath, 'test', '--parallel', 'apps/api/test/integration'], {
   cwd: root,
   stdio: ['inherit', 'inherit', 'inherit'],
   env: { ...process.env, TEST_DATABASE_URL: adminUrl },
