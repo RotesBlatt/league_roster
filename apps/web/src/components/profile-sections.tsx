@@ -1,8 +1,17 @@
 import type { Role } from '@lol/shared'
-import { DISPLAY_NAME_MAX, ROLE_LABELS, ROLES } from '@lol/shared'
+import {
+  DEFAULT_RIOT_PLATFORM,
+  DISPLAY_NAME_MAX,
+  PLATFORM_LABELS,
+  type Platform,
+  RIOT_PLATFORMS,
+  ROLE_LABELS,
+  ROLES,
+} from '@lol/shared'
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle } from '@tabler/icons-react'
 import { type SubmitEvent, useEffect, useMemo, useState } from 'react'
+import { levelLabel } from '../account-card.ts'
 import {
   useAddRiotAccount,
   useMe,
@@ -20,7 +29,7 @@ import {
   profileChanged,
   todayIso,
 } from '../profile-form.ts'
-import { MainBadge, UnverifiedBadge } from './badges.tsx'
+import { MainBadge, RankBadges, UnverifiedBadge } from './badges.tsx'
 
 const roleOptions = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 
@@ -150,15 +159,23 @@ export function AccountsSection({
   const add = useAddRiotAccount()
   const remove = useRemoveRiotAccount()
   const setMain = useSwitchMainRiotAccount()
-  const [draft, setDraft] = useState({ gameName: '', tagLine: '' })
+  const [draft, setDraft] = useState({
+    gameName: '',
+    tagLine: '',
+    platform: DEFAULT_RIOT_PLATFORM as Platform,
+  })
   const [error, setError] = useState<string | null>(null)
 
   const removeBlocked = !allowRemovingLast && (accounts.data?.length ?? 0) <= 1
 
+  function update(patch: Partial<typeof draft>) {
+    setDraft({ ...draft, ...patch })
+  }
+
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const result = draftAccount(draft.gameName, draft.tagLine)
+    const result = draftAccount(draft.gameName, draft.tagLine, draft.platform)
     if (!result.ok) {
       setError(result.message)
       return
@@ -166,7 +183,7 @@ export function AccountsSection({
 
     setError(null)
     add.mutate(result.body, {
-      onSuccess: () => setDraft({ gameName: '', tagLine: '' }),
+      onSuccess: () => setDraft({ gameName: '', tagLine: '', platform: draft.platform }),
       onError: (caught: Error) => setError(caught.message),
     })
   }
@@ -195,6 +212,12 @@ export function AccountsSection({
                   <Text fw={500}>{`${account.gameName}#${account.tagLine}`}</Text>
                   {account.isMain && <MainBadge />}
                   <UnverifiedBadge verifiedAt={account.verifiedAt} />
+                  <RankBadges ranks={account.ranks} />
+                  {levelLabel(account) ? (
+                    <Text size="sm" c="dimmed">
+                      {levelLabel(account)}
+                    </Text>
+                  ) : null}
                 </Group>
                 <Group gap="xs">
                   {!account.isMain && (
@@ -229,18 +252,33 @@ export function AccountsSection({
 
         <form onSubmit={submit}>
           <Stack gap="sm">
+            <Select
+              label="Platform"
+              description="Where the account plays — the region is what decides who answers"
+              data={RIOT_PLATFORMS.map((platform) => ({
+                value: platform,
+                label: PLATFORM_LABELS[platform],
+              }))}
+              value={draft.platform}
+              onChange={(value) =>
+                update({ platform: (value ?? DEFAULT_RIOT_PLATFORM) as Platform })
+              }
+              allowDeselect={false}
+              searchable
+            />
+
             <Group grow align="flex-end" gap="sm">
               <TextInput
                 label="Game name"
                 placeholder="Hide on bush"
                 value={draft.gameName}
-                onChange={(event) => setDraft({ ...draft, gameName: event.currentTarget.value })}
+                onChange={(event) => update({ gameName: event.currentTarget.value })}
               />
               <TextInput
                 label="Tag line"
                 placeholder="EUW"
                 value={draft.tagLine}
-                onChange={(event) => setDraft({ ...draft, tagLine: event.currentTarget.value })}
+                onChange={(event) => update({ tagLine: event.currentTarget.value })}
               />
             </Group>
 

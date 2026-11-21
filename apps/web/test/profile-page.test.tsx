@@ -198,3 +198,48 @@ describe('the accounts list', () => {
     expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
   })
 })
+
+describe('adding an account is the check', () => {
+  test('there is no separate Check button — one explicit action, one lookup', async () => {
+    apiState.profile = { data: saved, error: null, status: 200 }
+
+    renderPage()
+    await screen.findByLabelText('Game name')
+
+    expect(screen.queryByRole('button', { name: 'Check' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Add account' })).toBeTruthy()
+  })
+
+  test('after adding, the row shows what the server resolved', async () => {
+    apiState.profile = { data: saved, error: null, status: 200 }
+    apiState.riotAccountAdd = { data: mainAccount, error: null, status: 200 }
+    // the add invalidates the list, and that refetch is the card the player sees
+    apiState.riotAccountList = {
+      data: [
+        {
+          ...mainAccount,
+          verifiedAt: 1,
+          fetchedAt: 1,
+          summonerLevel: 512,
+          ranks: {
+            solo: { tier: 'GOLD', division: 'II' },
+            flex: { tier: 'SILVER', division: 'IV' },
+          },
+        },
+      ],
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+    fireEvent.change(await screen.findByLabelText('Game name'), {
+      target: { value: 'Hide on bush' },
+    })
+    fireEvent.change(screen.getByLabelText('Tag line'), { target: { value: 'EUW' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+
+    expect(await screen.findByText('Solo Gold II')).toBeTruthy()
+    expect(screen.getByText('Flex Silver IV')).toBeTruthy()
+    expect(screen.getByText('Level 512')).toBeTruthy()
+  })
+})
