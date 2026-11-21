@@ -142,7 +142,9 @@ export function createApp(options: AppOptions = {}) {
               // the new roster: a join over what replaced the old `player` table
               .use(createRosterRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
-              .use(createMemberRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger)),
+              .use(
+                createMemberRoutes(db, (scoped) => forTeam(db, scoped), authPlugin, requestLogger),
+              ),
           ),
       )
       // Hashed build output; the SPA shell itself comes from the NOT_FOUND fallback above

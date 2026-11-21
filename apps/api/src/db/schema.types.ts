@@ -27,8 +27,17 @@ export type RosterEntryDto = {
   role: Role | null
   note: string | null
   isActive: boolean
-  /** Only the main account is a roster fact; the others belong to the profile page. */
-  mainAccount: { gameName: string; tagLine: string; verifiedAt: number | null } | null
+  /**
+   * The account this team uses: the captain's choice for this entry, else the player's main,
+   * else null. `main` says whether it happens to be his main account.
+   */
+  account: {
+    id: string
+    gameName: string
+    tagLine: string
+    verifiedAt: number | null
+    isMain: boolean
+  } | null
 }
 
 /** The player's own profile (`/api/me/profile`). Global: no team is involved. */
@@ -97,6 +106,8 @@ export type MemberDto = {
   createdAt: number
   /** Whether this member is on the team's roster (a `roster_entry` exists for them). */
   hasRosterEntry: boolean
+  /** His accounts, main first — what the captain picks from when adding him to the roster. */
+  accounts: { id: string; gameName: string; tagLine: string; isMain: boolean }[]
   teamId: string | null
 }
 

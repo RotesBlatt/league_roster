@@ -178,6 +178,17 @@ describe('0006 — player is split into roster_entry, profile and riot_account',
     })
   })
 
+  test('0008 gives every existing entry its member’s main account', async () => {
+    const [entry] = await ctx.db.select().from(rosterEntries)
+    const [account] = await ctx.db
+      .select()
+      .from(riotAccounts)
+      .where(eq(riotAccounts.userId, member))
+
+    // "the account for this team" starts as the main one, so nothing changes on deploy
+    expect(entry?.accountId).toBe(account?.id)
+  })
+
   test('the database refuses a roster entry without a user', async () => {
     let code: string | undefined
     try {

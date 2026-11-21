@@ -14,6 +14,7 @@ const entry = (over: Partial<RosterSources['entries'][number]> = {}) => ({
   id: 'entry-1',
   teamId: 'team-1',
   userId: 'user-1',
+  accountId: null,
   note: null,
   roleOverride: null,
   isActive: true,
@@ -79,6 +80,7 @@ describe('composeRoster', () => {
       sources({
         accounts: [
           {
+            id: 'acc-smurf',
             userId: 'user-1',
             gameName: 'Smurf',
             tagLine: 'EUW',
@@ -86,6 +88,7 @@ describe('composeRoster', () => {
             verifiedAt: null,
           },
           {
+            id: 'acc-main',
             userId: 'user-1',
             gameName: 'Hide on bush',
             tagLine: 'EUW',
@@ -96,15 +99,17 @@ describe('composeRoster', () => {
       }),
     )
 
-    expect(rows[0]?.mainAccount).toEqual({
+    expect(rows[0]?.account).toEqual({
+      id: 'acc-main',
       gameName: 'Hide on bush',
       tagLine: 'EUW',
       verifiedAt: Date.parse('2026-01-02T03:04:05.000Z'),
+      isMain: true,
     })
   })
 
   test('no main account is null, not an empty label', () => {
-    expect(composeRoster(sources())[0]?.mainAccount).toBeNull()
+    expect(composeRoster(sources())[0]?.account).toBeNull()
   })
 
   test('rows are ordered by position, then by name, with unknown positions last', () => {

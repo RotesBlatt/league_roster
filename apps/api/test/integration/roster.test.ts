@@ -128,7 +128,7 @@ describe('GET /api/teams/:slug/roster', () => {
     const rows = await roster()
     const row = rows.find((entry) => entry.userId === noProfileId)
 
-    expect(row).toMatchObject({ displayName: 'No Profile Yet', role: null, mainAccount: null })
+    expect(row).toMatchObject({ displayName: 'No Profile Yet', role: null, account: null })
   })
 
   test('the row is the join: profile name, stated role, and only the main account', async () => {
@@ -139,7 +139,13 @@ describe('GET /api/teams/:slug/roster', () => {
       role: 'MID',
       note: null,
       isActive: true,
-      mainAccount: { gameName: 'Hide on bush', tagLine: 'EUW', verifiedAt: null },
+      account: {
+        id: expect.any(String),
+        gameName: 'Hide on bush',
+        tagLine: 'EUW',
+        verifiedAt: null,
+        isMain: true,
+      },
     })
   })
 
@@ -187,6 +193,26 @@ describe('captain writes on the roster', () => {
     // a member who is not on the roster yet, and a plain member to prove the captain guard
     extraId = await createUser(ctx, { name: 'Extra Member' })
     await addMembership(ctx, { teamId, userId: extraId })
+
+    // two accounts: the main one, and the one he actually plays for this team
+    await ctx.db.insert(riotAccounts).values([
+      {
+        id: `acc-main-${extraId}`,
+        userId: extraId,
+        gameName: 'Main Account',
+        tagLine: 'EUW',
+        isMain: true,
+        createdAt: new Date(),
+      },
+      {
+        id: `acc-team-${extraId}`,
+        userId: extraId,
+        gameName: 'Team Account',
+        tagLine: 'EUW',
+        isMain: false,
+        createdAt: new Date(),
+      },
+    ])
     memberCookie = await createSessionCookie(ctx, midId)
   })
 
@@ -228,6 +254,49 @@ describe('captain writes on the roster', () => {
 
     expect(response.status).toBe(422)
     expect(await response.json()).toMatchObject({ details: [{ path: 'roleOverride' }] })
+  })
+
+  test('the member list offers his accounts, main first', async () => {
+    const members = (await (
+      await call('/api/teams/alpha/members', { cookie: captainCookie })
+    ).json()) as { id: string; accounts: { id: string; gameName: string; isMain: boolean }[] }[]
+
+    const extra = members.find((member) => member.id === extraId)
+    expect(extra?.accounts.map((account) => account.gameName)).toEqual([
+      'Main Account',
+      'Team Account',
+    ])
+    expect(extra?.accounts[0]?.isMain).toBe(true)
+  })
+
+  test('adding a member defaults to his main account', async () => {
+    const row = (await roster()).find((entry) => entry.userId === extraId)
+
+    expect(row?.account).toMatchObject({ gameName: 'Main Account', isMain: true })
+  })
+
+  test('the captain can pick the account this team uses — his main is not it', async () => {
+    const row = (await roster()).find((entry) => entry.userId === extraId)
+    entryId = row?.id ?? ''
+
+    const response = await patch(entryId, { accountId: `acc-team-${extraId}` })
+    expect(response.status).toBe(200)
+
+    expect((await roster()).find((entry) => entry.userId === extraId)?.account).toMatchObject({
+      gameName: 'Team Account',
+      isMain: false,
+    })
+  })
+
+  test('an account of somebody else is refused, not silently written', async () => {
+    const response = await patch(entryId, { accountId: 'acc-main-not-mine' })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ message: expect.stringContaining('account') })
+    // and the previous choice is untouched
+    expect((await roster()).find((entry) => entry.userId === extraId)?.account).toMatchObject({
+      gameName: 'Team Account',
+    })
   })
 
   test('the note and the override can be set, and the override cleared again', async () => {

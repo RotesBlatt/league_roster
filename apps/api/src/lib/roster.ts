@@ -16,6 +16,7 @@ export type RosterSources = {
     id: string
     teamId: string
     userId: string
+    accountId: string | null
     note: string | null
     roleOverride: Role | null
     isActive: boolean
@@ -26,6 +27,7 @@ export type RosterSources = {
     preferredRole: Role
   }[]
   accounts: {
+    id: string
     userId: string
     gameName: string
     tagLine: string
@@ -45,6 +47,7 @@ const roleOrder = (role: Role | null): number =>
 export function composeRoster(sources: RosterSources): RosterEntryDto[] {
   const profiles = new Map(sources.profiles.map((row) => [row.userId, row]))
   const users = new Map(sources.users.map((row) => [row.id, row]))
+  const accountsById = new Map(sources.accounts.map((row) => [row.id, row]))
   const mainAccounts = new Map(
     sources.accounts.filter((row) => row.isMain).map((row) => [row.userId, row]),
   )
@@ -52,7 +55,10 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
   return sources.entries
     .map((entry): RosterEntryDto => {
       const profile = profiles.get(entry.userId)
-      const account = mainAccounts.get(entry.userId)
+      // the captain's choice for this team wins; his main is only the fallback
+      const account =
+        (entry.accountId ? accountsById.get(entry.accountId) : undefined) ??
+        mainAccounts.get(entry.userId)
 
       return {
         id: entry.id,
@@ -64,11 +70,13 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
         role: entry.roleOverride ?? profile?.preferredRole ?? null,
         note: entry.note,
         isActive: entry.isActive,
-        mainAccount: account
+        account: account
           ? {
+              id: account.id,
               gameName: account.gameName,
               tagLine: account.tagLine,
               verifiedAt: account.verifiedAt?.getTime() ?? null,
+              isMain: account.isMain,
             }
           : null,
       }
@@ -83,6 +91,8 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
 
 /** What a captain may change on an entry. `undefined` = "not mentioned", which is not "clear it". */
 export type RosterWriteInput = {
+  /** which of the player's accounts this team uses; validated against the entry's user */
+  accountId?: string | null
   note?: string | null
   /** A role string from the body: `null` clears the override, `undefined` leaves it alone. */
   roleOverride?: string | null
@@ -90,6 +100,7 @@ export type RosterWriteInput = {
 }
 
 export type RosterWriteValues = {
+  accountId?: string | null
   note?: string | null
   roleOverride?: Role | null
   isActive?: boolean
@@ -108,6 +119,8 @@ export function normalizeRosterWrite(input: RosterWriteInput): {
 } {
   const values: RosterWriteValues = {}
   const problems: RosterWriteProblem[] = []
+
+  if (input.accountId !== undefined) values.accountId = input.accountId
 
   if (input.note !== undefined) {
     const note = (input.note ?? '').trim()

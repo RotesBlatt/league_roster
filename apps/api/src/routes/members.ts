@@ -1,6 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
-import { memberships, rosterEntries, user } from '../db/schema.ts'
+import type { Db } from '../db/index.ts'
+import { memberships, riotAccounts, rosterEntries, user } from '../db/schema.ts'
 import type { MemberDto } from '../db/schema.types.ts'
 import type { Logger } from '../lib/log/logger.ts'
 import { noopLogger } from '../lib/log/noop.ts'
@@ -31,6 +32,7 @@ type MemberRow = {
  * Nothing here can add a stranger.
  */
 export function createMemberRoutes(
+  db: Db,
   scope: TeamScope,
   authPlugin: AuthPlugin,
   requestLogger?: (request: Request) => Logger,
@@ -64,6 +66,38 @@ export function createMemberRoutes(
         const roster = await teamDb.selectFrom(rosterEntries)
         const linked = new Set(roster.map((row) => row.userId))
 
+        // his accounts, main first: the captain needs them to pick the one this team uses
+        const ids = rows.map((row) => row.id)
+        const accountRows = ids.length
+          ? await db
+              .select({
+                id: riotAccounts.id,
+                userId: riotAccounts.userId,
+                gameName: riotAccounts.gameName,
+                tagLine: riotAccounts.tagLine,
+                isMain: riotAccounts.isMain,
+              })
+              .from(riotAccounts)
+              .where(inArray(riotAccounts.userId, ids))
+          : []
+
+        const accountsByUser = new Map<string, MemberDto['accounts']>()
+        for (const account of accountRows) {
+          const list = accountsByUser.get(account.userId) ?? []
+          list.push({
+            id: account.id,
+            gameName: account.gameName,
+            tagLine: account.tagLine,
+            isMain: account.isMain,
+          })
+          accountsByUser.set(account.userId, list)
+        }
+        for (const list of accountsByUser.values()) {
+          list.sort(
+            (a, b) => Number(b.isMain) - Number(a.isMain) || a.gameName.localeCompare(b.gameName),
+          )
+        }
+
         return rows.map<MemberDto>((row) => ({
           id: row.id,
           name: row.name,
@@ -74,6 +108,7 @@ export function createMemberRoutes(
           status: row.status,
           createdAt: row.createdAt.getTime(),
           hasRosterEntry: linked.has(row.id),
+          accounts: accountsByUser.get(row.id) ?? [],
         }))
       },
       { teamCaptain: true },

@@ -10,6 +10,8 @@ import type { AuthPlugin } from '../plugins/auth.ts'
 
 /** Only the fields a captain owns. Name, position preference and Riot ID are the player's. */
 const writeBody = t.Object({
+  /** which of his accounts this team uses; null/absent = follow his main account */
+  accountId: t.Optional(t.Union([t.String(), t.Null()])),
   note: t.Optional(t.Union([t.String(), t.Null()])),
   /** a role string sets the override, `null` clears it, absent leaves it alone */
   roleOverride: t.Optional(t.Union([t.String(), t.Null()])),
@@ -18,12 +20,37 @@ const writeBody = t.Object({
 
 const addBody = t.Object({
   userId: t.String(),
+  accountId: t.Optional(t.Union([t.String(), t.Null()])),
   note: t.Optional(t.Union([t.String(), t.Null()])),
   roleOverride: t.Optional(t.Union([t.String(), t.Null()])),
 })
 
 const ALREADY_ON_ROSTER = { message: 'That person is already on the roster' }
 const NOT_FOUND = { message: 'Roster entry not found' }
+const FOREIGN_ACCOUNT = { message: 'That account does not belong to this member' }
+
+/** Marks "the requested id is not one of his accounts" without throwing. */
+const INVALID_ACCOUNT = Symbol('invalid-account')
+
+/**
+ * The account an entry should point at: `null` means **follow his main account** (so changing the
+ * main later changes the roster too), an explicit id must belong to that member.
+ */
+async function resolveAccountId(
+  db: Db,
+  userId: string,
+  requested: string | null | undefined,
+): Promise<string | null | typeof INVALID_ACCOUNT> {
+  if (requested === undefined || requested === null) return null
+
+  const [row] = await db
+    .select({ id: riotAccounts.id })
+    .from(riotAccounts)
+    .where(and(eq(riotAccounts.id, requested), eq(riotAccounts.userId, userId)))
+    .limit(1)
+
+  return row ? row.id : INVALID_ACCOUNT
+}
 
 /** The unique index that keeps one entry per person per team. */
 const TEAM_MEMBER_INDEX = 'roster_entry_teamId_userId_idx'
@@ -66,6 +93,7 @@ export function createRosterRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlu
             .where(inArray(profile.userId, userIds)),
           db
             .select({
+              id: riotAccounts.id,
               userId: riotAccounts.userId,
               gameName: riotAccounts.gameName,
               tagLine: riotAccounts.tagLine,
@@ -73,7 +101,8 @@ export function createRosterRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlu
               verifiedAt: riotAccounts.verifiedAt,
             })
             .from(riotAccounts)
-            .where(and(inArray(riotAccounts.userId, userIds), eq(riotAccounts.isMain, true))),
+            // every account, not just the main one: the captain picks the account per team
+            .where(inArray(riotAccounts.userId, userIds)),
           db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, userIds)),
         ])
 
@@ -102,12 +131,16 @@ export function createRosterRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlu
           return status(422, { message: 'That person is not a member of this team' })
         }
 
+        const accountId = await resolveAccountId(db, body.userId, values.accountId)
+        if (accountId === INVALID_ACCOUNT) return status(422, FOREIGN_ACCOUNT)
+
         const now = new Date()
         try {
           // no teamId in the values: the scope injects it
           const row = await scope(team).insertInto(rosterEntries, {
             id: crypto.randomUUID(),
             userId: body.userId,
+            accountId,
             note: values.note ?? null,
             roleOverride: values.roleOverride ?? null,
             isActive: true,
@@ -130,6 +163,16 @@ export function createRosterRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlu
         const { values, problems } = normalizeRosterWrite(body)
         if (problems.length > 0) {
           return status(422, { message: 'Invalid roster entry', details: detail(problems) })
+        }
+
+        // his accounts, not anybody's: the entry names the member
+        if (values.accountId !== undefined) {
+          const [existing] = await scope(team).selectFrom(rosterEntries, eq(rosterEntries.id, id))
+          if (!existing) return status(404, NOT_FOUND)
+
+          const accountId = await resolveAccountId(db, existing.userId, values.accountId)
+          if (accountId === INVALID_ACCOUNT) return status(422, FOREIGN_ACCOUNT)
+          values.accountId = accountId
         }
 
         // an omitted field is not in `values`, so a note-only patch cannot wipe the override
