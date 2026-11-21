@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { players } from '../../src/db/schema.ts'
+import { rosterEntries } from '../../src/db/schema.ts'
 import { getTeamBySlug } from '../../src/lib/teams.ts'
 import {
   addMembership,
@@ -419,9 +419,7 @@ describe('members', () => {
     expect(res.status).toBe(403)
   })
 
-  // test-only: `hasPlayer` was untested before this route moved onto the team scope, where it is
-  // no longer the same left join and had to be recomputed from a second scoped query
-  test('hasPlayer marks the member with a roster entry linked to them', async () => {
+  test('hasRosterEntry marks the member who is actually on the roster', async () => {
     const teamA = await getTeamBySlug(ctx.db, 'alpha')
     if (!teamA) throw new Error('alpha team missing')
 
@@ -431,12 +429,12 @@ describe('members', () => {
     await addMembership(ctx, { teamId: teamA.id, userId: unlinked })
 
     const now = new Date()
-    await ctx.db.insert(players).values({
+    await ctx.db.insert(rosterEntries).values({
       id: crypto.randomUUID(),
       teamId: teamA.id,
       userId: linked,
-      displayName: 'Linked on the roster',
-      role: 'MID',
+      note: null,
+      roleOverride: null,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -444,9 +442,9 @@ describe('members', () => {
 
     const rows = (await (
       await call('/api/teams/alpha/members', { cookie: captainACookie })
-    ).json()) as { id: string; hasPlayer: boolean }[]
+    ).json()) as { id: string; hasRosterEntry: boolean }[]
 
-    expect(rows.find((row) => row.id === linked)?.hasPlayer).toBe(true)
-    expect(rows.find((row) => row.id === unlinked)?.hasPlayer).toBe(false)
+    expect(rows.find((row) => row.id === linked)?.hasRosterEntry).toBe(true)
+    expect(rows.find((row) => row.id === unlinked)?.hasRosterEntry).toBe(false)
   })
 })

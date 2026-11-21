@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
-import { memberships, players, user } from '../db/schema.ts'
+import { memberships, rosterEntries, user } from '../db/schema.ts'
 import type { MemberDto } from '../db/schema.types.ts'
 import type { Logger } from '../lib/log/logger.ts'
 import { noopLogger } from '../lib/log/noop.ts'
@@ -59,10 +59,10 @@ export function createMemberRoutes(
           { kind: 'inner', orderBy: [desc(user.createdAt)] },
         )
 
-        // `hasPlayer` used to be a second left join; from here it is one scoped read of the
-        // roster, which is a handful of rows and keeps the join helper to one join
-        const roster = await teamDb.selectFrom(players)
-        const linked = new Set(roster.map((row) => row.userId).filter((id) => id !== null))
+        // `hasRosterEntry` is a scoped read of roster_entry, not a second join: a handful of rows,
+        // and the join helper stays at one join. userId is NOT NULL there, so no filtering.
+        const roster = await teamDb.selectFrom(rosterEntries)
+        const linked = new Set(roster.map((row) => row.userId))
 
         return rows.map<MemberDto>((row) => ({
           id: row.id,
@@ -73,7 +73,7 @@ export function createMemberRoutes(
           role: row.role,
           status: row.status,
           createdAt: row.createdAt.getTime(),
-          hasPlayer: linked.has(row.id),
+          hasRosterEntry: linked.has(row.id),
         }))
       },
       { teamCaptain: true },

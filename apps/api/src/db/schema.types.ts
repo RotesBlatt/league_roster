@@ -107,7 +107,8 @@ export type MemberDto = {
   role: UserRole
   status: MemberStatus
   createdAt: number
-  hasPlayer: boolean
+  /** Whether this member is on the team's roster (a `roster_entry` exists for them). */
+  hasRosterEntry: boolean
   teamId: string | null
 }
 
