@@ -165,6 +165,12 @@ export const rosterEntries = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: 'cascade' }),
     userId: text('userId').notNull(),
+    /**
+     * The account this player uses **for this team** — his main is not necessarily the one he
+     * plays here. null falls back to his main account (`composeRoster`), and deleting the account
+     * clears the choice rather than the whole entry.
+     */
+    accountId: text('accountId').references(() => riotAccounts.id, { onDelete: 'set null' }),
     note: text('note'),
     /** null → the team uses the player's own `profile.preferredRole`. */
     roleOverride: text('roleOverride', { enum: ROLES }),
