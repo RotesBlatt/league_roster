@@ -1,6 +1,8 @@
 # Idea — the Riot API is one injected client, not a fetch in a route
 
-**Status:** idea, nothing implemented.
+**Status:** idea, nothing implemented. **Decided 2026-11-21:** direct — this API calls Riot with
+its own production key; Hex-Tractor is not a dependency (§10). **Typing decided:** generated wire
+types from a pinned community spec, narrow TypeBox schemas at runtime (§2.1).
 **Used by:** `player-profiles.md` §4 (validate a Riot ID, snapshot level/icon/rank) and later
 `match-history.md` §4 (match-v5, tournament-v5 — same key, same budget).
 **Not the same thing as:** anything about *ownership* of an account. This doc answers "can the server
@@ -57,9 +59,53 @@ Consequences worth stating, because they are design decisions and not implementa
 - **The rename case is free.** Step 1 returns the current name/tag, so a re-resolve is also how a
   snapshot refresh picks up a rename — no separate logic.
 
-Verify the routing values and payload shapes against the live reference before implementing. Riot has
-removed fields before (the legacy `summonerId`/`accountId` are already gone from payloads), and a
-payload field that no longer exists is a `null` in the UI, not an error.
+Verify the routing values and payload shapes against the generated spec and recorded fixtures (§2.1)
+before implementing. Riot has removed fields before (the legacy `summonerId`/`accountId` are already
+gone from payloads), and a payload field that no longer exists is a `null` in the UI, not an error.
+
+## 2.1 Typing: generated wire types, narrow runtime schemas
+
+Riot publishes no official OpenAPI spec (the feature request is still open). The best available
+source is the community schema [`MingweiSamuel/riotapi-schema`](https://github.com/MingweiSamuel/riotapi-schema),
+regenerated **daily** from Riot's API reference. We generate **types only** from a pinned copy, and
+keep runtime validation narrow. Two layers, two jobs — neither replaces the other:
+
+| Layer | Source | Job |
+| --- | --- | --- |
+| Wire types (compile time) | generated from the spec | autocomplete, path/DTO completeness, visibility when Riot renames something |
+| Wire validation (runtime) | hand-written TypeBox for the fields we store | trust boundary: reject a payload missing something we persist |
+| Domain types | our code | what the DB and routes use — never a generated Riot DTO |
+
+Rules that keep this from becoming a second `data-specification`:
+
+- **Pinned, not latest.** `scripts/riot-spec.lock.json` holds the spec URL, sha256 and fetch date;
+  the generator refuses a changed hash. Updating the contract is a deliberate commit.
+- **Endpoint allowlist.** The spec covers every Riot game and ~100 paths; measured on 2026-11-21 it
+  is ~500 KB and generates ~13k lines / 400 KB of `.d.ts`. The generator prunes to the paths we
+  call (`account-v1`, `summoner-v4`, `league-v4`, `match-v5`); timeline and `tournament-v5` are one
+  line each when a feature needs them. The file grows by decision, not by Riot adding Valorant.
+- **Generated is generated.** `apps/api/src/riot/generated/riot-api.d.ts`, never hand-edited,
+  excluded from Biome, regenerated with `bun run riot:types` (which can run `--check` in CI).
+  Review is by spec hash + the paths we use, not by reading 13k lines.
+- **No generated runtime schemas.** Runtime is a small TypeBox (`t`) set for only the fields §8
+  stores, checked with `Value` from `@sinclair/typebox/value`: unknown fields pass, a *consumed*
+  field that disappears fails. Validating a generated 650-field `MatchDto` on every game would be
+  the opposite of that — and would fail on spec drift in fields we never read.
+- **Types stop at `src/riot/`.** The client returns our shapes (§1); generated DTOs never leak into
+  routes, the DB or the SPA.
+- **Why not `openapi-zod-client`** (what Hex-Tractor uses): it emits zod 3 + zodios + axios. This
+  repo has zod 4 transitively and TypeBox at the route boundary; types-only keeps runtime deps at
+  zero and avoids a second validation library.
+
+Fixtures make the narrow layer real without a key in CI: `scripts/record-riot-fixtures.ts` records
+one response per call with our key, puuids/names are anonymised, and the files are committed under
+`apps/api/test/fixtures/riot/`. Unit tests replay them; `bun run riot:contract` (manual, needs the
+key) refetches and diffs. `bun run test` never needs network or a key.
+
+Two boundaries worth writing down: the community repo is GPL-2.0 — pin by hash and commit generated
+**types**, not its files, until the license is checked. And codegen does not create data Riot does
+not expose: `match-v5` covers ranked games by `queueId`, `tournament-v5` covers API-created
+tournaments, but external Liga/Prime League fixtures stay hand-entered in `matchdays`.
 
 ## 3. The three calls are one operation, three different failures
 
@@ -184,27 +230,30 @@ The fake client is the whole reason `createApp({ riot })` exists. Cases to pin b
 Integration tests (throwaway database) cover the route contract: the guard, and "the server ignores a
 client-supplied `puuid`/rank".
 
-## 10. Open: is the key called from here, or from our own proxy?
+## 10. Decided: direct — this API calls Riot, Hex-Tractor is not a dependency
 
-There is a second project in play that already runs a server component. Two shapes, and it is a
-decision for the user, not for this doc:
+We hold our own Riot production key for this project, so the client talks to Riot directly. The
+other project (Hex-Tractor, live at `hex-tractor.dump-collector.de`) was considered as a proxy and
+rejected:
 
-| | Direct: this API calls Riot | Proxy: this API calls our other server |
-| --- | --- | --- |
-| Key lives in | this API's env | one place, in the other project |
-| Rate budget | shared across whatever else uses the key — and we would not see the others | centralised, can cache across consumers |
-| Failure modes | Riot's statuses only | Riot's statuses **plus** a second thing being down |
-| Contract | Riot's | ours to define, ours to keep in sync |
-| Latency | one hop | two hops |
+- **It is device-locked.** Production requires Apple App Attest or an Android Key Attestation
+  certificate chain plus a per-request P-256 signature. Probed live on 2026-11-21:
+  `POST /api/auth/devices/register` → `400 Invalid attestation data`, every protected route →
+  `401 Missing authentication headers`. A server cannot register a device and there is no service
+  credential; the dev bypass is `SERVER_ENV=development` only.
+- **It solves a different problem.** Its harvesters feed Mongo from high-elo discovery and
+  autocomplete, not "the games of these ten team members". Its endpoints return match data, but
+  there is no tracked-roster contract to rely on.
+- **It costs more than it saves.** Adopting it adds a second store (Mongo + Redis), a second DI and
+  Zod contract, and a deploy coupling to a codebase we do not want to own.
 
-The client interface is deliberately the same either way: the proxy case swaps
-`createRiotClient({ fetch })`'s base URL, nothing else. So this can be postponed without postponing
-the work — but it should be decided before the first real key is wired in, because it decides where
-the secret and the budget live.
+The proxy shape is recorded here so it is not rediscovered: centralising the key and budget is only
+worth it if the key had to be shared. Ours does not, so direct wins: one hop, Riot's statuses only,
+the key in this API's env (§7).
 
 ## 11. Open questions
 
-1. **Direct or through our own proxy?** §10 — the user's call.
+1. ~~**Direct or through our own proxy?**~~ **Resolved:** direct (§10).
 2. **Which platform(s) do we offer?** A select with the EU platforms, or the full list? `euw1`
    default is settled; the length of the select is not.
 3. **Do we refresh snapshots on a schedule, or only on demand?** On demand is enough for a profile
