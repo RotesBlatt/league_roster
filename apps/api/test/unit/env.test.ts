@@ -142,3 +142,44 @@ describe('readEnv log config', () => {
     expect(readEnv({ ...base, LOG_SLOW_MS: 'abc' }, { warn: false }).log.slowMs).toBe(500)
   })
 })
+
+/**
+ * The Riot key is a server secret read at boot (riot-api.md §7). One rule: **a key means the
+ * lookup may call Riot, no key means it never does** — there is no second flag to reason about.
+ */
+describe('readEnv riot settings', () => {
+  const key = 'RGAPI-12345678-1234-1234-1234-1234567890ab'
+
+  test('no key: not configured, so nothing may call Riot', () => {
+    const env = readEnv(base, { warn: false })
+
+    expect(env.riotConfigured).toBe(false)
+    expect(env.riot.apiKey).toBe('')
+  })
+
+  test('a key configures the lookup — and that is the whole switch', () => {
+    const env = readEnv({ ...base, RIOT_API_KEY: key }, { warn: false })
+
+    expect(env.riotConfigured).toBe(true)
+    expect(env.riot.apiKey).toBe(key)
+  })
+
+  test('a blank or whitespace-only key is not a key', () => {
+    for (const value of ['', '   ']) {
+      expect(readEnv({ ...base, RIOT_API_KEY: value }, { warn: false }).riotConfigured).toBe(false)
+    }
+  })
+
+  test('a key pasted with spaces or a trailing newline is trimmed', () => {
+    expect(
+      readEnv(
+        {
+          ...base,
+          RIOT_API_KEY: ` ${key}
+`,
+        },
+        { warn: false },
+      ).riot.apiKey,
+    ).toBe(key)
+  })
+})

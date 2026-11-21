@@ -48,6 +48,10 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     clientId: source.DISCORD_CLIENT_ID ?? '',
     clientSecret: source.DISCORD_CLIENT_SECRET ?? '',
   }
+  const riot = {
+    // trailing whitespace and a newline survive a copy-paste into .env; trim them here, once
+    apiKey: (source.RIOT_API_KEY ?? '').trim(),
+  }
 
   const env = {
     isProduction,
@@ -58,6 +62,7 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     databaseUrl,
     webDist: resolve(REPO_ROOT, source.WEB_DIST ?? 'apps/web/dist'),
     discord,
+    riot,
     log: {
       level: envLogLevel(source.LOG_LEVEL),
       toFile: envBool(source.LOG_TO_FILE, true),
@@ -69,6 +74,14 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
 
     get discordConfigured() {
       return Boolean(discord.clientId && discord.clientSecret)
+    },
+    /**
+     * The key is the only switch: present means the lookup may call Riot, absent means it never
+     * does. There is deliberately no second flag — "configured but disabled" is a state nobody
+     * can explain in a bug report (riot-api.md §7, simplified).
+     */
+    get riotConfigured() {
+      return riot.apiKey.length > 0
     },
     /** host:port/db without credentials, for logs */
     get databaseTarget() {
@@ -106,6 +119,8 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     if (!source.BETTER_AUTH_SECRET) {
       console.warn('[env] Using an insecure dev BETTER_AUTH_SECRET — set it in .env for real use.')
     }
+    // the key itself is a secret: say whether the lookup is on, never what it is
+    if (env.riotConfigured) console.info('[env] riot lookup enabled')
   }
 
   return env
