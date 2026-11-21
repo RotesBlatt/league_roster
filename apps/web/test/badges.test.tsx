@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { ROLE_LABELS, ROLES } from '@lol/shared'
 import { MantineProvider } from '@mantine/core'
 import { render, screen } from '@testing-library/react'
-import { RoleBadge, StatusBadge } from '../src/components/badges.tsx'
+import { MainBadge, RoleBadge, StatusBadge, UnverifiedBadge } from '../src/components/badges.tsx'
 
 function ui(node: React.ReactNode) {
   return render(<MantineProvider>{node}</MantineProvider>)
@@ -22,6 +22,31 @@ describe('RoleBadge', () => {
     const { container } = ui(<RoleBadge {...props} />)
 
     expect(container.querySelector('[class*="mantine-Badge"]')).not.toBeNull()
+  })
+})
+
+describe('MainBadge', () => {
+  test('marks the account used for the real games', () => {
+    ui(<MainBadge />)
+
+    expect(screen.getByText('main')).toBeDefined()
+  })
+})
+
+describe('UnverifiedBadge', () => {
+  test('an account never checked against Riot is shown as unverified, not as broken', () => {
+    ui(<UnverifiedBadge verifiedAt={null} />)
+
+    expect(screen.getByText('unverified')).toBeDefined()
+  })
+
+  test('a checked account carries no badge at all', () => {
+    // Mantine injects its styles into the container, so "renders nothing" is asserted on the
+    // badge element, not on textContent
+    const { container } = ui(<UnverifiedBadge verifiedAt={1_700_000_000_000} />)
+
+    expect(screen.queryByText('unverified')).toBeNull()
+    expect(container.querySelector('[class*="mantine-Badge"]')).toBeNull()
   })
 })
 

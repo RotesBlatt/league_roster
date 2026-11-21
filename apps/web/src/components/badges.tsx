@@ -19,6 +19,29 @@ export function RoleBadge({ role }: { role: Role }) {
   )
 }
 
+/** Marks the one account used for the real Prime League games. */
+export function MainBadge() {
+  return (
+    <Badge color="brand" variant="filled">
+      main
+    </Badge>
+  )
+}
+
+/**
+ * "Unverified" is a state, not an error: the account was typed in but never checked against Riot
+ * (docs/ideas/integrations/riot-api.md §5). A checked account shows nothing — a second badge
+ * saying "verified" would be noise on every row.
+ */
+export function UnverifiedBadge({ verifiedAt }: { verifiedAt: number | null }) {
+  if (verifiedAt !== null) return null
+  return (
+    <Badge color="yellow" variant="light">
+      unverified
+    </Badge>
+  )
+}
+
 export function StatusBadge({ me }: { me: Me }) {
   // null status == no membership in any team (as opposed to 'disabled', a decision)
   if (!me.status) return <Badge color="gray">no team</Badge>
