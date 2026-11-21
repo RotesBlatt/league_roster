@@ -13,15 +13,6 @@ export function useMe() {
   })
 }
 
-/** Team-scoped hooks take the slug from the route (/t/:slug/...). */
-export function usePlayers(slug: string) {
-  return useQuery({
-    queryKey: ['players', slug],
-    queryFn: () => unwrap(api.teams({ slug }).players.get()),
-    enabled: slug.length > 0,
-  })
-}
-
 /** The teams I may act as (`GET /api/teams`) — what the switcher lists. */
 export function useMyTeams() {
   return useQuery({

@@ -288,7 +288,7 @@ describe('POST /api/teams', () => {
     const me = (await res.json()) as { teamSlug: string | null; role: string; status: string }
     expect(me).toMatchObject({ teamSlug: 'gruene-hoelle', role: 'captain', status: 'active' })
 
-    const roster = await call('/api/teams/gruene-hoelle/players', { cookie })
+    const roster = await call('/api/teams/gruene-hoelle/roster', { cookie })
     expect(roster.status).toBe(200)
     expect(await roster.json()).toEqual([])
   })
@@ -313,11 +313,11 @@ describe('POST /api/teams', () => {
     expect(bobTeam.status).toBe(200)
 
     expect(
-      await (await call('/api/teams/alice-ascending/players', { cookie: aliceCookie })).json(),
+      await (await call('/api/teams/alice-ascending/roster', { cookie: aliceCookie })).json(),
     ).toEqual([])
     // the other team's slug answers like one that does not exist
-    const foreign = await call('/api/teams/bob-battalion/players', { cookie: aliceCookie })
-    const unknown = await call('/api/teams/no-such-team/players', { cookie: aliceCookie })
+    const foreign = await call('/api/teams/bob-battalion/roster', { cookie: aliceCookie })
+    const unknown = await call('/api/teams/no-such-team/roster', { cookie: aliceCookie })
     expect(foreign.status).toBe(404)
     expect(await foreign.json()).toEqual(await unknown.json())
   })

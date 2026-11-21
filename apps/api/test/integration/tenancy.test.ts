@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { rosterEntries } from '../../src/db/schema.ts'
 import {
   addMembership,
   createSessionCookie,
@@ -41,14 +42,21 @@ beforeAll(async () => {
   captainACookie = await createSessionCookie(ctx, captainA)
   captainBCookie = await createSessionCookie(ctx, captainB)
 
-  const created = (await (
-    await call('/api/teams/alpha/players', {
-      cookie: captainACookie,
-      method: 'POST',
-      body: { displayName: 'Alpha mid', role: 'MID' },
+  // a roster entry is a member of the team now, so the fixture is an insert, not a free-typed row
+  const [created] = await ctx.db
+    .insert(rosterEntries)
+    .values({
+      id: crypto.randomUUID(),
+      teamId: teamA,
+      userId: captainA,
+      note: 'Alpha mid',
+      roleOverride: 'MID',
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     })
-  ).json()) as { id: string }
-  playerA = created.id
+    .returning()
+  playerA = created!.id
 })
 
 afterAll(async () => {
@@ -59,12 +67,12 @@ afterAll(async () => {
 describe('reads never cross a team boundary', () => {
   test('each roster is its own', async () => {
     const alpha = (await (
-      await call('/api/teams/alpha/players', { cookie: captainACookie })
+      await call('/api/teams/alpha/roster', { cookie: captainACookie })
     ).json()) as {
       id: string
     }[]
     const bravo = (await (
-      await call('/api/teams/bravo/players', { cookie: captainBCookie })
+      await call('/api/teams/bravo/roster', { cookie: captainBCookie })
     ).json()) as {
       id: string
     }[]
@@ -74,31 +82,36 @@ describe('reads never cross a team boundary', () => {
   })
 
   test('reading the other team is a 404, not a 403', async () => {
-    const res = await call('/api/teams/bravo/players', { cookie: captainACookie })
+    const res = await call('/api/teams/bravo/roster', { cookie: captainACookie })
     expect(res.status).toBe(404)
     // identical to an unknown team, so the answer cannot confirm bravo exists
-    const unknown = await call('/api/teams/nope/players', { cookie: captainACookie })
+    const unknown = await call('/api/teams/nope/roster', { cookie: captainACookie })
     expect(await res.json()).toEqual(await unknown.json())
   })
 })
 
 describe('writes never cross a team boundary', () => {
-  test('a player created in alpha has alpha as its teamId', async () => {
-    const rows = (await (
-      await call('/api/teams/alpha/players', { cookie: captainACookie })
-    ).json()) as { teamId: string }[]
-    expect(rows[0]?.teamId).not.toBeNull()
+  test('the entry belongs to alpha’s roster and to no other', async () => {
+    const alpha = (await (
+      await call('/api/teams/alpha/roster', { cookie: captainACookie })
+    ).json()) as { id: string }[]
+    const bravo = (await (
+      await call('/api/teams/bravo/roster', { cookie: captainBCookie })
+    ).json()) as { id: string }[]
+
+    expect(alpha.map((row) => row.id)).toEqual([playerA])
+    expect(bravo).toEqual([])
   })
 
   test('captain B cannot patch or delete team A’s player by id', async () => {
-    const patch = await call(`/api/teams/bravo/players/${playerA}`, {
+    const patch = await call(`/api/teams/bravo/roster/${playerA}`, {
       cookie: captainBCookie,
       method: 'PATCH',
       body: { note: 'stolen' },
     })
     expect(patch.status).toBe(404)
 
-    const remove = await call(`/api/teams/bravo/players/${playerA}`, {
+    const remove = await call(`/api/teams/bravo/roster/${playerA}`, {
       cookie: captainBCookie,
       method: 'DELETE',
     })
@@ -129,11 +142,12 @@ describe('writes never cross a team boundary', () => {
     expect(bravoInvites.find((row) => row.id === created.id)?.revokedAt).toBeNull()
   })
 
-  test('...and the player is untouched', async () => {
+  test('...and the entry is untouched', async () => {
     const rows = (await (
-      await call('/api/teams/alpha/players', { cookie: captainACookie })
+      await call('/api/teams/alpha/roster', { cookie: captainACookie })
     ).json()) as { id: string; note: string | null }[]
-    expect(rows.find((row) => row.id === playerA)).toMatchObject({ note: null })
+    // captain B's PATCH named 'stolen'; alpha's note is still the one it started with
+    expect(rows.find((row) => row.id === playerA)).toMatchObject({ note: 'Alpha mid' })
   })
 
   test('captain A cannot patch a member of bravo', async () => {

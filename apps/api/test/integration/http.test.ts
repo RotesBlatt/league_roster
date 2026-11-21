@@ -76,7 +76,7 @@ describe('unauthenticated surface', () => {
   test('guarded routes answer 401 without a cookie', async () => {
     for (const path of [
       '/api/me',
-      '/api/teams/alpha/players',
+      '/api/teams/alpha/roster',
       '/api/teams/alpha/invites',
       '/api/teams/alpha/members',
     ]) {
@@ -99,130 +99,19 @@ describe('accounts that are not members of the team', () => {
   })
 
   test('a team-less account gets 404, exactly like a stranger to that team', async () => {
-    const res = await call('/api/teams/alpha/players', { cookie: outsiderCookie })
+    const res = await call('/api/teams/alpha/roster', { cookie: outsiderCookie })
     expect(res.status).toBe(404)
     expect(await res.json()).toMatchObject({ message: 'Not found' })
   })
 
   test('an unknown slug is the same 404', async () => {
-    expect((await call('/api/teams/nope/players', { cookie: captainACookie })).status).toBe(404)
+    expect((await call('/api/teams/nope/roster', { cookie: captainACookie })).status).toBe(404)
   })
 
   test('a disabled membership gets 403 on its own team', async () => {
-    const res = await call('/api/teams/alpha/players', { cookie: disabledACookie })
+    const res = await call('/api/teams/alpha/roster', { cookie: disabledACookie })
     expect(res.status).toBe(403)
     expect(await res.json()).toMatchObject({ message: 'Membership is not active' })
-  })
-})
-
-describe('players', () => {
-  test('a member can read the roster', async () => {
-    const res = await call('/api/teams/alpha/players', { cookie: memberACookie })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual([])
-  })
-
-  test('a member cannot write the roster', async () => {
-    const res = await call('/api/teams/alpha/players', {
-      cookie: memberACookie,
-      method: 'POST',
-      body: { displayName: 'Nope', role: 'MID' },
-    })
-    expect(res.status).toBe(403)
-    expect(await res.json()).toMatchObject({ message: 'Captain only' })
-  })
-
-  test('a captain can add players, and empty strings become null', async () => {
-    const res = await call('/api/teams/alpha/players', {
-      cookie: captainACookie,
-      method: 'POST',
-      body: {
-        displayName: 'Faker',
-        role: 'MID',
-        riotGameName: 'Hide on bush',
-        riotTagLine: 'EUW',
-        note: '',
-        isActive: true,
-      },
-    })
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({
-      displayName: 'Faker',
-      role: 'MID',
-      note: null,
-      isActive: true,
-      userId: null,
-    })
-  })
-
-  test('an unknown role is a validation error', async () => {
-    const res = await call('/api/teams/alpha/players', {
-      cookie: captainACookie,
-      method: 'POST',
-      body: { displayName: 'Bad role', role: 'SUPPORT' },
-    })
-    expect(res.status).toBe(422)
-    expect(await res.json()).toMatchObject({ message: 'Invalid input' })
-  })
-
-  test('the roster is ordered by position, not alphabetically', async () => {
-    await call('/api/teams/alpha/players', {
-      cookie: captainACookie,
-      method: 'POST',
-      body: { displayName: 'Top laner', role: 'TOP' },
-    })
-    await call('/api/teams/alpha/players', {
-      cookie: captainACookie,
-      method: 'POST',
-      body: { displayName: 'ADC', role: 'ADC' },
-    })
-
-    const roles = (
-      (await (await call('/api/teams/alpha/players', { cookie: memberACookie })).json()) as {
-        role: string
-      }[]
-    ).map((player) => player.role)
-
-    expect(roles).toEqual(['TOP', 'MID', 'ADC'])
-  })
-
-  test('patching and deleting works for a captain', async () => {
-    const created = (await (
-      await call('/api/teams/alpha/players', {
-        cookie: captainACookie,
-        method: 'POST',
-        body: { displayName: 'Temporary', role: 'SUP' },
-      })
-    ).json()) as { id: string }
-
-    const patched = await call(`/api/teams/alpha/players/${created.id}`, {
-      cookie: captainACookie,
-      method: 'PATCH',
-      body: { isActive: false },
-    })
-    expect(patched.status).toBe(200)
-    // regression: t.UnionEnum injects its first value as a default, which used to rewrite
-    // role to 'TOP' whenever a patch did not mention it
-    expect(await patched.json()).toMatchObject({ isActive: false, role: 'SUP' })
-
-    expect(
-      (
-        await call(`/api/teams/alpha/players/${created.id}`, {
-          cookie: captainACookie,
-          method: 'DELETE',
-        })
-      ).status,
-    ).toBe(200)
-    expect(
-      (
-        await call(`/api/teams/alpha/players/${created.id}`, {
-          cookie: captainACookie,
-          method: 'PATCH',
-          body: { note: 'x' },
-        })
-      ).status,
-    ).toBe(404)
   })
 })
 
@@ -404,7 +293,7 @@ describe('members', () => {
     })
     expect(res.status).toBe(200)
 
-    const blocked = await call('/api/teams/alpha/players', { cookie: memberACookie })
+    const blocked = await call('/api/teams/alpha/roster', { cookie: memberACookie })
     expect(blocked.status).toBe(403)
     expect(await blocked.json()).toMatchObject({ message: 'Membership is not active' })
   })

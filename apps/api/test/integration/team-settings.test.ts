@@ -117,10 +117,8 @@ describe('PATCH /api/teams/:slug', () => {
     })
 
     // the answer is what the SPA navigates with: the new slug actually routes
-    expect((await call(`/api/teams/${newSlug}/players`, { cookie: captainCookie })).status).toBe(
-      200,
-    )
-    expect((await call(`/api/teams/${slug}/players`, { cookie: captainCookie })).status).toBe(404)
+    expect((await call(`/api/teams/${newSlug}/roster`, { cookie: captainCookie })).status).toBe(200)
+    expect((await call(`/api/teams/${slug}/roster`, { cookie: captainCookie })).status).toBe(404)
 
     // and the switcher lists it under the new name
     const listed = (await (await call('/api/teams', { cookie: captainCookie })).json()) as Array<{

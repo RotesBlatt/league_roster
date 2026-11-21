@@ -223,7 +223,7 @@ describe('auth.denied', () => {
     const before = records().length
 
     await call('/api/me')
-    await call('/api/teams/alpha/players', { cookie: outsiderCookie })
+    await call('/api/teams/alpha/roster', { cookie: outsiderCookie })
     await settle(before + 4)
 
     const emitted = since(before)
@@ -349,45 +349,6 @@ describe('invite events', () => {
 })
 
 describe('roster events', () => {
-  test('player create, update and delete carry the player id and the actor', async () => {
-    const before = records().length
-    const created = await call('/api/teams/alpha/players', {
-      method: 'POST',
-      body: { displayName: 'Roster Guy', role: 'MID' },
-      cookie: captainCookie,
-    })
-    expect(created.status).toBe(200)
-    const player = (await created.json()) as { id: string }
-    await settle(before + 2)
-    expect(since(before).find((record) => record.event === 'player.created')).toMatchObject({
-      playerId: player.id,
-      byUserId: captainId,
-    })
-
-    const beforeUpdate = records().length
-    await call(`/api/teams/alpha/players/${player.id}`, {
-      method: 'PATCH',
-      body: { displayName: 'Renamed' },
-      cookie: captainCookie,
-    })
-    await settle(beforeUpdate + 2)
-    expect(since(beforeUpdate).find((record) => record.event === 'player.updated')).toMatchObject({
-      playerId: player.id,
-      byUserId: captainId,
-    })
-
-    const beforeDelete = records().length
-    await call(`/api/teams/alpha/players/${player.id}`, {
-      method: 'DELETE',
-      cookie: captainCookie,
-    })
-    await settle(beforeDelete + 2)
-    expect(since(beforeDelete).find((record) => record.event === 'player.deleted')).toMatchObject({
-      playerId: player.id,
-      byUserId: captainId,
-    })
-  })
-
   test('a member change is logged, and rejected changes carry a reason', async () => {
     const subject = await createUser(ctx, { name: 'Subject' })
     await addMembership(ctx, { teamId, userId: subject, role: 'member' })

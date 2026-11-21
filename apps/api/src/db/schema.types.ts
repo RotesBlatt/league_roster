@@ -55,18 +55,6 @@ export type RiotAccountDto = {
   verifiedAt: number | null
 }
 
-export type PlayerDto = {
-  id: string
-  displayName: string
-  role: Role
-  riotGameName: string | null
-  riotTagLine: string | null
-  teamId: string
-  note: string | null
-  isActive: boolean
-  userId: string | null
-}
-
 export type InviteDto = {
   id: string
   code: string
