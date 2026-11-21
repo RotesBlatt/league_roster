@@ -7,7 +7,7 @@ import { AccountsSection, ProfileSection } from '../components/profile-sections.
  */
 export function ProfilePage() {
   return (
-    <Stack gap="lg" maw={640}>
+    <Stack gap="lg" maw={640} mx="auto" w="100%">
       <div>
         <Title order={2}>My profile</Title>
         <Text size="sm" c="dimmed">
