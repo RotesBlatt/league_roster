@@ -1,5 +1,16 @@
 import { MEMBER_STATUSES, ROLES, USER_ROLES } from '@lol/shared'
-import { boolean, index, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 /**
  * Postgres schema.
@@ -70,6 +81,66 @@ export const verification = pgTable(
     updatedAt: updatedAt,
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
+)
+
+/**
+ * What a player says about themselves — one row per person, global, and independent of any team.
+ * Player-owned (player-profiles.md §2): the roster entry a captain writes is a different table.
+ *
+ * No row at all means "never set up"; the profile is then judged complete by
+ * `missingProfileFields` in @lol/shared, never by a stored flag.
+ */
+export const profile = pgTable('profile', {
+  id: text('id').primaryKey(),
+  userId: text('userId')
+    .notNull()
+    .unique()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  displayName: text('displayName').notNull(),
+  /** Position preference (TOP…SUP), not the permission — that is `membership.role`. */
+  preferredRole: text('preferredRole', { enum: ROLES }).notNull(),
+  /**
+   * `YYYY-MM-DD`: a birthday is a wall-clock date, so it must not become an instant.
+   * **Nullable on purpose** — it is personal data, and someone who declines to share it must
+   * not be nagged or forced to invent a date. A null birthday is not "incomplete"; it is a person
+   * who chose not to say, and the birthday list simply skips them.
+   */
+  birthday: date('birthday', { mode: 'string' }),
+  updatedAt: updatedAt.notNull(),
+})
+
+/**
+ * A League account the player owns. Several per person, **at most one main**.
+ *
+ * The main is a partial unique index rather than a `mainAccountId` on `profile`: the latter can
+ * point at nothing, or at another user's account, after two independent updates.
+ *
+ * `puuid` is Riot's stable identity (renames change the Riot ID); it stays NULL until validation
+ * exists, and becomes required the moment it does — see docs/ideas/integrations/riot-api.md.
+ */
+export const riotAccounts = pgTable(
+  'riot_account',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    gameName: text('gameName').notNull(),
+    tagLine: text('tagLine').notNull(),
+    /** Platform code (`euw1`, `eun1`, …) — decides which host answers summoner/rank later. */
+    platform: text('platform').notNull().default('euw1'),
+    puuid: text('puuid'),
+    isMain: boolean('isMain').notNull().default(false),
+    /** null = typed in, never checked against Riot: shown as "unverified", not as an error. */
+    verifiedAt: timestamp('verifiedAt', { withTimezone: true, mode: 'date' }),
+    fetchedAt: timestamp('fetchedAt', { withTimezone: true, mode: 'date' }),
+    createdAt: createdAt.notNull(),
+  },
+  (table) => [
+    // the label is unique per person; the same label may exist for two people until one proves it
+    unique('riot_account_userId_riot_id_idx').on(table.userId, table.gameName, table.tagLine),
+    uniqueIndex('riot_account_one_main_idx').on(table.userId).where(sql`${table.isMain}`),
+  ],
 )
 
 /** One row per person on the roster. Optionally linked to a login. */
@@ -152,5 +223,7 @@ export const invites = pgTable(
 )
 
 export type UserRow = typeof user.$inferSelect
+export type ProfileRow = typeof profile.$inferSelect
+export type RiotAccountRow = typeof riotAccounts.$inferSelect
 export type PlayerRow = typeof players.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
