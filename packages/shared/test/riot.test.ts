@@ -8,7 +8,6 @@ import {
   isTier,
   PLATFORM_LABELS,
   platformRegion,
-  QUEUE_LABELS,
   QUEUES,
   RIOT_PLATFORMS,
   TIERS,
@@ -96,11 +95,5 @@ describe('rank vocabulary guards', () => {
   test('solo queue comes first: it is the primary rank the card shows', () => {
     expect(QUEUES[0]).toBe('RANKED_SOLO_5x5')
     expect(QUEUES[1]).toBe('RANKED_FLEX_SR')
-  })
-
-  test('every queue has a label', () => {
-    for (const queue of QUEUES) {
-      expect(QUEUE_LABELS[queue].length).toBeGreaterThan(0)
-    }
   })
 })

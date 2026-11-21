@@ -134,11 +134,6 @@ export function isQueue(value: unknown): value is Queue {
   return typeof value === 'string' && (QUEUES as readonly string[]).includes(value)
 }
 
-export const QUEUE_LABELS: Record<Queue, string> = {
-  RANKED_SOLO_5x5: 'Ranked Solo/Duo',
-  RANKED_FLEX_SR: 'Ranked Flex',
-}
-
 /** Longest display name we accept. Same number the player's own profile and the roster use. */
 export const DISPLAY_NAME_MAX = 40
 
