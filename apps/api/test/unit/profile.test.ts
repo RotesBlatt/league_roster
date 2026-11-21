@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DISPLAY_NAME_MAX } from '@lol/shared'
-import { normalizeProfileInput, toProfileDto } from '../../src/lib/profile.ts'
+import { normalizeProfileInput, parseRole, toProfileDto } from '../../src/lib/profile.ts'
 
 /**
  * The rules a route must not decide for itself (AGENTS: "a route handler that thinks is a route
@@ -87,6 +87,21 @@ describe('normalizeProfileInput', () => {
     )
 
     expect(problems.map((problem) => problem.field)).toEqual(['displayName', 'birthday'])
+  })
+})
+
+describe('parseRole', () => {
+  test('accepts every role we know', () => {
+    for (const role of ['TOP', 'JGL', 'MID', 'ADC', 'SUP'] as const) {
+      expect(parseRole(role)).toBe(role)
+    }
+  })
+
+  test('rejects anything else, instead of guessing a default', () => {
+    // the full Riot name and a lowercase variant are both unknown here
+    expect(parseRole('JUNGLE')).toBeNull()
+    expect(parseRole('mid')).toBeNull()
+    expect(parseRole('')).toBeNull()
   })
 })
 

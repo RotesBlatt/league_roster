@@ -8,11 +8,6 @@ import { t } from 'elysia'
  * keeps omitted properties omitted.
  */
 export const roleSchema = t.UnionEnum(ROLES, { default: undefined })
-/**
- * A role that must be *present*. `roleSchema` above allows omission (so a PATCH keeps the old
- * value); a full replace needs the opposite, and `t.UnionEnum` would inject its own default.
- */
-export const requiredRoleSchema = t.Union(ROLES.map((role) => t.Literal(role)))
 export const memberStatusSchema = t.UnionEnum(MEMBER_STATUSES, { default: undefined })
 export const userRoleSchema = t.UnionEnum(USER_ROLES, { default: undefined })
 

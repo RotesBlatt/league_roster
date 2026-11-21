@@ -1,4 +1,4 @@
-import { DISPLAY_NAME_MAX, isValidBirthday, type Role } from '@lol/shared'
+import { DISPLAY_NAME_MAX, isValidBirthday, ROLES, type Role } from '@lol/shared'
 import type { ProfileDto } from '../db/schema.types.ts'
 
 /**
@@ -69,6 +69,17 @@ export function normalizeProfileInput(input: ProfileInput, today: string): Norma
     },
     problems,
   }
+}
+
+/**
+ * The role, or null when the string is not one of ours.
+ *
+ * Deliberately *not* a TypeBox union in the route: Eden infers such a union as `never`, and a
+ * business rule expressed as a tested function is easier to trust than one expressed as schema
+ * shape. The route stays a wiring step.
+ */
+export function parseRole(value: string): Role | null {
+  return (ROLES as readonly string[]).includes(value) ? (value as Role) : null
 }
 
 /** Today as `YYYY-MM-DD`, which is the format the birthday rule compares against. */

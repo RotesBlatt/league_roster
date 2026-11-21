@@ -5,8 +5,7 @@ import type { Db } from '../db/index.ts'
 import { profile } from '../db/schema.ts'
 import type { Logger } from '../lib/log/logger.ts'
 import { noopLogger } from '../lib/log/noop.ts'
-import { normalizeProfileInput, todayIso, toProfileDto } from '../lib/profile.ts'
-import { requiredRoleSchema } from '../lib/validate.ts'
+import { normalizeProfileInput, parseRole, todayIso, toProfileDto } from '../lib/profile.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
 
 /**
@@ -18,7 +17,8 @@ import type { AuthPlugin } from '../plugins/auth.ts'
  */
 const profileBody = t.Object({
   displayName: t.String({ maxLength: DISPLAY_NAME_MAX }),
-  preferredRole: requiredRoleSchema,
+  /** Checked by `parseRole`, not by a schema union — see the note there. */
+  preferredRole: t.String({ maxLength: 16 }),
   /** `YYYY-MM-DD`, or omitted/empty when the player declines to share it. */
   birthday: t.Optional(t.Union([t.String(), t.Null()])),
 })
@@ -55,7 +55,15 @@ export function createProfileRoutes(
       .put(
         '/profile',
         async ({ body, me, status, request }) => {
-          const { values, problems } = normalizeProfileInput(body, todayIso())
+          const preferredRole = parseRole(body.preferredRole)
+          if (!preferredRole) {
+            return status(422, {
+              message: 'Invalid profile',
+              details: [{ path: 'preferredRole', message: 'Unknown role' }],
+            })
+          }
+
+          const { values, problems } = normalizeProfileInput({ ...body, preferredRole }, todayIso())
           if (problems.length > 0) {
             return status(422, {
               message: 'Invalid profile',
