@@ -115,6 +115,52 @@ export function createRiotAccountRoutes(
       },
       { auth: true, body: accountBody },
     )
+    .put(
+      '/:id/main',
+      async ({ params: { id }, me, status, request }) => {
+        const result = await db.transaction(async (tx) => {
+          await lockPlayer(tx, me.id)
+
+          const [target] = await tx
+            .select()
+            .from(riotAccounts)
+            // the userId predicate is what makes another player's id a 404
+            .where(and(eq(riotAccounts.id, id), eq(riotAccounts.userId, me.id)))
+            .limit(1)
+
+          if (!target) return undefined
+          // already main: nothing to write, and the caller still gets the account back
+          if (target.isMain) return target
+
+          // Down before up. A single `set isMain = (id = target)` can trip the partial unique
+          // index on row order; two statements inside one transaction cannot leave the player
+          // with two mains or, once committed, with none.
+          await tx
+            .update(riotAccounts)
+            .set({ isMain: false })
+            .where(and(eq(riotAccounts.userId, me.id), eq(riotAccounts.isMain, true)))
+
+          const [updated] = await tx
+            .update(riotAccounts)
+            .set({ isMain: true })
+            .where(eq(riotAccounts.id, target.id))
+            .returning()
+
+          return updated
+        })
+
+        if (!result) return status(404, NOT_FOUND)
+
+        const log = requestLogger?.(request) ?? noopLogger
+        log.info('riot_account.main_changed', {
+          userId: me.id,
+          accountId: result.id,
+        })
+
+        return toRiotAccountDto(result)
+      },
+      { auth: true, params: t.Object({ id: t.String() }) },
+    )
     .delete(
       '/:id',
       async ({ params: { id }, me, status, request }) => {

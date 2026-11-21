@@ -124,6 +124,60 @@ describe('POST /api/me/riot-accounts', () => {
   })
 })
 
+describe('PUT /api/me/riot-accounts/:id/main', () => {
+  const setMain = (id: string, who = cookie) =>
+    call(`/api/me/riot-accounts/${id}/main`, { method: 'PUT', cookie: who })
+
+  test('is closed to anonymous callers', async () => {
+    const [, second] = await twoAccounts()
+    expect((await setMain(second.id, '')).status).toBe(401)
+  })
+
+  test('switching makes the target the one and only main', async () => {
+    const [wasMain, target] = await twoAccounts()
+
+    const response = await setMain(target.id)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ id: target.id, isMain: true })
+
+    const list = await accounts()
+    expect(list.filter((account) => account.isMain).map((account) => account.id)).toEqual([
+      target.id,
+    ])
+    // the old main is still there, just no longer main
+    expect(list.map((account) => account.id)).toContain(wasMain.id)
+  })
+
+  test('switching to the account that is already main is a harmless no-op', async () => {
+    const main = await firstAccount()
+
+    expect((await setMain(main.id)).status).toBe(200)
+    expect(
+      (await accounts()).filter((account) => account.isMain).map((account) => account.id),
+    ).toEqual([main.id])
+  })
+
+  test('another player’s account cannot be taken over: 404, and their main is untouched', async () => {
+    const theirs = (await accounts(otherCookie))[0]
+    if (!theirs) throw new Error('expected the other player to have an account')
+
+    expect((await setMain(theirs.id)).status).toBe(404)
+    expect((await accounts(otherCookie)).map((account) => account.isMain)).toEqual([true])
+  })
+
+  test('an id that never existed answers 404', async () => {
+    expect((await setMain(crypto.randomUUID())).status).toBe(404)
+  })
+
+  test('switch back, so later tests start from the first account as main', async () => {
+    const [currentMain, other] = await twoAccounts()
+    expect((await setMain(other.id)).status).toBe(200)
+    expect((await accounts())[0]?.id).toBe(other.id)
+    expect(currentMain.id).not.toBe(other.id)
+  })
+})
+
 describe('DELETE /api/me/riot-accounts/:id', () => {
   test('is closed to anonymous callers', async () => {
     expect((await remove((await firstAccount()).id, '')).status).toBe(401)
