@@ -14,6 +14,23 @@ export type Me = {
   status: MemberStatus | null
 }
 
+/**
+ * One row of a team's roster: the captain's entry joined with what the player owns.
+ * Rendered straight from the join, so a profile edit shows up without a sync step.
+ */
+export type RosterEntryDto = {
+  id: string
+  userId: string
+  /** The profile name, or the Discord name while no profile exists. */
+  displayName: string
+  /** Captain's override, else the player's preference, else null (shown as unassigned). */
+  role: Role | null
+  note: string | null
+  isActive: boolean
+  /** Only the main account is a roster fact; the others belong to the profile page. */
+  mainAccount: { gameName: string; tagLine: string; verifiedAt: number | null } | null
+}
+
 /** The player's own profile (`/api/me/profile`). Global: no team is involved. */
 export type ProfileDto = {
   displayName: string
