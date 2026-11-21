@@ -1,6 +1,6 @@
 import type { Me } from '@lol/api/schema-types'
 import { AppShell, Avatar, Button, Group, Menu, Text } from '@mantine/core'
-import { IconLogout, IconShieldCog, IconUsersGroup } from '@tabler/icons-react'
+import { IconLogout, IconShieldCog, IconUser, IconUsersGroup } from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
@@ -68,6 +68,9 @@ export function AppLayout({ me }: { me: Me }) {
                 </Group>
               </Menu.Label>
               <Menu.Divider />
+              <Menu.Item leftSection={<IconUser size={16} />} onClick={() => navigate('/profile')}>
+                My profile
+              </Menu.Item>
               <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
                 Log out
               </Menu.Item>

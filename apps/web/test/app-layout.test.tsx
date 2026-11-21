@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from 'bun:test'
 import type { Me } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { installApiMock } from './api-mock.ts'
 
@@ -70,6 +70,14 @@ describe('AppLayout navigation', () => {
 
     expect(hrefOf(/Roster/)).toBe('/t/bravo/roster')
     expect(hrefOf(/Admin/)).toBe('/t/bravo/admin')
+  })
+
+  test('the user menu offers a way to the player’s own profile', async () => {
+    renderAt('/t/bravo/roster')
+
+    fireEvent.click(screen.getByRole('button', { name: /Julius/ }))
+
+    expect(await screen.findByRole('menuitem', { name: /My profile/ })).toBeDefined()
   })
 
   test('outside /t/:slug the links fall back to the account’s team', () => {

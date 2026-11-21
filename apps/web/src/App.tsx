@@ -5,6 +5,7 @@ import { AdminPage } from './pages/AdminPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { NewTeamPage } from './pages/NewTeamPage.tsx'
+import { ProfilePage } from './pages/ProfilePage.tsx'
 import { RosterPage } from './pages/RosterPage.tsx'
 
 /**
@@ -28,6 +29,8 @@ export function App() {
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/t/:slug/roster" element={<RosterPage />} />
         <Route path="/t/:slug/admin" element={<AdminPage />} />
+        {/* global: a profile belongs to a person, so no team in the path */}
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/new-team" element={<NewTeamPage />} />
       </Route>
       <Route path="*" element={<HomeRedirect />} />
