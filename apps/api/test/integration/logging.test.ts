@@ -64,7 +64,7 @@ beforeAll(async () => {
       },
     },
   })
-  server = createTestApp(ctx, spaDir, logger)
+  server = createTestApp(ctx, { spaDist: spaDir, logger })
   call = server.call
 
   const owner = await createUser(ctx, { name: 'Owner' })

@@ -8,12 +8,15 @@ import { noopLogger } from './lib/log/noop.ts'
 import { createSpa } from './lib/spa.ts'
 import { forTeam } from './lib/team-db.ts'
 import { createAuthPlugin } from './plugins/auth.ts'
+import { createRiotClient, type RiotClient } from './riot/client.ts'
+import { createThrottle, type Throttle } from './riot/throttle.ts'
 import { createClaimRoutes } from './routes/claim.ts'
 import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
+import { createRiotLookupRoutes } from './routes/riot-lookup.ts'
 import { createRosterRoutes } from './routes/roster.ts'
 import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
@@ -27,6 +30,13 @@ export type AppOptions = {
   spaDist?: string
   /** silent by default; `index.ts` builds the real one, tests inject a capture */
   logger?: Logger
+  /**
+   * inject a Riot client. The default is built from `RIOT_API_KEY`; with no key it answers
+   * `forbidden` without ever calling out, so "no key, no request" cannot be forgotten by a route.
+   */
+  riot?: RiotClient
+  /** per-user lookup budget; tests shrink it to one instead of looping eleven times */
+  riotThrottle?: Throttle
 }
 
 /**
@@ -45,6 +55,8 @@ export function createApp(options: AppOptions = {}) {
   })
   const requestLogger = (request: Request) => requestLog.requestLogger(request)
   const authPlugin = createAuthPlugin({ auth, db, requestLogger })
+  const riot = options.riot ?? createRiotClient({ apiKey: env.riot.apiKey })
+  const riotThrottle = options.riotThrottle ?? createThrottle()
 
   return (
     new Elysia()
@@ -127,6 +139,9 @@ export function createApp(options: AppOptions = {}) {
           .use(createProfileRoutes(db, authPlugin, requestLogger))
           // global: the accounts belong to the person, not to a team
           .use(createRiotAccountRoutes(db, authPlugin, requestLogger))
+          // global: one explicit Riot check, nothing written — the injected client is the only
+          // thing that can reach Riot
+          .use(createRiotLookupRoutes(riot, riotThrottle, authPlugin, requestLogger))
           // global: the code identifies the team being joined
           .use(createClaimRoutes(db, authPlugin, requestLogger))
           // global: creating a team is the act that makes you its captain, so there is

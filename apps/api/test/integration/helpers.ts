@@ -10,6 +10,8 @@ import { createDb, type Db } from '../../src/db/index.ts'
 import { account, memberships, session, teams, user } from '../../src/db/schema.ts'
 import { env } from '../../src/env.ts'
 import type { Logger } from '../../src/lib/log/logger.ts'
+import type { RiotClient } from '../../src/riot/client.ts'
+import type { Throttle } from '../../src/riot/throttle.ts'
 
 const adminUrl = process.env.TEST_DATABASE_URL
 if (!adminUrl) {
@@ -177,8 +179,15 @@ export type TestServer = {
  * Real HTTP on an ephemeral port. `app.handle(request)` does not route in this Elysia build
  * (routes only serve once listening), so tests go over the socket like a browser would.
  */
-export function createTestApp(ctx: TestContext, spaDist?: string, logger?: Logger): TestServer {
-  const app = createApp({ db: ctx.db, auth: ctx.auth, spaDist, logger })
+export type TestAppOptions = {
+  spaDist?: string
+  logger?: Logger
+  riot?: RiotClient
+  riotThrottle?: Throttle
+}
+
+export function createTestApp(ctx: TestContext, options: TestAppOptions = {}): TestServer {
+  const app = createApp({ db: ctx.db, auth: ctx.auth, ...options })
   app.listen(0)
 
   const port = (app.server as { port?: number } | undefined)?.port

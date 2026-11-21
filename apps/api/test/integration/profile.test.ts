@@ -38,7 +38,7 @@ const valid = { displayName: 'Julius', preferredRole: 'MID', birthday: '2001-07-
 
 beforeAll(async () => {
   ctx = await createTestContext()
-  server = createTestApp(ctx, undefined, logger)
+  server = createTestApp(ctx, { logger })
   call = server.call
 
   // neither user has a membership: this is exactly the "signed in, no team" state
