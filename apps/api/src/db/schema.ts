@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import {
   boolean,
   date,
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -143,7 +144,53 @@ export const riotAccounts = pgTable(
   ],
 )
 
-/** One row per person on the roster. Optionally linked to a login. */
+/**
+ * A person's place on **one team's** roster — the captain-owned half of the split
+ * (player-profiles.md §2). The player owns `profile` and `riot_account`; the captain owns the note,
+ * whether the entry is active, and may override the position the player stated.
+ *
+ * There is deliberately no `displayName` and no Riot ID here: those live on the profile, so a
+ * player editing them shows up in the roster without a sync step — by construction, not by a job.
+ *
+ * `userId` is **not** nullable: a roster entry is a member of the team, always. That is enforced in
+ * the database by a composite foreign key onto `membership (teamId, userId)` rather than trusted to
+ * a route, and it cascades — leaving the team removes the entry without a cleanup job
+ * (player-profiles.md §9.4). A captain can no longer type in somebody who has not joined.
+ */
+export const rosterEntries = pgTable(
+  'roster_entry',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    userId: text('userId').notNull(),
+    note: text('note'),
+    /** null → the team uses the player's own `profile.preferredRole`. */
+    roleOverride: text('roleOverride', { enum: ROLES }),
+    isActive: boolean('isActive').notNull().default(true),
+    createdAt: createdAt.notNull(),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [
+    // one entry per person per team — meaningful now that userId cannot be null
+    unique('roster_entry_teamId_userId_idx').on(table.teamId, table.userId),
+    index('roster_entry_teamId_idx').on(table.teamId),
+    // "on the roster" and "is a member" are the same fact, so the database says so. It targets
+    // membership's existing UNIQUE (teamId, userId); a user leaving removes the entry by cascade.
+    foreignKey({
+      columns: [table.teamId, table.userId],
+      foreignColumns: [memberships.teamId, memberships.userId],
+      name: 'roster_entry_membership_fk',
+    }).onDelete('cascade'),
+  ],
+)
+
+/**
+ * The **old** roster row: captain-owned from top to bottom, one per team, with the player's own
+ * fields duplicated onto it. Kept while `roster_entry` is adopted (0006 backfills it); it is
+ * dropped in a later migration, never in the one that stops writing to it.
+ */
 export const players = pgTable(
   'player',
   {
@@ -224,6 +271,7 @@ export const invites = pgTable(
 
 export type UserRow = typeof user.$inferSelect
 export type ProfileRow = typeof profile.$inferSelect
+export type RosterEntryRow = typeof rosterEntries.$inferSelect
 export type RiotAccountRow = typeof riotAccounts.$inferSelect
 export type PlayerRow = typeof players.$inferSelect
 export type InviteRow = typeof invites.$inferSelect

@@ -43,6 +43,13 @@
       "when": 1795271599566,
       "tag": "0005_mighty_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795275246098,
+      "tag": "0006_parallel_praxagora",
+      "breakpoints": true
     }
   ]
 }
