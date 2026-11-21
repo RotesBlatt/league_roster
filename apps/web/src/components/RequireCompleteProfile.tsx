@@ -26,6 +26,22 @@ export function RequireCompleteProfile() {
     )
   }
 
+  // a failed profile or account read is not "incomplete": redirecting to setup would hide the
+  // actual problem and loop the user through a form that cannot save
+  if (profile.isError || accounts.isError) {
+    const failure = profile.isError ? profile.error : accounts.error
+    return (
+      <Center h="100vh">
+        <Card maw={420}>
+          <Title order={3}>Could not load your profile</Title>
+          <Text c="dimmed" mt="xs">
+            {failure?.message ?? 'Request failed'}
+          </Text>
+        </Card>
+      </Center>
+    )
+  }
+
   if (me.isError) {
     if (isUnauthorized(me.error)) return <Navigate to="/login" replace />
     return (

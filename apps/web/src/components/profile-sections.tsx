@@ -78,6 +78,18 @@ export function ProfileSection({ saveDelayMs = 700 }: { saveDelayMs?: number } =
     return () => clearTimeout(timer)
   }, [current, profile.data, saveDelayMs, mutate])
 
+  // An empty form is indistinguishable from a broken one. If the profile could not be loaded, say
+  // so — an old API process without the route is the usual cause.
+  if (profile.isError) {
+    return (
+      <Card padding="lg">
+        <Alert color="red" icon={<IconAlertCircle size={16} />}>
+          Could not load your profile: {profile.error.message}
+        </Alert>
+      </Card>
+    )
+  }
+
   return (
     <Card padding="lg">
       {/* no submit: the fields save themselves; Enter just must not reload the page */}

@@ -1,5 +1,5 @@
 import type { ProfileDto } from '@lol/api/schema-types'
-import { DISPLAY_NAME_MAX, isValidBirthday, type Role } from '@lol/shared'
+import { DISPLAY_NAME_MAX, isValidBirthday, ROLES, type Role } from '@lol/shared'
 
 /**
  * Everything the profile form decides, kept out of the component so it can be tested without a
@@ -25,8 +25,39 @@ export type AccountBody = { gameName: string; tagLine: string }
 
 export type Drafted<T> = { ok: true; body: T } | { ok: false; message: string }
 
+const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+const isRole = (value: unknown): value is Role =>
+  typeof value === 'string' && (ROLES as readonly string[]).includes(value)
+
+/**
+ * Decodes whatever the cache or the form holds into a **valid** draft state.
+ *
+ * The input is not typed data: it is a value from the React Query cache, which during development
+ * can still hold whatever an earlier build wrote (HMR keeps the cache). Two crashes came from this
+ * — `displayName` and then `birthday` being non-strings — so the shape is checked here, once,
+ * rather than trusted in every consumer.
+ */
+/** Whatever a cache row currently looks like — hence `unknown`, checked field by field. */
+type DraftSource = { displayName?: unknown; preferredRole?: unknown; birthday?: unknown }
+
+function toDraftState(
+  value: DraftSource | null | undefined,
+  discordName: string,
+): ProfileDraftState {
+  const displayName = asString(value?.displayName)
+
+  return {
+    displayName: displayName.length > 0 ? displayName : discordName,
+    preferredRole: isRole(value?.preferredRole) ? value.preferredRole : null,
+    birthday: asString(value?.birthday),
+  }
+}
+
 export function draftProfile(draft: ProfileDraftState, today: string): Drafted<ProfileBody> {
-  const displayName = draft.displayName.trim()
+  // tolerant by construction: this runs in an effect over cache-derived state, and a non-string
+  // must read as "empty", never as a TypeError that takes the whole page down
+  const displayName = asString(draft.displayName).trim()
   if (!displayName) return { ok: false, message: 'Give the display name.' }
   if (displayName.length > DISPLAY_NAME_MAX) {
     return {
@@ -38,7 +69,7 @@ export function draftProfile(draft: ProfileDraftState, today: string): Drafted<P
   // the role is a preference, not optional: the roster and pools both read it
   if (!draft.preferredRole) return { ok: false, message: 'Pick your role.' }
 
-  const birthday = draft.birthday.trim()
+  const birthday = asString(draft.birthday).trim()
   if (birthday && !isValidBirthday(birthday, today)) {
     return { ok: false, message: 'That is not a valid birthday.' }
   }
@@ -74,13 +105,8 @@ export function draftAccount(gameName: string, tagLine: string): Drafted<Account
  * input's own empty value.
  */
 export function prefillProfile(profile: ProfileDto | null, discordName: string): ProfileDraftState {
-  if (!profile) return { displayName: discordName, preferredRole: null, birthday: '' }
-
-  return {
-    displayName: profile.displayName,
-    preferredRole: profile.preferredRole,
-    birthday: profile.birthday ?? '',
-  }
+  // the row is decoded, not trusted — see `toDraftState`
+  return toDraftState(profile, discordName)
 }
 
 /**

@@ -108,6 +108,44 @@ describe('prefillProfile', () => {
     })
   })
 
+  test('a cached row missing a field cannot crash the form', () => {
+    // the shape an older build may have left in the query cache after a hot reload
+    const stale = { preferredRole: null, birthday: null } as unknown as Parameters<
+      typeof prefillProfile
+    >[0]
+
+    expect(prefillProfile(stale, 'Julius')).toEqual({
+      displayName: 'Julius',
+      preferredRole: null,
+      birthday: '',
+    })
+  })
+
+  test('a non-string birthday or display name is decoded, not passed on to .trim()', () => {
+    // exactly the two crashes seen in the browser: a cached row whose fields were not strings
+    const stale = {
+      displayName: 42,
+      preferredRole: 'JUNGLE',
+      birthday: new Date('2001-07-14T00:00:00.000Z'),
+    } as unknown as Parameters<typeof prefillProfile>[0]
+
+    expect(prefillProfile(stale, 'Julius')).toEqual({
+      displayName: 'Julius',
+      preferredRole: null,
+      birthday: '',
+    })
+  })
+
+  test('a role that is not ours becomes "no preference" rather than an invalid select value', () => {
+    const stale = {
+      displayName: 'Jules',
+      preferredRole: 'JUNGLE',
+      birthday: null,
+    } as unknown as Parameters<typeof prefillProfile>[0]
+
+    expect(prefillProfile(stale, 'Julius').preferredRole).toBeNull()
+  })
+
   test('with a saved row, the row wins and a null birthday becomes an empty field', () => {
     expect(
       prefillProfile(
