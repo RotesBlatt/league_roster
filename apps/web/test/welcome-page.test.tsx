@@ -41,6 +41,7 @@ function renderPage() {
         <MemoryRouter initialEntries={['/welcome']}>
           <Routes>
             <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/login" element={<div>login screen</div>} />
             <Route path="/" element={<div>the app</div>} />
           </Routes>
         </MemoryRouter>
@@ -64,6 +65,14 @@ describe('WelcomePage', () => {
     // role and one account are the two things still missing at this point
     expect(screen.getByText(/role/i, { selector: '[data-missing]' })).toBeDefined()
     expect(screen.getByText(/account/i, { selector: '[data-missing]' })).toBeDefined()
+  })
+
+  test('a signed-out visitor is sent to the login screen, not shown a form that cannot save', async () => {
+    apiState.me = { data: null, error: { value: { message: 'Not signed in' } }, status: 401 }
+
+    renderPage()
+
+    expect(await screen.findByText('login screen')).toBeDefined()
   })
 
   test('Continue is unavailable while something is missing', async () => {

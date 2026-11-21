@@ -1,8 +1,8 @@
 import { missingProfileFields, type ProfileField } from '@lol/shared'
 import { Button, Group, Stack, Text, Title } from '@mantine/core'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { AccountsSection, ProfileSection } from '../components/profile-sections.tsx'
-import { useProfile, useRiotAccounts } from '../hooks.ts'
+import { isUnauthorized, useMe, useProfile, useRiotAccounts } from '../hooks.ts'
 
 /** What a person reads in place of a field name. */
 const MISSING_LABELS: Record<ProfileField, string> = {
@@ -21,8 +21,13 @@ const MISSING_LABELS: Record<ProfileField, string> = {
  */
 export function WelcomePage() {
   const navigate = useNavigate()
+  const me = useMe()
   const profile = useProfile()
   const accounts = useRiotAccounts()
+
+  // the page sits outside `RequireCompleteProfile`, so it is the only thing that can turn a
+  // signed-out visitor away — a form that cannot save would be worse than a login screen
+  if (me.isError && isUnauthorized(me.error)) return <Navigate to="/login" replace />
 
   // computed from what the server has, not from the form's unsaved edits: "Continue" must mean
   // "it is saved", or the gate would bounce you straight back
