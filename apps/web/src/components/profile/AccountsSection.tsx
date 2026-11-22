@@ -1,149 +1,24 @@
-import type { Role } from '@lol/shared'
-import {
-  DEFAULT_RIOT_PLATFORM,
-  DISPLAY_NAME_MAX,
-  PLATFORM_LABELS,
-  type Platform,
-  RIOT_PLATFORMS,
-  ROLE_LABELS,
-  ROLES,
-} from '@lol/shared'
+import { DEFAULT_RIOT_PLATFORM, PLATFORM_LABELS, type Platform, RIOT_PLATFORMS } from '@lol/shared'
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle } from '@tabler/icons-react'
-import { type SubmitEvent, useEffect, useMemo, useState } from 'react'
+import { type SubmitEvent, useState } from 'react'
 import {
   useAddRiotAccount,
-  useMe,
-  useProfile,
   useRemoveRiotAccount,
   useRiotAccounts,
-  useSaveProfile,
   useSwitchMainRiotAccount,
 } from '../../api/hooks.ts'
 import { levelLabel } from '../../lib/profile/rank.ts'
-import {
-  draftAccount,
-  draftProfile,
-  type ProfileDraftState,
-  prefillProfile,
-  profileChanged,
-  todayIso,
-} from '../../profile-form.ts'
+import { draftAccount } from '../../profile-form.ts'
 import { MainBadge, RankBadges, UnverifiedBadge } from '../Badges.tsx'
 
-const roleOptions = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
-
 /**
- * The two sections a player fills in, shared by `/profile` (edit any time) and `/welcome`
- * (first login, blocking). One implementation, so the first-run form can never drift from the
- * one you edit later.
+ * The player's League accounts: list, add, remove, and exactly one main. Shared by `/profile` and
+ * `/welcome` together with `ProfileSection`, so the first-run form cannot drift from the one you
+ * edit later.
  *
- * All the deciding lives in `profile-form.ts`; these are wiring plus layout. Nothing here talks
- * to Riot: an account is a label the player typed in, and "unverified" says so.
- */
-
-/** Display name, position preference and the optional birthday. */
-export function ProfileSection({ saveDelayMs = 700 }: { saveDelayMs?: number } = {}) {
-  const me = useMe()
-  const profile = useProfile()
-  const save = useSaveProfile()
-  const [edited, setEdited] = useState<ProfileDraftState | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
-
-  // `null` until the player touches a field: until then the form derives from what was saved, so
-  // the async profile arriving late still fills the inputs. Memoised so the autosave timer is not
-  // reset by every unrelated render.
-  const current = useMemo(
-    () => edited ?? prefillProfile(profile.data ?? null, me.data?.name ?? ''),
-    [edited, profile.data, me.data?.name],
-  )
-
-  const update = (patch: Partial<ProfileDraftState>) => {
-    setSaved(false)
-    setEdited({ ...current, ...patch })
-  }
-
-  /**
-   * Autosave: a short pause after the last keystroke, and only when the draft is valid **and**
-   * would change something. Both rules are pure (`profile-form.ts`), so "opening the page" or
-   * "typing and undoing" hooks never write.
-   */
-  const mutate = save.mutate
-  useEffect(() => {
-    const result = draftProfile(current, todayIso())
-    if (!result.ok || !profileChanged(profile.data ?? null, result.body)) return
-
-    const timer = setTimeout(() => {
-      mutate(result.body, {
-        onSuccess: () => {
-          setSaved(true)
-          setError(null)
-        },
-        onError: (caught: Error) => setError(caught.message),
-      })
-    }, saveDelayMs)
-
-    return () => clearTimeout(timer)
-  }, [current, profile.data, saveDelayMs, mutate])
-
-  // An empty form is indistinguishable from a broken one. If the profile could not be loaded, say
-  // so — an old API process without the route is the usual cause.
-  if (profile.isError) {
-    return (
-      <Card padding="lg">
-        <Alert color="red" icon={<IconAlertCircle size={16} />}>
-          Could not load your profile: {profile.error.message}
-        </Alert>
-      </Card>
-    )
-  }
-
-  return (
-    <Card padding="lg">
-      {/* no submit: the fields save themselves; Enter just must not reload the page */}
-      <form onSubmit={(event) => event.preventDefault()}>
-        <Stack gap="md">
-          <TextInput
-            label="Display name"
-            value={current.displayName}
-            onChange={(event) => update({ displayName: event.currentTarget.value })}
-            maxLength={DISPLAY_NAME_MAX}
-            required
-          />
-          <Select
-            label="Role"
-            description="The position you want to play, not a permission"
-            data={roleOptions}
-            value={current.preferredRole}
-            onChange={(value) => update({ preferredRole: value as Role | null })}
-            allowDeselect={false}
-          />
-          <TextInput
-            label="Birthday"
-            description="Optional — used for the team's birthday list, and skippable"
-            type="date"
-            value={current.birthday}
-            onChange={(event) => update({ birthday: event.currentTarget.value })}
-          />
-
-          {error ? (
-            <Alert color="red" icon={<IconAlertCircle size={16} />}>
-              {error}
-            </Alert>
-          ) : (
-            <Text size="xs" c="dimmed" ta="right" aria-live="polite">
-              {save.isPending ? 'Saving…' : saved ? 'Saved' : 'Changes save automatically'}
-            </Text>
-          )}
-        </Stack>
-      </form>
-    </Card>
-  )
-}
-
-/**
- * The player's League accounts: list, add, remove, and exactly one main.
+ * Nothing here talks to Riot: an account is a label the player typed in, and "unverified" says so.
+ * The deciding lives in `profile-form.ts`.
  *
  * `allowRemovingLast` is the one difference between the two entry points: on `/welcome` a mistyped
  * Riot ID must be deletable (down to zero, then add the right one), while on `/profile` removing
