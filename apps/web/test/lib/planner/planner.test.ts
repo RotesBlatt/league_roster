@@ -12,7 +12,7 @@ import {
   weekHeading,
   weekRange,
   weekStartsSince,
-} from '../src/planner.ts'
+} from '../../../src/lib/planner/planner.ts'
 
 /**
  * The page's view logic, without React: what the grid starts as, what the summary says, and how a

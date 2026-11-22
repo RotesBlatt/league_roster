@@ -1,4 +1,9 @@
-import { type Cell, formatMinute, type Grid, SLOT_MINUTES } from '../availability-grid.ts'
+import {
+  type Cell,
+  formatMinute,
+  type Grid,
+  SLOT_MINUTES,
+} from '../lib/planner/availability-grid.ts'
 import { cellName, ROW_HEIGHT, rowRule, WeekGridFrame } from './WeekGridFrame.tsx'
 
 /**

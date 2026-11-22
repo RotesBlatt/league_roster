@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { PlannerWeekDto } from '@lol/api/schema-types'
-import { CELLS_PER_DAY, DAYS_PER_WEEK } from '../src/availability-grid.ts'
-import { coverageFromWeek, playableFromWeek } from '../src/playable-grid.ts'
+import { CELLS_PER_DAY, DAYS_PER_WEEK } from '../../../src/lib/planner/availability-grid.ts'
+import { coverageFromWeek, playableFromWeek } from '../../../src/lib/planner/playable-grid.ts'
 
 /** A week with nothing said yet: seven days, no answers, no availability. */
 /** Indexing with `noUncheckedIndexedAccess` makes every raw `grid[d][c]` "possibly undefined". */

@@ -6,8 +6,8 @@ import {
   formatMinute,
   hourTicks,
   SLOT_MINUTES,
-} from '../availability-grid.ts'
-import { dateOfWeekDay } from '../planner.ts'
+} from '../lib/planner/availability-grid.ts'
+import { dateOfWeekDay } from '../lib/planner/planner.ts'
 
 /**
  * The week grid's chrome — the axis, the day heads, the row rules — shared by the grid you paint and

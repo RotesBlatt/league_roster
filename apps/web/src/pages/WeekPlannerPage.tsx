@@ -16,7 +16,6 @@ import { notifications } from '@mantine/notifications'
 import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { daysFromGrid, formatMinute, gridFromDays } from '../availability-grid.ts'
 import { GridEditor } from '../components/GridEditor.tsx'
 import { PlayableGrid } from '../components/PlayableGrid.tsx'
 import { RegularSlots } from '../components/RegularSlots.tsx'
@@ -32,6 +31,7 @@ import {
   useUnlockWeek,
   useWeek,
 } from '../hooks.ts'
+import { daysFromGrid, formatMinute, gridFromDays } from '../lib/planner/availability-grid.ts'
 import {
   currentWeekStart,
   flattenWindows,
@@ -43,8 +43,8 @@ import {
   weekHeading,
   weekRange,
   weekStartsSince,
-} from '../planner.ts'
-import { usePaintGrid } from '../use-paint-grid.ts'
+} from '../lib/planner/planner.ts'
+import { usePaintGrid } from '../lib/planner/use-paint-grid.ts'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

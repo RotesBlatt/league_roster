@@ -9,7 +9,7 @@ import {
   hourTicks,
   SLOT_MINUTES,
   startGesture,
-} from '../src/availability-grid.ts'
+} from '../../../src/lib/planner/availability-grid.ts'
 
 /**
  * The painted grid, without React.
