@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 import { answers, availability, availabilityTemplates, weeks } from '../../src/db/schema.ts'
-import type { PlannerDto, PlannerTemplateDto } from '../../src/db/schema.types.ts'
+import type { PlannerDto, PlannerTemplateDto, PlannerWeekDto } from '../../src/db/schema.types.ts'
 import { addDays, resolveWindowStart } from '../../src/planner/week.ts'
 import {
   addMembership,
@@ -609,5 +609,56 @@ describe('unlocking a finished week', () => {
 
     expect((await unlock(captainCookie, lastWeek(), false)).status).toBe(200)
     expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
+  })
+})
+
+describe('reading history', () => {
+  const lastWeek = () => addDays(thisWeek(), -7)
+  const weekPath = (startsOn: string) => `/api/teams/alpha/planner/${startsOn}`
+
+  const readWeek = async (cookie: string, startsOn: string): Promise<PlannerWeekDto> => {
+    const response = await call(weekPath(startsOn), { cookie })
+    expect(response.status).toBe(200)
+    return (await response.json()) as PlannerWeekDto
+  }
+
+  test('a member can read a finished week — reading is not writing', async () => {
+    const week = await readWeek(memberCookie, lastWeek())
+
+    expect(week.startsOn).toBe(lastWeek())
+    expect(week.unlocked).toBe(false)
+    expect(week.answered).toContain(members[0]!)
+    expect(week.availability).toContainEqual({
+      userId: members[0]!,
+      dayOfWeek: 1,
+      startMinute: 1200,
+      endMinute: 1380,
+    })
+  })
+
+  test('reading history does not open it: the write is still refused afterwards', async () => {
+    await readWeek(memberCookie, lastWeek())
+
+    expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
+  })
+
+  test('a week nobody ever touched reads as empty, not as missing', async () => {
+    const ancient = await readWeek(memberCookie, '2026-01-05')
+
+    expect(ancient.startsOn).toBe('2026-01-05')
+    expect(ancient.availability).toEqual([])
+    // measured against the roster the API reports, not a fixture list that grows during this file
+    expect(ancient.unanswered.sort()).toEqual([...(await planner(memberCookie)).roster].sort())
+  })
+
+  test('a date that is not a Monday is refused', async () => {
+    expect((await call(weekPath(addDays(lastWeek(), 2)), { cookie: memberCookie })).status).toBe(
+      422,
+    )
+  })
+
+  test('guards: a session and a membership are needed', async () => {
+    expect((await call(weekPath(lastWeek()))).status).toBe(401)
+    expect((await call(weekPath(lastWeek()), { cookie: outsiderCookie })).status).toBe(404)
   })
 })

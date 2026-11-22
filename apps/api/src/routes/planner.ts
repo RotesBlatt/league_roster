@@ -339,6 +339,26 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
         },
       )
       /**
+       * One week, any Monday, **member-readable** (§5 "the past: look at a past week").
+       *
+       * Visibility is derived and read-only: this answers for a week the window no longer shows,
+       * and for one that never existed (empty, everyone unanswered). Reading history is not
+       * writing it, so `unlockedAt` plays no part here — that gates writes only.
+       */
+      .get(
+        '/:startsOn',
+        async ({ params: { startsOn }, team, status }) => {
+          if (startOfWeek(startsOn) !== startsOn) return status(422, NOT_MONDAY)
+
+          const roster = await activeRoster(scope(team))
+          const [week] = await composeWeeks(db, scope(team), [startsOn], roster)
+          if (!week) return status(404, { message: 'Week not found' })
+
+          return week
+        },
+        { teamMember: true, params: weekParams },
+      )
+      /**
        * Save one week for one person: replace their rows wholesale, then stamp the answer.
        *
        * Wholesale replace, not a diff: the grid is the truth of what this person said, and a delete
