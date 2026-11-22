@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import type { MemberDto, RosterEntryDto } from '@lol/api/schema-types'
-import { accountOptions, defaultAccountId, pickableMembers } from '../src/roster-form.ts'
+import {
+  accountOptions,
+  defaultAccountId,
+  pickableMembers,
+} from '../../../src/lib/team/roster-form.ts'
 
 /**
  * The captain's choices, without a DOM: who can be added, which accounts he may pick from, and
