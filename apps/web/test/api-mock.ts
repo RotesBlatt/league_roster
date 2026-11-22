@@ -52,11 +52,17 @@ export const apiState: {
   /** POST /api/teams/:slug/planner/skip and /reset */
   plannerSkip: Result
   plannerReset: Result
+  /** GET /api/teams/:slug/planner/:startsOn (history, and an opened week) */
+  plannerWeek: Result
+  /** POST /api/teams/:slug/planner/:startsOn/unlock */
+  plannerUnlock: Result
   /** the bodies handed to the planner writes, for assertions */
   sentPlanner: unknown
   sentPlannerTemplate: unknown
   sentSkip: unknown
   sentReset: unknown
+  sentWeekParam: string | undefined
+  sentUnlock: { startsOn: string; unlocked: boolean } | undefined
   /** DELETE /api/me/riot-accounts/:id */
   riotAccountRemove: Result
   /** PUT /api/me/riot-accounts/:id/main */
@@ -101,10 +107,14 @@ export const apiState: {
   plannerTemplateSave: { data: { ok: true }, error: null, status: 200 },
   plannerSkip: { data: { ok: true }, error: null, status: 200 },
   plannerReset: { data: { ok: true }, error: null, status: 200 },
+  plannerWeek: { data: null, error: null, status: 200 },
+  plannerUnlock: { data: { ok: true }, error: null, status: 200 },
   sentPlanner: undefined,
   sentPlannerTemplate: undefined,
   sentSkip: undefined,
   sentReset: undefined,
+  sentWeekParam: undefined,
+  sentUnlock: undefined,
   sentBody: undefined,
   sentRename: undefined,
   sentProfile: undefined,
@@ -139,10 +149,14 @@ export function resetApiState() {
   apiState.plannerTemplateSave = { data: { ok: true }, error: null, status: 200 }
   apiState.plannerSkip = { data: { ok: true }, error: null, status: 200 }
   apiState.plannerReset = { data: { ok: true }, error: null, status: 200 }
+  apiState.plannerWeek = { data: null, error: null, status: 200 }
+  apiState.plannerUnlock = { data: { ok: true }, error: null, status: 200 }
   apiState.sentPlanner = undefined
   apiState.sentPlannerTemplate = undefined
   apiState.sentSkip = undefined
   apiState.sentReset = undefined
+  apiState.sentWeekParam = undefined
+  apiState.sentUnlock = undefined
   apiState.sentBody = undefined
   apiState.sentRename = undefined
   apiState.sentProfile = undefined
@@ -237,9 +251,22 @@ export function installApiMock() {
           // callable for :startsOn, verbs on the collection — same shape as `roster`
           planner: Object.assign(
             (params: { startsOn: string }) => ({
+              get: () => {
+                apiState.sentWeekParam = params.startsOn
+                return Promise.resolve(apiState.plannerWeek)
+              },
               put: (body: unknown) => {
                 apiState.sentPlanner = { startsOn: params.startsOn, body }
                 return Promise.resolve(apiState.plannerSave)
+              },
+              unlock: {
+                post: (body: unknown) => {
+                  apiState.sentUnlock = {
+                    startsOn: params.startsOn,
+                    unlocked: (body as { unlocked: boolean }).unlocked,
+                  }
+                  return Promise.resolve(apiState.plannerUnlock)
+                },
               },
             }),
             {

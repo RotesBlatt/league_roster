@@ -251,3 +251,72 @@ describe('the captain’s window', () => {
     expect((await cell('Tue 20:00')).getAttribute('aria-pressed')).toBe('true')
   })
 })
+
+describe('history', () => {
+  const past = (overrides: Partial<PlannerWeekDto> = {}) =>
+    week({ startsOn: '2026-11-16', ...overrides })
+
+  test('lists the weeks before the window by date', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    expect(await screen.findByRole('button', { name: '16 Nov' })).toBeDefined()
+    expect(await screen.findByRole('button', { name: '9 Nov' })).toBeDefined()
+    expect(await screen.findByRole('button', { name: '2 Nov' })).toBeDefined()
+    expect(await screen.findByRole('button', { name: '26 Oct' })).toBeDefined()
+  })
+
+  test('a member reads a finished week without opening it', async () => {
+    apiState.plannerWeek = {
+      data: past({ answered: ['me', 'u2', 'u3'], unanswered: [] }),
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+    await waitFor(() => expect(apiState.sentWeekParam).toBe('2026-11-16'))
+
+    expect(await screen.findByText('complete')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Open for editing' })).toBeNull()
+    // the only editable grid is the live week
+    expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(1)
+  })
+
+  test('a captain opens a finished week for writing', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open for editing' }))
+
+    await waitFor(() =>
+      expect(apiState.sentUnlock).toEqual({ startsOn: '2026-11-16', unlocked: true }),
+    )
+  })
+
+  test('an opened week becomes editable, with its own save', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerWeek = {
+      data: past({
+        unlocked: true,
+        answered: [],
+        unanswered: ['me', 'u2', 'u3'],
+        availability: [],
+      }),
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+
+    expect(await screen.findByText('open for edits')).toBeDefined()
+    expect(await screen.findByRole('button', { name: 'Close week' })).toBeDefined()
+    expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(2)
+  })
+})

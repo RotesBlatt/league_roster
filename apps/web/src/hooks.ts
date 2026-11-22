@@ -252,3 +252,31 @@ export function useResetWindow(slug: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] }),
   })
 }
+
+/** Any week by its Monday — how history is read, and how an opened week is edited (§5). */
+export function useWeek(slug: string, startsOn: string | null) {
+  return useQuery({
+    queryKey: [...PLANNER_KEY, slug, 'week', startsOn],
+    queryFn: () =>
+      unwrap(
+        api
+          .teams({ slug })
+          .planner({ startsOn: startsOn ?? '' })
+          .get(),
+      ),
+    enabled: slug.length > 0 && startsOn !== null,
+  })
+}
+
+/** Captain only. Opening a finished week changes writing, never visibility. */
+export function useUnlockWeek(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ startsOn, unlocked }: { startsOn: string; unlocked: boolean }) =>
+      unwrap(api.teams({ slug }).planner({ startsOn }).unlock.post({ unlocked })),
+    onSuccess: (_result, { startsOn }) => {
+      void queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] })
+      void queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug, 'week', startsOn] })
+    },
+  })
+}

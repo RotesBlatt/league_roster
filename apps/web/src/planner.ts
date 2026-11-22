@@ -101,6 +101,16 @@ export function weekLabel(startsOn: string, windowStart: string): string {
   return formatDate(startsOn)
 }
 
+/**
+ * The `count` weeks before the window, newest first — the history list (§5 "look at a past week").
+ * Pure date arithmetic, so a month or year boundary is not a special case.
+ */
+export function weekStartsBefore(windowStart: string, count: number): string[] {
+  return Array.from({ length: Math.max(0, count) }, (_, index) =>
+    addDays(windowStart, -7 * (index + 1)),
+  )
+}
+
 function addDays(date: string, days: number): string {
   const ms = Date.parse(`${date}T00:00:00Z`) + days * 86_400_000
   return new Date(ms).toISOString().slice(0, 10)

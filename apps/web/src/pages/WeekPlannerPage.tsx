@@ -25,6 +25,8 @@ import {
   useRoster,
   useSaveWeek,
   useSkipWindow,
+  useUnlockWeek,
+  useWeek,
 } from '../hooks.ts'
 import {
   flattenWindows,
@@ -33,6 +35,7 @@ import {
   missingNames,
   provisionalText,
   weekLabel,
+  weekStartsBefore,
 } from '../planner.ts'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -98,6 +101,14 @@ export function WeekPlannerPage() {
         template={template.data}
         meId={me.data?.id ?? ''}
         names={names}
+      />
+
+      <HistoryPanel
+        slug={slug}
+        windowStart={data.windowStart}
+        meId={me.data?.id ?? ''}
+        names={names}
+        isCaptain={me.data?.role === 'captain'}
       />
     </Stack>
   )
@@ -172,8 +183,6 @@ function PlannerBoard({
   const [dirty, setDirty] = useState(false)
 
   const answered = week.answered.includes(meId)
-  const ranked = flattenWindows(week)
-  const stillToAnswer = week.unanswered.map((userId) => names[userId] ?? '?')
 
   const begin = (cell: Cell) => {
     const started = startGesture(grid, cell)
@@ -266,53 +275,161 @@ function PlannerBoard({
         ))}
       </Stack>
 
-      <Stack gap="xs">
-        <Group gap="sm">
-          <Title order={4}>Playable</Title>
-          {isProvisional(week) ? (
-            <Badge color="yellow" variant="light">
-              provisional
-            </Badge>
-          ) : (
-            <Badge color="green" variant="light">
-              complete
-            </Badge>
-          )}
-        </Group>
+      <WeekSummary week={week} names={names} />
+    </Stack>
+  )
+}
 
-        {provisionalText(week) && (
-          <Text size="sm" c="dimmed">
-            {provisionalText(week)}
-          </Text>
-        )}
+/**
+ * The merged summary: how provisional the week is, who has not answered, and the sessions the
+ * answers make possible (§6, §9). Shared by the live board and by a read-only past week, because
+ * "what was playable then" is the same question as "what is playable now".
+ */
+function WeekSummary({ week, names }: { week: PlannerWeekDto; names: Record<string, string> }) {
+  const ranked = flattenWindows(week)
+  const stillToAnswer = week.unanswered.map((userId) => names[userId] ?? '?')
 
-        <Text size="sm">
-          <Text span fw={600}>
-            Still to answer:{' '}
-          </Text>
-          {stillToAnswer.length > 0 ? stillToAnswer.join(', ') : 'everyone has answered'}
-        </Text>
-
-        {ranked.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            No session is possible at four players yet. Paint more time, or wait for the others.
-          </Text>
+  return (
+    <Stack gap="xs">
+      <Group gap="sm">
+        <Title order={4}>Playable</Title>
+        {isProvisional(week) ? (
+          <Badge color="yellow" variant="light">
+            provisional
+          </Badge>
         ) : (
-          ranked.slice(0, 4).map((entry) => (
-            <Group key={`${entry.dayOfWeek}-${entry.start}`} gap="xs">
-              <Text size="sm" fw={500}>
-                {DAY_LABELS[entry.dayOfWeek]} {formatMinute(entry.start)}–{formatMinute(entry.end)}
+          <Badge color="green" variant="light">
+            complete
+          </Badge>
+        )}
+      </Group>
+
+      {provisionalText(week) && (
+        <Text size="sm" c="dimmed">
+          {provisionalText(week)}
+        </Text>
+      )}
+
+      <Text size="sm">
+        <Text span fw={600}>
+          Still to answer:{' '}
+        </Text>
+        {stillToAnswer.length > 0 ? stillToAnswer.join(', ') : 'everyone has answered'}
+      </Text>
+
+      {ranked.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No session is possible at four players yet. Paint more time, or wait for the others.
+        </Text>
+      ) : (
+        ranked.slice(0, 4).map((entry) => (
+          <Group key={`${entry.dayOfWeek}-${entry.start}`} gap="xs">
+            <Text size="sm" fw={500}>
+              {DAY_LABELS[entry.dayOfWeek]} {formatMinute(entry.start)}–{formatMinute(entry.end)}
+            </Text>
+            <Badge variant="light">{entry.count} available</Badge>
+            {entry.missing.length > 0 && (
+              <Text size="xs" c="dimmed">
+                missing: {missingNames(entry, names).join(', ')}
               </Text>
-              <Badge variant="light">{entry.count} available</Badge>
-              {entry.missing.length > 0 && (
-                <Text size="xs" c="dimmed">
-                  missing: {missingNames(entry, names).join(', ')}
-                </Text>
+            )}
+          </Group>
+        ))
+      )}
+    </Stack>
+  )
+}
+
+/**
+ * The past (§5): every member may look, the captain may open a finished week for writing.
+ *
+ * Reading and writing are drawn separately on purpose — visibility is derived from today, so a
+ * past week needs no unlocking to be *seen*; `unlockedAt` only decides whether the grid below it
+ * accepts paint.
+ */
+function HistoryPanel({
+  slug,
+  windowStart,
+  meId,
+  names,
+  isCaptain,
+}: {
+  slug: string
+  windowStart: string
+  meId: string
+  names: Record<string, string>
+  isCaptain: boolean
+}) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const history = weekStartsBefore(windowStart, 4)
+  const week = useWeek(slug, selected)
+  const template = usePlannerTemplate(slug)
+  const unlock = useUnlockWeek(slug)
+
+  const current = week.data
+  const open = current?.unlocked ?? false
+
+  return (
+    <Stack gap="sm">
+      <Title order={4}>History</Title>
+
+      <Group gap="xs">
+        {history.map((startsOn) => (
+          <Button
+            key={startsOn}
+            size="xs"
+            variant={selected === startsOn ? 'light' : 'default'}
+            onClick={() => setSelected(startsOn)}
+          >
+            {weekLabel(startsOn, windowStart)}
+          </Button>
+        ))}
+      </Group>
+
+      {selected && week.isPending && <Loader size="xs" />}
+
+      {current && (
+        <Stack gap="sm">
+          {isCaptain && (
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="default"
+                loading={unlock.isPending}
+                onClick={() =>
+                  unlock.mutate(
+                    { startsOn: current.startsOn, unlocked: !open },
+                    {
+                      onError: (error: Error) =>
+                        notifications.show({ message: error.message, color: 'orange' }),
+                    },
+                  )
+                }
+              >
+                {open ? 'Close week' : 'Open for editing'}
+              </Button>
+              {open && (
+                <Badge color="blue" variant="light">
+                  open for edits
+                </Badge>
               )}
             </Group>
-          ))
-        )}
-      </Stack>
+          )}
+
+          {open && template.data ? (
+            <PlannerBoard
+              key={`history:${current.startsOn}:${current.answered.join(',')}`}
+              slug={slug}
+              week={current}
+              template={template.data}
+              meId={meId}
+              names={names}
+            />
+          ) : (
+            <WeekSummary week={current} names={names} />
+          )}
+        </Stack>
+      )}
     </Stack>
   )
 }
