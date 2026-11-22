@@ -377,3 +377,47 @@ describe('my regular times', () => {
     expect(apiState.sentPlanner).toBeUndefined()
   })
 })
+
+describe('which week is actually now', () => {
+  test('the real current week is marked in the tab header', async () => {
+    renderPage()
+
+    const tab = await screen.findByRole('tab', { name: /This week · / })
+    expect(within(tab).getByText('now')).toBeDefined()
+    // only one tab is the current week
+    expect(screen.getAllByText('now')).toHaveLength(1)
+  })
+
+  test('a window the captain skipped ahead of says the current week is behind it', async () => {
+    apiState.planner = {
+      data: {
+        ...planner(week({ startsOn: '2026-12-07' })),
+        windowStart: '2026-12-07',
+        weeks: [
+          week({
+            startsOn: '2026-12-07',
+            answered: [],
+            unanswered: ['me', 'u2', 'u3'],
+            availability: [],
+          }),
+          week({
+            startsOn: '2026-12-14',
+            answered: [],
+            unanswered: ['me', 'u2', 'u3'],
+            availability: [],
+          }),
+        ],
+      },
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    await screen.findByRole('tab', { name: /7–13 Dec/ })
+    expect(screen.queryByText('now')).toBeNull()
+    expect(
+      screen.getByText(/starts later than the current week \(23–29 Nov · Week 48\)/),
+    ).toBeDefined()
+  })
+})

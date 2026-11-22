@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
 import {
+  currentWeekStart,
   dateOfWeekDay,
   flattenWindows,
   initialDays,
@@ -232,5 +233,19 @@ describe('dateOfWeekDay — the date above each column', () => {
   test('crossing into the next month does not print 32, and keeps both numbers padded', () => {
     expect(dateOfWeekDay('2026-11-30', 3)).toBe('03.12')
     expect(dateOfWeekDay('2026-12-28', 6)).toBe('03.01')
+  })
+})
+
+describe('currentWeekStart — which visible week is "now"', () => {
+  test('a Wednesday belongs to the Monday before it', () => {
+    expect(currentWeekStart('2026-11-25')).toBe('2026-11-23')
+  })
+
+  test('a Monday is its own week', () => {
+    expect(currentWeekStart('2026-11-23')).toBe('2026-11-23')
+  })
+
+  test('a Sunday is still the week that started six days ago', () => {
+    expect(currentWeekStart('2026-11-29')).toBe('2026-11-23')
   })
 })

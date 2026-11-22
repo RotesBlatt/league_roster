@@ -102,6 +102,17 @@ export function dateOfWeekDay(startsOn: string, dayOfWeek: number): string {
 }
 
 /**
+ * The week that contains "today", as its Monday — the only week a tab may mark as *now*.
+ *
+ * Derived from the `today` the API sent (the **team's** wall clock), never from the browser's: a
+ * member in another timezone must not see a different week highlighted than the rest of the team.
+ */
+export function currentWeekStart(today: string): string {
+  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay() // 0 = Sunday
+  return addDays(today, -((weekday + 6) % 7))
+}
+
+/**
  * The week as a range of dates: `23–29 Nov`, `30 Nov – 6 Dec`, or `28 Dec 2026 – 3 Jan 2027`.
  *
  * A planner labelled only "this week" forces the reader to work out which Monday it means from

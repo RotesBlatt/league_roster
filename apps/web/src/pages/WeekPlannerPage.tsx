@@ -19,12 +19,15 @@ import {
   useWeek,
 } from '../hooks.ts'
 import {
+  currentWeekStart,
   flattenWindows,
   initialDays,
+  isoWeekNumber,
   isProvisional,
   missingNames,
   provisionalText,
   weekHeading,
+  weekRange,
   weekStartsBefore,
 } from '../planner.ts'
 import { usePaintGrid } from '../use-paint-grid.ts'
@@ -59,6 +62,10 @@ export function WeekPlannerPage() {
 
   if (planner.isPending || !data || !week || !template.data) return <Loader size="sm" />
 
+  // the team's idea of "today", from the API — never the browser's, so the mark is the same for
+  // everybody in the team even if they are in another timezone
+  const currentWeek = currentWeekStart(data.today)
+
   return (
     <Stack gap="lg" maw={980} mx="auto" w="100%">
       <Group justify="space-between" align="flex-end">
@@ -74,11 +81,29 @@ export function WeekPlannerPage() {
         <Tabs.List>
           {data.weeks.map((entry, index) => (
             <Tabs.Tab key={entry.startsOn} value={String(index)}>
-              {weekHeading(entry.startsOn, data.windowStart)}
+              <Group gap={6} wrap="nowrap">
+                {weekHeading(entry.startsOn, data.windowStart)}
+                {entry.startsOn === currentWeek && (
+                  <Badge size="xs" color="green" variant="filled" radius="sm">
+                    now
+                  </Badge>
+                )}
+              </Group>
             </Tabs.Tab>
           ))}
         </Tabs.List>
       </Tabs>
+
+      {/*
+        A captain may have skipped ahead, so the tab marked "now" can be off-screen. Saying so is
+        better than a window that looks current while the calendar has moved on.
+      */}
+      {!data.weeks.some((entry) => entry.startsOn === currentWeek) && (
+        <Text size="sm" c="dimmed">
+          This window starts later than the current week ({weekRange(currentWeek)} · Week{' '}
+          {isoWeekNumber(currentWeek)}).
+        </Text>
+      )}
 
       {/*
         Remounted per week and per answer set, so the grid is always the server's version of what
