@@ -120,6 +120,18 @@ describe('what the page shows', () => {
     expect(within(waiting).getByText('Cem')).toBeDefined()
   })
 
+  test('opening Playable asks the server again instead of trusting the cache', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    const before = apiState.calls.plannerGet
+
+    showPlayable()
+
+    // my own availability may have been saved while I was painting; the summary is the server's
+    await waitFor(() => expect(apiState.calls.plannerGet).toBeGreaterThan(before))
+  })
+
   test('the best session is called out with its count and who cannot make it', async () => {
     renderPage()
 

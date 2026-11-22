@@ -118,7 +118,14 @@ export function WeekPlannerPage() {
           size="xs"
           w="fit-content"
           value={view}
-          onChange={(value) => setView(value as 'paint' | 'playable' | 'regular')}
+          onChange={(value) => {
+            const next = value as 'paint' | 'playable' | 'regular'
+            setView(next)
+            // The team's side is a derived read: my own save (or anybody's answer) may have
+            // landed while I was painting, and a cached summary would show the old week until a
+            // reload. Asking again is cheap and makes the view switch the refresh.
+            if (next === 'playable') void planner.refetch()
+          }}
           data={[
             { label: 'My regular times', value: 'regular' },
             { label: 'My availability', value: 'paint' },

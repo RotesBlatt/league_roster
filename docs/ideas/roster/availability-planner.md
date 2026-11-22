@@ -347,6 +347,9 @@ cell, nothing special.
   week"; a history list below that every member can open.
 - **Who has not answered, above the windows.** The chase list is the captain's most actionable
   information, so it belongs at the top of the summary — not behind a click.
+- **Opening Playable refetches.** The summary is derived from everyone's saved rows, so switching
+  to it asks the server again instead of showing a cached week — a save or another member's answer
+  may have landed while I was painting, and a reload should not be the only way to see it.
 - **Provisional marker.** While answers are missing, the windows render with a clear "4 of 8 answered
   — these times are provisional" label, so nobody treats a partial result as final.
 
