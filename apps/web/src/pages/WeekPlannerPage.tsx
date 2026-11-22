@@ -1,6 +1,5 @@
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
 import {
-  Accordion,
   Badge,
   Button,
   Group,
@@ -67,7 +66,7 @@ export function WeekPlannerPage() {
   const roster = useRoster(slug)
   const [selected, setSelected] = useState('0')
   /** Paint, or read: the same week from my side and from the team's. Paint is the default. */
-  const [view, setView] = useState<'paint' | 'playable'>('paint')
+  const [view, setView] = useState<'paint' | 'playable' | 'regular'>('paint')
   /** Set while reading the archive: a past week replaces the live one, it does not stack under it. */
   const [pastWeek, setPastWeek] = useState<string | null>(null)
 
@@ -193,14 +192,15 @@ export function WeekPlannerPage() {
             size="xs"
             w="fit-content"
             value={view}
-            onChange={(value) => setView(value === 'playable' ? 'playable' : 'paint')}
+            onChange={(value) => setView(value as 'paint' | 'playable' | 'regular')}
             data={[
               { label: 'My availability', value: 'paint' },
               { label: 'Playable times', value: 'playable' },
+              { label: 'My regular times', value: 'regular' },
             ]}
           />
 
-          {view === 'paint' ? (
+          {view === 'paint' && (
             <PlannerBoard
               key={`${week.startsOn}:${week.answered.join(',')}`}
               slug={slug}
@@ -208,21 +208,15 @@ export function WeekPlannerPage() {
               template={template.data}
               meId={me.data?.id ?? ''}
             />
-          ) : (
-            <PlayableView week={week} names={names} />
           )}
+          {view === 'playable' && <PlayableView week={week} names={names} />}
+          {/*
+            My standing times are about me, not about this Tuesday: a third view rather than a
+            section under the grid, because "when am I generally free" is the same kind of question
+            as the other two and deserves the same place on the page.
+          */}
+          {view === 'regular' && <RegularSlots slug={slug} />}
         </>
-      )}
-
-      {!pastWeek && (
-        <Accordion variant="separated">
-          <Accordion.Item value="regular">
-            <Accordion.Control>My regular times</Accordion.Control>
-            <Accordion.Panel>
-              <RegularSlots slug={slug} />
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
       )}
     </Stack>
   )

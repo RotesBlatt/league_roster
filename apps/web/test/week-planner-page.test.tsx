@@ -460,14 +460,14 @@ describe('past weeks', () => {
     await cell('Tue 20:00')
     // both belong to the live week: they would change nothing about the week on screen
     expect(screen.getByRole('button', { name: 'Earlier week' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'My regular times' })).toBeDefined()
+    expect(screen.getByRole('radio', { name: 'My regular times' })).toBeDefined()
 
     pickPastWeek('2026-11-16')
 
     // the window controls are gone; the captain panel above is the archive's own ("Captain only")
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Earlier week' })).toBeNull())
     expect(screen.queryByRole('button', { name: 'Back to this week' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'My regular times' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'My regular times' })).toBeNull()
   })
 
   test('returning to the live week brings them back', async () => {
@@ -481,7 +481,7 @@ describe('past weeks', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Back to the live week' }))
 
     expect(await screen.findByRole('button', { name: 'Earlier week' })).toBeDefined()
-    expect(screen.getByRole('button', { name: 'My regular times' })).toBeDefined()
+    expect(screen.getByRole('radio', { name: 'My regular times' })).toBeDefined()
   })
 
   test('"Back to the live week" is a primary button, not a third ghost', async () => {
@@ -569,9 +569,35 @@ describe('my regular times', () => {
   const editor = () => within(screen.getByLabelText('Regular times grid'))
 
   const openEditor = async () => {
-    fireEvent.click(await screen.findByRole('button', { name: 'My regular times' }))
+    fireEvent.click(await screen.findByRole('radio', { name: 'My regular times' }))
     await screen.findByRole('button', { name: 'Save my regular times' })
   }
+
+  test('it is a third view of the week, not a section under the grid', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    fireEvent.click(await screen.findByRole('radio', { name: 'My regular times' }))
+
+    expect(await screen.findByLabelText('Regular times grid')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Save my regular times' })).toBeDefined()
+    // the week's own grid is replaced, not pushed down
+    expect(screen.queryByRole('group', { name: 'Your availability' })).toBeNull()
+  })
+
+  test('switching back leaves it behind and saves nothing', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    fireEvent.click(await screen.findByRole('radio', { name: 'My regular times' }))
+    await screen.findByLabelText('Regular times grid')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'My availability' }))
+
+    expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
+    expect(screen.queryByLabelText('Regular times grid')).toBeNull()
+    expect(apiState.sentPlannerTemplate).toBeUndefined()
+  })
 
   test('starts collapsed — a standing schedule is not what you came here to paint', async () => {
     renderPage()
