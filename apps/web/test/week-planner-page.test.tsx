@@ -599,6 +599,22 @@ describe('my regular times', () => {
     expect(apiState.sentPlannerTemplate).toBeUndefined()
   })
 
+  test('the save row sits above the grid, exactly as it does on my availability', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    // on the week: the row is above the grid it saves
+    const weekSave = screen.getByRole('button', { name: 'Save my week' })
+    const weekGrid = screen.getByRole('group', { name: 'Your availability' })
+    expect(weekSave.compareDocumentPosition(weekGrid)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'My regular times' }))
+
+    const save = await screen.findByRole('button', { name: 'Save my regular times' })
+    const grid = screen.getByLabelText('Regular times grid')
+    expect(save.compareDocumentPosition(grid)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
   test('starts collapsed — a standing schedule is not what you came here to paint', async () => {
     renderPage()
 

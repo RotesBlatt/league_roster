@@ -1,11 +1,10 @@
 import type { PlannerTemplateDto } from '@lol/api/schema-types'
-import { Button, Group, Loader, Stack, Text } from '@mantine/core'
+import { Loader } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconArrowBackUp } from '@tabler/icons-react'
 import { daysFromGrid, gridFromDays } from '../availability-grid.ts'
 import { usePlannerTemplate, useSaveTemplate } from '../hooks.ts'
 import { usePaintGrid } from '../use-paint-grid.ts'
-import { AvailabilityGrid } from './AvailabilityGrid.tsx'
+import { GridEditor } from './GridEditor.tsx'
 
 /**
  * My standing times (`availability_template`, availability-planner.md §4b).
@@ -35,34 +34,19 @@ function SlotsEditor({ slug, template }: { slug: string; template: PlannerTempla
     })
 
   return (
-    <Stack gap="sm">
-      <Text size="sm" c="dimmed">
-        A week you have not answered yet starts from these times. Saving here never changes a week
-        you already answered.
-      </Text>
-
-      <AvailabilityGrid
-        grid={paint.grid}
-        label="Regular times grid"
-        onBegin={paint.begin}
-        onDrag={paint.drag}
-        onEnd={paint.end}
-      />
-
-      <Group justify="flex-end" gap="xs">
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconArrowBackUp size={14} />}
-          onClick={paint.undo}
-          disabled={!paint.canUndo}
-        >
-          Undo
-        </Button>
-        <Button size="sm" onClick={onSave} loading={save.isPending} disabled={!paint.dirty}>
-          Save my regular times
-        </Button>
-      </Group>
-    </Stack>
+    <GridEditor
+      label="Regular times grid"
+      description="A week you have not answered yet starts from these times. Saving here never changes a week you already answered."
+      grid={paint.grid}
+      onBegin={paint.begin}
+      onDrag={paint.drag}
+      onEnd={paint.end}
+      onUndo={paint.undo}
+      canUndo={paint.canUndo}
+      dirty={paint.dirty}
+      saving={save.isPending}
+      saveLabel="Save my regular times"
+      onSave={onSave}
+    />
   )
 }

@@ -17,7 +17,7 @@ import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icon
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { daysFromGrid, formatMinute, gridFromDays } from '../availability-grid.ts'
-import { AvailabilityGrid } from '../components/AvailabilityGrid.tsx'
+import { GridEditor } from '../components/GridEditor.tsx'
 import { PlayableGrid } from '../components/PlayableGrid.tsx'
 import { RegularSlots } from '../components/RegularSlots.tsx'
 import {
@@ -382,38 +382,25 @@ function PlannerBoard({
   }
 
   return (
-    <Stack gap="lg">
-      <Group justify="space-between">
-        <Text size="sm" c="dimmed">
-          {answered
-            ? 'Your week as saved — repaint and save again to change it.'
-            : 'Starting from your regular times. Nothing is saved until you save.'}
-        </Text>
-        <Group gap="xs">
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconArrowBackUp size={14} />}
-            onClick={paint.undo}
-            disabled={!paint.canUndo}
-          >
-            Undo
-          </Button>
-          <Button size="sm" onClick={onSave} loading={save.isPending} disabled={!paint.dirty}>
-            Save my week
-          </Button>
-        </Group>
-      </Group>
-
-      <AvailabilityGrid
-        grid={paint.grid}
-        label="Your availability"
-        startsOn={week.startsOn}
-        onBegin={paint.begin}
-        onDrag={paint.drag}
-        onEnd={paint.end}
-      />
-    </Stack>
+    <GridEditor
+      label="Your availability"
+      startsOn={week.startsOn}
+      description={
+        answered
+          ? 'Your week as saved — repaint and save again to change it.'
+          : 'Starting from your regular times. Nothing is saved until you save.'
+      }
+      grid={paint.grid}
+      onBegin={paint.begin}
+      onDrag={paint.drag}
+      onEnd={paint.end}
+      onUndo={paint.undo}
+      canUndo={paint.canUndo}
+      dirty={paint.dirty}
+      saving={save.isPending}
+      saveLabel="Save my week"
+      onSave={onSave}
+    />
   )
 }
 
