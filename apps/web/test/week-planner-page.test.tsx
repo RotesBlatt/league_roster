@@ -588,6 +588,34 @@ describe('past weeks', () => {
 })
 
 describe('my regular times', () => {
+  test('the week tabs are gone while my regular times are open', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+
+    fireEvent.click(await screen.findByRole('radio', { name: 'My regular times' }))
+    await screen.findByLabelText('Regular times grid')
+
+    // a standing schedule belongs to no week, so "which week" is not a question here
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.queryByText('now')).toBeNull()
+    // the archive is still reachable, it is not about this week either
+    expect(screen.getByRole('combobox', { name: 'Past week' })).toBeDefined()
+  })
+
+  test('the tabs come back with my availability', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    fireEvent.click(await screen.findByRole('radio', { name: 'My regular times' }))
+    await screen.findByLabelText('Regular times grid')
+    fireEvent.click(screen.getByRole('radio', { name: 'My availability' }))
+
+    expect(await screen.findByRole('tab', { name: /This week · / })).toBeDefined()
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+  })
+
   const editor = () => within(screen.getByLabelText('Regular times grid'))
 
   const openEditor = async () => {

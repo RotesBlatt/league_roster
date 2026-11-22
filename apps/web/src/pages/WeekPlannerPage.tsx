@@ -144,6 +144,19 @@ export function WeekPlannerPage() {
               Back to the live week
             </Button>
           </Group>
+        ) : view === 'regular' ? (
+          /*
+            A standing schedule is not about a week, so "which week" stops being a question — the
+            tabs would be two buttons that change nothing on screen.
+          */
+          <Group gap="xs" align="center">
+            <Badge variant="light" color="gray">
+              every week
+            </Badge>
+            <Text size="sm" c="dimmed">
+              Applies to any week you have not answered yet
+            </Text>
+          </Group>
         ) : (
           <Tabs value={selected} onChange={(value) => setSelected(value ?? '0')}>
             <Tabs.List>
@@ -181,12 +194,14 @@ export function WeekPlannerPage() {
         A captain may have skipped ahead, so the tab marked "now" can be off-screen. Saying so is
         better than a window that looks current while the calendar has moved on.
       */}
-      {!pastWeek && !data.weeks.some((entry) => entry.startsOn === currentWeek) && (
-        <Text size="sm" c="dimmed">
-          This window starts later than the current week ({weekRange(currentWeek)} · Week{' '}
-          {isoWeekNumber(currentWeek)}).
-        </Text>
-      )}
+      {!pastWeek &&
+        view !== 'regular' &&
+        !data.weeks.some((entry) => entry.startsOn === currentWeek) && (
+          <Text size="sm" c="dimmed">
+            This window starts later than the current week ({weekRange(currentWeek)} · Week{' '}
+            {isoWeekNumber(currentWeek)}).
+          </Text>
+        )}
 
       {/*
         Remounted per week and per answer set, so the grid is always the server's version of what
