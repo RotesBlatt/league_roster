@@ -232,3 +232,23 @@ export function useSaveTemplate(slug: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_TEMPLATE_KEY, slug] }),
   })
 }
+
+/**
+ * The captain's window moves. Both invalidate the planner: the window is team state, so the next
+ * render has to come from the server rather than from a locally guessed offset.
+ */
+export function useSkipWindow(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (weeks: 1 | -1) => unwrap(api.teams({ slug }).planner.skip.post({ weeks })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] }),
+  })
+}
+
+export function useResetWindow(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => unwrap(api.teams({ slug }).planner.reset.post()),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] }),
+  })
+}

@@ -1,7 +1,7 @@
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
 import { Badge, Button, Group, Loader, Stack, Tabs, Text, Title } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconArrowBackUp } from '@tabler/icons-react'
+import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import {
@@ -17,7 +17,15 @@ import {
   SLOT_MINUTES,
   startGesture,
 } from '../availability-grid.ts'
-import { useMe, usePlanner, usePlannerTemplate, useRoster, useSaveWeek } from '../hooks.ts'
+import {
+  useMe,
+  usePlanner,
+  usePlannerTemplate,
+  useResetWindow,
+  useRoster,
+  useSaveWeek,
+  useSkipWindow,
+} from '../hooks.ts'
 import {
   flattenWindows,
   initialDays,
@@ -67,6 +75,8 @@ export function WeekPlannerPage() {
         </Text>
       </Group>
 
+      {me.data?.role === 'captain' && <WindowControls slug={slug} />}
+
       <Tabs value={selected} onChange={(value) => setSelected(value ?? '0')}>
         <Tabs.List>
           {data.weeks.map((entry, index) => (
@@ -90,6 +100,54 @@ export function WeekPlannerPage() {
         names={names}
       />
     </Stack>
+  )
+}
+
+/**
+ * The captain's window moves (availability-planner.md §5).
+ *
+ * Skip is team state: it moves the window for everyone, and the server — not this component —
+ * decides whether a click was allowed. A refusal (the cap, or "already on this week") is shown as
+ * the sentence the API sent, because "nothing happened" is not an answer a captain can act on.
+ */
+function WindowControls({ slug }: { slug: string }) {
+  const skip = useSkipWindow(slug)
+  const reset = useResetWindow(slug)
+
+  const refuse = (error: Error) => notifications.show({ message: error.message, color: 'orange' })
+
+  return (
+    <Group gap="xs">
+      <Text size="sm" c="dimmed">
+        Window
+      </Text>
+      <Button
+        size="xs"
+        variant="default"
+        leftSection={<IconChevronLeft size={14} />}
+        onClick={() => skip.mutate(-1, { onError: refuse })}
+        loading={skip.isPending}
+      >
+        Back
+      </Button>
+      <Button
+        size="xs"
+        variant="default"
+        rightSection={<IconChevronRight size={14} />}
+        onClick={() => skip.mutate(1, { onError: refuse })}
+        loading={skip.isPending}
+      >
+        Forward
+      </Button>
+      <Button
+        size="xs"
+        variant="subtle"
+        onClick={() => reset.mutate(undefined, { onError: refuse })}
+        loading={reset.isPending}
+      >
+        Back to this week
+      </Button>
+    </Group>
   )
 }
 

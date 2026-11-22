@@ -49,9 +49,14 @@ export const apiState: {
   plannerTemplate: Result
   /** PUT /api/teams/:slug/planner/template */
   plannerTemplateSave: Result
+  /** POST /api/teams/:slug/planner/skip and /reset */
+  plannerSkip: Result
+  plannerReset: Result
   /** the bodies handed to the planner writes, for assertions */
   sentPlanner: unknown
   sentPlannerTemplate: unknown
+  sentSkip: unknown
+  sentReset: unknown
   /** DELETE /api/me/riot-accounts/:id */
   riotAccountRemove: Result
   /** PUT /api/me/riot-accounts/:id/main */
@@ -94,8 +99,12 @@ export const apiState: {
   plannerSave: { data: { ok: true }, error: null, status: 200 },
   plannerTemplate: { data: { days: [] }, error: null, status: 200 },
   plannerTemplateSave: { data: { ok: true }, error: null, status: 200 },
+  plannerSkip: { data: { ok: true }, error: null, status: 200 },
+  plannerReset: { data: { ok: true }, error: null, status: 200 },
   sentPlanner: undefined,
   sentPlannerTemplate: undefined,
+  sentSkip: undefined,
+  sentReset: undefined,
   sentBody: undefined,
   sentRename: undefined,
   sentProfile: undefined,
@@ -128,8 +137,12 @@ export function resetApiState() {
   apiState.plannerSave = { data: { ok: true }, error: null, status: 200 }
   apiState.plannerTemplate = { data: { days: [] }, error: null, status: 200 }
   apiState.plannerTemplateSave = { data: { ok: true }, error: null, status: 200 }
+  apiState.plannerSkip = { data: { ok: true }, error: null, status: 200 }
+  apiState.plannerReset = { data: { ok: true }, error: null, status: 200 }
   apiState.sentPlanner = undefined
   apiState.sentPlannerTemplate = undefined
+  apiState.sentSkip = undefined
+  apiState.sentReset = undefined
   apiState.sentBody = undefined
   apiState.sentRename = undefined
   apiState.sentProfile = undefined
@@ -239,6 +252,18 @@ export function installApiMock() {
                 put: (body: unknown) => {
                   apiState.sentPlannerTemplate = body
                   return Promise.resolve(apiState.plannerTemplateSave)
+                },
+              },
+              skip: {
+                post: (body: unknown) => {
+                  apiState.sentSkip = body
+                  return Promise.resolve(apiState.plannerSkip)
+                },
+              },
+              reset: {
+                post: () => {
+                  apiState.sentReset = true
+                  return Promise.resolve(apiState.plannerReset)
                 },
               },
             },

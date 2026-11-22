@@ -210,3 +210,44 @@ describe('painting and saving', () => {
     expect(pressed('Thu 21:00')).toBe('false')
   })
 })
+
+describe('the captain’s window', () => {
+  test('a member sees no window controls at all', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    expect(screen.queryByRole('button', { name: 'Forward' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Back to this week' })).toBeNull()
+  })
+
+  test('a captain can move the window forward and back, and return to this week', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Forward' }))
+    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: 1 }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: -1 }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to this week' }))
+    await waitFor(() => expect(apiState.sentReset).toBe(true))
+  })
+
+  test('a refused skip does not move anything — the server said no', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerSkip = {
+      data: null,
+      error: { value: { message: 'Already on this week' } },
+      status: 409,
+    }
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: -1 }))
+    // the board is still the week the planner reported; a refusal changed no state
+    expect((await cell('Tue 20:00')).getAttribute('aria-pressed')).toBe('true')
+  })
+})
