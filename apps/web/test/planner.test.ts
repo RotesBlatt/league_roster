@@ -3,10 +3,12 @@ import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
 import {
   flattenWindows,
   initialDays,
+  isoWeekNumber,
   isProvisional,
   missingNames,
   provisionalText,
-  weekLabel,
+  weekHeading,
+  weekRange,
   weekStartsBefore,
 } from '../src/planner.ts'
 
@@ -167,14 +169,42 @@ describe('provisional', () => {
   })
 })
 
-describe('weekLabel', () => {
-  test('the two visible weeks are named, not numbered', () => {
-    expect(weekLabel('2026-11-23', '2026-11-23')).toBe('This week')
-    expect(weekLabel('2026-11-30', '2026-11-23')).toBe('Next week')
+describe('weekRange — from when until when', () => {
+  test('inside one month it names the month once', () => {
+    expect(weekRange('2026-11-23')).toBe('23–29 Nov')
   })
 
-  test('a week outside the window is dated instead', () => {
-    expect(weekLabel('2026-09-28', '2026-11-23')).toBe('28 Sep')
+  test('a week that crosses a month names both', () => {
+    expect(weekRange('2026-11-30')).toBe('30 Nov – 6 Dec')
+  })
+
+  test('a week that crosses a year carries both years', () => {
+    expect(weekRange('2026-12-28')).toBe('28 Dec 2026 – 3 Jan 2027')
+  })
+})
+
+describe('isoWeekNumber', () => {
+  test('the first Monday after a Thursday-new-year is week 2', () => {
+    expect(isoWeekNumber('2026-01-05')).toBe(2)
+  })
+
+  test('a 53-week year does not wrap early', () => {
+    expect(isoWeekNumber('2026-12-28')).toBe(53)
+  })
+
+  test('the first Monday of the next year is week 1 again', () => {
+    expect(isoWeekNumber('2027-01-04')).toBe(1)
+  })
+})
+
+describe('weekHeading', () => {
+  test('the two visible weeks are named, dated and numbered', () => {
+    expect(weekHeading('2026-11-23', '2026-11-23')).toBe('This week · 23–29 Nov · Week 48')
+    expect(weekHeading('2026-11-30', '2026-11-23')).toBe('Next week · 30 Nov – 6 Dec · Week 49')
+  })
+
+  test('a past week has no relative name, only its dates and number', () => {
+    expect(weekHeading('2026-11-16', '2026-11-23')).toBe('16–22 Nov · Week 47')
   })
 })
 

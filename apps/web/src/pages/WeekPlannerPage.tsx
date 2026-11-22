@@ -24,7 +24,7 @@ import {
   isProvisional,
   missingNames,
   provisionalText,
-  weekLabel,
+  weekHeading,
   weekStartsBefore,
 } from '../planner.ts'
 import { usePaintGrid } from '../use-paint-grid.ts'
@@ -60,7 +60,7 @@ export function WeekPlannerPage() {
   if (planner.isPending || !data || !week || !template.data) return <Loader size="sm" />
 
   return (
-    <Stack gap="lg" maw={980}>
+    <Stack gap="lg" maw={980} mx="auto" w="100%">
       <Group justify="space-between" align="flex-end">
         <Title order={2}>Week planner</Title>
         <Text size="sm" c="dimmed">
@@ -74,7 +74,7 @@ export function WeekPlannerPage() {
         <Tabs.List>
           {data.weeks.map((entry, index) => (
             <Tabs.Tab key={entry.startsOn} value={String(index)}>
-              {weekLabel(entry.startsOn, data.windowStart)}
+              {weekHeading(entry.startsOn, data.windowStart)}
             </Tabs.Tab>
           ))}
         </Tabs.List>
@@ -327,7 +327,7 @@ function HistoryPanel({
             variant={selected === startsOn ? 'light' : 'default'}
             onClick={() => setSelected(startsOn)}
           >
-            {weekLabel(startsOn, windowStart)}
+            {weekHeading(startsOn, windowStart)}
           </Button>
         ))}
       </Group>

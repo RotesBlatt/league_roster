@@ -99,8 +99,8 @@ describe('what the page shows', () => {
   test('names the two visible weeks and the zone it speaks in', async () => {
     renderPage()
 
-    expect(await screen.findByRole('tab', { name: 'This week' })).toBeDefined()
-    expect(await screen.findByRole('tab', { name: 'Next week' })).toBeDefined()
+    expect(await screen.findByRole('tab', { name: /This week · / })).toBeDefined()
+    expect(await screen.findByRole('tab', { name: /Next week · / })).toBeDefined()
     expect(await screen.findByText('Europe/Berlin')).toBeDefined()
   })
 
@@ -260,10 +260,10 @@ describe('history', () => {
     renderPage()
 
     await cell('Mon 09:00')
-    expect(await screen.findByRole('button', { name: '16 Nov' })).toBeDefined()
-    expect(await screen.findByRole('button', { name: '9 Nov' })).toBeDefined()
-    expect(await screen.findByRole('button', { name: '2 Nov' })).toBeDefined()
-    expect(await screen.findByRole('button', { name: '26 Oct' })).toBeDefined()
+    expect(await screen.findByRole('button', { name: /16–22 Nov/ })).toBeDefined()
+    expect(await screen.findByRole('button', { name: /9–15 Nov/ })).toBeDefined()
+    expect(await screen.findByRole('button', { name: /2–8 Nov/ })).toBeDefined()
+    expect(await screen.findByRole('button', { name: /26 Oct – 1 Nov/ })).toBeDefined()
   })
 
   test('a member reads a finished week without opening it', async () => {
@@ -275,7 +275,7 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
     await waitFor(() => expect(apiState.sentWeekParam).toBe('2026-11-16'))
 
     expect(await screen.findByText('complete')).toBeDefined()
@@ -290,7 +290,7 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Open for editing' }))
 
     await waitFor(() =>
@@ -313,7 +313,7 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: '16 Nov' }))
+    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
 
     expect(await screen.findByText('open for edits')).toBeDefined()
     expect(await screen.findByRole('button', { name: 'Close week' })).toBeDefined()

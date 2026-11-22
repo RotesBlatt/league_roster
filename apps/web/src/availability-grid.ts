@@ -135,6 +135,20 @@ function applyRange(gesture: Gesture, current: number): Grid {
   return grid
 }
 
+/**
+ * The ruler above the grid: one tick every `stepHours` (two by default), each aligned to the cell it
+ * starts on. Without it a painted grid is 48 anonymous squares, and nobody can tell whether the
+ * evening they just blocked out starts at 18:00 or at 21:00.
+ */
+export function hourTicks(stepHours = 2): { cell: number; hour: number }[] {
+  const step = Math.max(1, Math.round(stepHours))
+
+  return Array.from({ length: Math.floor(24 / step) }, (_, index) => ({
+    cell: index * step * (60 / SLOT_MINUTES),
+    hour: index * step,
+  }))
+}
+
 /** `09:00`, and `24:00` for the exclusive end that means midnight. */
 export function formatMinute(minute: number): string {
   const hours = Math.floor(minute / 60)

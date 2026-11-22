@@ -6,6 +6,7 @@ import {
   emptyGrid,
   formatMinute,
   gridFromDays,
+  hourTicks,
   SLOT_MINUTES,
   startGesture,
 } from '../src/availability-grid.ts'
@@ -179,5 +180,23 @@ describe('formatMinute', () => {
     expect(formatMinute(540)).toBe('09:00')
     expect(formatMinute(1290)).toBe('21:30')
     expect(formatMinute(1440)).toBe('24:00')
+  })
+})
+
+describe('hourTicks — the ruler above the grid', () => {
+  test('every two hours, starting at midnight, one tick per two cells', () => {
+    const ticks = hourTicks()
+
+    expect(ticks).toHaveLength(12)
+    expect(ticks[0]).toEqual({ cell: 0, hour: 0 })
+    expect(ticks[1]).toEqual({ cell: 4, hour: 2 })
+    expect(ticks.at(-1)).toEqual({ cell: 44, hour: 22 })
+  })
+
+  test('a coarser ruler on narrow screens still starts at midnight and stays aligned', () => {
+    const ticks = hourTicks(4)
+
+    expect(ticks.map((tick) => tick.hour)).toEqual([0, 4, 8, 12, 16, 20])
+    expect(ticks.every((tick) => tick.cell === tick.hour * (60 / SLOT_MINUTES))).toBe(true)
   })
 })

@@ -1,6 +1,9 @@
 # Idea — availability planner (the spreadsheet's week planner)
 
-**Status:** idea, nothing implemented.
+**Status:** in progress (2026-11-22) — the whole v1 loop is running: painted weeks with answers,
+the merged provisional summary, standing times, the captain's skip/reset and opening a finished
+week, and history. Still missing from this doc: the per-week "no practice" note (§12.11), an
+unlock expiry (§12.4), and history deeper than four weeks in the UI (§12.5).
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md` (who a "member" is).
 
 ## 1. The idea
@@ -144,8 +147,10 @@ If the window is derived, `week` is a denormalized date range. Keep it anyway:
 2. a stable FK anchor for `availability`;
 3. `UNIQUE (teamId, startsOn)` makes lazy creation idempotent.
 
-Provision lazily — on first read or write of a window week, `INSERT … ON CONFLICT DO NOTHING`. No
-cron job, nothing to forget to run.
+Provision lazily — on the first **write** of a window week, `INSERT … ON CONFLICT DO NOTHING`. No
+cron job, nothing to forget to run. A read provisions nothing: a GET that writes is the thing
+§4b's template rule already forbids, and the same reasoning applies here (decided while
+implementing — this sentence said "read or write" before).
 
 ## 5. The window (auto-advancing)
 
@@ -294,9 +299,9 @@ rather than a number. The UI can then say "missing: Anna (main), Ben (sub)".
 | Action | Guard |
 | --- | --- |
 | read the summary + everyone's entries | `member` |
-| read a past week (history) | `member` |
+| read a past week (history) | `member` — any Monday's week |
 | write your own availability | `member` + `userId === me.id` |
-| write someone else's | captain only — **decide** (see §11) |
+| write someone else's | nobody — 403, not even a captain (§11.1) |
 | skip the window / back to this week | `captain` |
 | unlock a finished week for editing | `captain` |
 
@@ -349,27 +354,57 @@ cell, nothing special.
 | unit (`packages/shared`) | a template prefills like a hand edit: `[540,720)` twice becomes one interval, and a template with `end = 1440` merges with the last cell |
 | integration | an answered week is never refilled from a changed template; a template edit does not touch past weeks |
 
-## 11. Open questions
+## 11. What the build decided
 
-1. **Can a captain edit someone else's availability?** Convenient for fixing typos, but it makes
-   "editable only your own" untrue. My read: no, keep the rule clean.
-2. **Is everyone's raw availability visible, or only the summary?** The summary is public by
-   definition; raw entries are a transparency choice. I'd show them — it's a team tool.
-3. **Can members edit their own rows in an unlocked week?** Likely yes — but the captain's unlock
-   must not silently grant edit rights over *other people's* availability.
-4. **Does an unlock expire?** Until the captain re-locks it, or auto-lock after N days? A week left
-   open forever invites quiet edits to settled history.
-5. **How many weeks are retained?** All of them, forever, or prune after N? "Never lost" is the
-   stated requirement, so: keep all, and let the UI page through history later.
+The patch trail is the detail; these are the calls that went beyond the plan above, and the ones
+that changed it:
+
+- **Coverage merges only on equal people**, not on equal count (§6 step 3). `9-12: a` and
+  `12-15: b` stay two segments; merging them would claim both are free all afternoon and then lie
+  in `missing`.
+- **A play window's `count` is the intersection**, not its best minute: everybody counted is free
+  for the whole window, and anyone free for only part of it is named in `missing`. A run of playable
+  coverage is split rather than overstating when the intersection would drop below 4.
+- **`findPlayWindows` takes the roster** and requires it: "playable" is a statement about the team,
+  so an empty roster offers nothing. `MIN_PLAYABLE` and `MIN_SESSION` live in `@lol/shared` only.
+- **Prefill is client-side.** Nothing about a standing schedule is persisted by a read; the grid
+  opens from it only while the week has no `answer` row, which is why "answered nothing" stays
+  nothing (§4b).
+- **A template is per team and per user**, enforced by a composite FK onto `membership`, so leaving
+  the team takes the standing schedule with it.
+- **Unlocking is past-only** (§5, §8). A week at or after `windowStart` answers 409 — otherwise an
+  unlock would route around the skip cap that keeps a team from jumping to 2027. Re-locking is the
+  same route with `unlocked: false`; there is no expiry yet (§12.4).
+- **The skip cap is 8 weeks** (`MAX_SKIP_WEEKS`), and a refused skip is reported, not clamped
+  silently: `applied: false` from the pure function becomes a 409 a captain can act on.
+- **The window is computed, never stored.** `max(this week, floor)` is the only state: a stale floor
+  heals itself, and there is no counter that leaves a team permanently ahead.
+- **History is a derived read, not a mode.** Any Monday answers `GET /planner/:startsOn` for a
+  member; the UI lists four weeks back. Reading needs no unlock, writing does.
+- **The grid is the only input** (30-minute cells, the first cell decides paint/erase, one-step
+  undo), and a week save replaces the whole week in one transaction with the `answer` upsert last.
+
+## 12. Open questions
+
+1. **Can a captain edit someone else's availability?** No. Built as a 403: naming somebody else in
+   a week write is refused, and the route writes the caller otherwise.
+2. **Is everyone's raw availability visible, or only the summary?** Both: the week payload carries
+   every member's rows next to the computed windows, and the page shows the merged summary.
+3. **Can members edit their own rows in an unlocked week?** Yes, and only their own — the unlock
+   opens the week, never somebody else's rows (the 403 above still applies).
+4. **Does an unlock expire?** Still open. Today it is until the captain re-locks it.
+5. **How many weeks are retained?** All of them, forever. The UI lists four weeks back; the API
+   already answers any Monday, so paging is a UI change, not a migration.
 6. **Granularity**: 30 minutes. Decided 2026-11-21 — it is the grid's cell and scrims start on the
    half hour. Storing minutes keeps a later 15-minute grid a UI change, not a migration.
 7. **Overnight sessions**: forbidden in v1. Decided 2026-11-21. A grid makes `23:00–02:00` look
    natural, so it needs a visible refusal ("add Monday's tail on Tuesday") rather than a silently
    clamped interval.
-8. **Timezone**: one per team, or per member? (v1: per team.)
-9. **Does a member's availability require a complete profile?** Probably not — availability is
-   useful even before someone has set a Riot ID.
-10. **How far ahead may the captain skip?** (§5) A cap (~8 weeks) plus "back to this week" is the
-    guardrail; unbounded needs a real answer for getting back.
-11. **Per-week "no practice" flag** — separate from skipping? Skipping says "don't plan here", the
-    flag says "we looked, there's nothing". Both are useful; the flag is cheap once `week` exists.
+8. **Timezone**: one per team (`team.timezone`, default `Europe/Berlin`). Showing a member's own
+   local time as well is still a nicety nobody has asked for.
+9. **Does a member's availability require a complete profile?** No. The planner reads the roster,
+   so nothing in it depends on a Riot ID.
+10. **How far ahead may the captain skip?** Eight weeks, with "Back to this week" always one click
+    away; beyond that the route refuses (409) instead of clamping silently.
+11. **Per-week "no practice" flag** — still open. Skipping says "don't plan here", the flag says
+    "we looked, there's nothing"; `week` exists now, so the flag is a column and a button.

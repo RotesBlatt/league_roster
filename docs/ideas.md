@@ -41,12 +41,13 @@ kind of note they are.
 
 Order is dependency order, not importance: **4 of the 12 still hang off `multi-team`**, which is why
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
-profiles are both done, so `availability-planner` is the next thing that is actually buildable.
+profiles are both done, so `availability-planner` was the next thing that was actually buildable —
+and it is now in progress.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
 | [hexserve-champion-data](ideas/integrations/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
-| [availability-planner](ideas/roster/availability-planner.md) | Everyone paints when they can play on a 30-minute grid, starting from their regular slots; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | idea |
+| [availability-planner](ideas/roster/availability-planner.md) | Everyone paints when they can play on a 30-minute grid, starting from their regular slots; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | in progress |
 | [team-home](ideas/frontend/team-home.md) | The front page per team: patch, next playable window, next match, roster by role incl. sub and coach, next birthdays, tasks/goals, meeting topics, useful links. Read-only composition of the other features. | multi-team, player-profiles, availability-planner, matchdays, hexserve | idea |
 | [matchdays](ideas/matches/matchdays.md) | Record Liga and scrim matchdays: opponent, BoN, per-game W/L + side + VOD, scouting from a pasted op.gg multisearch URL, Bilanz and head-to-head. Hand entry is the normal path — Riot usually cannot see these games. | multi-team, player-profiles | idea |
 | [match-history](ideas/matches/match-history.md) | Hourly pull of every member's Riot games into a games list and champion stats — Riot-visible games only; fixtures and sides come from `matchdays`. | multi-team, player-profiles, hexserve | idea |

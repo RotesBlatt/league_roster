@@ -88,17 +88,54 @@ export function provisionalText(week: PlannerWeekDto): string | null {
 }
 
 /**
- * "This week" and "Next week" for the two visible weeks (computed from the window the API sent,
- * not from the reader's clock), a date for anything else — which is how history is labelled once
- * the captain has skipped past it.
+ * The week as a range of dates: `23–29 Nov`, `30 Nov – 6 Dec`, or `28 Dec 2026 – 3 Jan 2027`.
+ *
+ * A planner labelled only "this week" forces the reader to work out which Monday it means from
+ * today's date; the dates are the answer, so they are always shown.
  */
-export function weekLabel(startsOn: string, windowStart: string): string {
-  if (startsOn === windowStart) return 'This week'
+export function weekRange(startsOn: string): string {
+  const endsOn = addDays(startsOn, 6)
+  const [startYear, startMonth, startDay] = startsOn.split('-')
+  const [endYear, endMonth, endDay] = endsOn.split('-')
 
-  const next = addDays(windowStart, 7)
-  if (startsOn === next) return 'Next week'
+  const start = `${Number(startDay)} ${MONTHS[Number(startMonth) - 1] ?? startMonth}`
+  const end = `${Number(endDay)} ${MONTHS[Number(endMonth) - 1] ?? endMonth}`
 
-  return formatDate(startsOn)
+  // the year is only worth the width when it changes; a range inside one month only needs it once
+  if (startYear !== endYear) return `${start} ${startYear} – ${end} ${endYear}`
+  if (startMonth !== endMonth) return `${start} – ${end}`
+
+  return `${Number(startDay)}–${Number(endDay)} ${MONTHS[Number(startMonth) - 1] ?? startMonth}`
+}
+
+/**
+ * ISO week number, so a week can be named the way a fixture list names it ("KW 48").
+ *
+ * The rule is the calendar's, not ours: the week belongs to the year that owns its Thursday, which
+ * is why a week starting 28 Dec can be "week 53" and not "week 0".
+ */
+export function isoWeekNumber(startsOn: string): number {
+  const monday = Date.parse(`${startsOn}T00:00:00Z`)
+  const thursday = new Date(monday + 3 * 86_400_000)
+  const yearStart = Date.UTC(thursday.getUTCFullYear(), 0, 1)
+
+  return Math.floor((thursday.getTime() - yearStart) / 86_400_000 / 7) + 1
+}
+
+/**
+ * Everything a week tab needs to be unambiguous: its relative name when it has one, the dates it
+ * covers, and its ISO week. A past week has no relative name — the dates carry it.
+ */
+export function weekHeading(startsOn: string, windowStart: string): string {
+  const relative =
+    startsOn === windowStart
+      ? 'This week'
+      : startsOn === addDays(windowStart, 7)
+        ? 'Next week'
+        : null
+
+  const parts = [relative, weekRange(startsOn), `Week ${isoWeekNumber(startsOn)}`]
+  return parts.filter((part) => part !== null).join(' · ')
 }
 
 /**
@@ -114,11 +151,4 @@ export function weekStartsBefore(windowStart: string, count: number): string[] {
 function addDays(date: string, days: number): string {
   const ms = Date.parse(`${date}T00:00:00Z`) + days * 86_400_000
   return new Date(ms).toISOString().slice(0, 10)
-}
-
-/** `28 Sep` — own month table, so the label does not depend on the runtime's ICU data. */
-function formatDate(date: string): string {
-  const [, month, day] = date.split('-')
-  const index = Number(month) - 1
-  return `${Number(day)} ${MONTHS[index] ?? month}`
 }
