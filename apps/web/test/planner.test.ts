@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
 import {
+  dateOfWeekDay,
   flattenWindows,
   initialDays,
   isoWeekNumber,
@@ -219,5 +220,17 @@ describe('weekStartsBefore — the history list', () => {
 
   test('asking for nothing is an empty list, not the window itself', () => {
     expect(weekStartsBefore('2026-11-23', 0)).toEqual([])
+  })
+})
+
+describe('dateOfWeekDay — the date above each column', () => {
+  test('Monday of the week is the start date, day.month', () => {
+    expect(dateOfWeekDay('2026-11-23', 0)).toBe('23.11')
+    expect(dateOfWeekDay('2026-11-23', 6)).toBe('29.11')
+  })
+
+  test('crossing into the next month does not print 32, and keeps both numbers padded', () => {
+    expect(dateOfWeekDay('2026-11-30', 3)).toBe('03.12')
+    expect(dateOfWeekDay('2026-12-28', 6)).toBe('03.01')
   })
 })

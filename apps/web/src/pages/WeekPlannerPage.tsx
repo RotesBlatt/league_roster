@@ -216,6 +216,7 @@ function PlannerBoard({
       <AvailabilityGrid
         grid={paint.grid}
         label="Your availability"
+        startsOn={week.startsOn}
         onBegin={paint.begin}
         onDrag={paint.drag}
         onEnd={paint.end}

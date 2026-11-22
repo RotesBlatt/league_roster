@@ -88,6 +88,20 @@ export function provisionalText(week: PlannerWeekDto): string | null {
 }
 
 /**
+ * The date of one column, `DD.MM` — what a reader needs to anchor "Tue" to a real day. Padded on
+ * both ends (`03.12`), so the numbers line up under each other instead of wandering.
+ *
+ * Not a full date on purpose: the week already names its month, and the column is 1/7 of the grid.
+ */
+export function dateOfWeekDay(startsOn: string, dayOfWeek: number): string {
+  const parts = addDays(startsOn, dayOfWeek).split('-')
+  const month = parts[1] ?? ''
+  const day = parts[2] ?? ''
+
+  return `${day}.${month}`
+}
+
+/**
  * The week as a range of dates: `23–29 Nov`, `30 Nov – 6 Dec`, or `28 Dec 2026 – 3 Jan 2027`.
  *
  * A planner labelled only "this week" forces the reader to work out which Monday it means from
