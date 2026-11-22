@@ -451,6 +451,80 @@ describe('past weeks', () => {
     expect(pressed('Tue 20:00')).toBe('true')
   })
 
+  test('the live week’s own controls disappear while a past week is open', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    // both belong to the live week: they would change nothing about the week on screen
+    expect(screen.getByRole('button', { name: 'Earlier week' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'My regular times' })).toBeDefined()
+
+    pickPastWeek('2026-11-16')
+
+    // the window controls are gone; the captain panel above is the archive's own ("Captain only")
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Earlier week' })).toBeNull())
+    expect(screen.queryByRole('button', { name: 'Back to this week' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'My regular times' })).toBeNull()
+  })
+
+  test('returning to the live week brings them back', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to the live week' }))
+
+    expect(await screen.findByRole('button', { name: 'Earlier week' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'My regular times' })).toBeDefined()
+  })
+
+  test('"Back to the live week" is a primary button, not a third ghost', async () => {
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+
+    const back = await screen.findByRole('button', { name: 'Back to the live week' })
+    // leaving history is the point of being here; it must not read like a footnote
+    expect(back.getAttribute('data-variant')).toBe('filled')
+  })
+
+  test('a captain sees the archive controls as a captain-only block, with what they do', async () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+
+    const panel = await screen.findByRole('group', { name: 'Captain controls for a past week' })
+    expect(within(panel).getByText('Captain only')).toBeDefined()
+    expect(within(panel).getByText(/reopen/i)).toBeDefined()
+    expect(within(panel).getByRole('button', { name: 'Open for editing' })).toBeDefined()
+  })
+
+  test('a member sees no archive controls at all', async () => {
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+
+    expect(await screen.findByText('past week')).toBeDefined()
+    expect(screen.queryByText('Captain only')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open for editing' })).toBeNull()
+  })
+
   test('a captain opens a finished week for writing', async () => {
     apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
     apiState.plannerWeek = { data: past(), error: null, status: 200 }

@@ -97,9 +97,17 @@ export function WeekPlannerPage() {
         </Text>
       </Group>
 
-      {me.data?.role === 'captain' && (
-        <WindowControls slug={slug} windowStart={data.windowStart} today={data.today} />
-      )}
+      {/*
+        The captain's panel, in the same place for both cases: it moves the live window, or it
+        reopens the past week on screen. It is never shown to a member, and never shown to a captain
+        when it would control something that is not visible.
+      */}
+      {me.data?.role === 'captain' &&
+        (pastWeek ? (
+          <PastWeekControls slug={slug} startsOn={pastWeek} />
+        ) : (
+          <WindowControls slug={slug} windowStart={data.windowStart} today={data.today} />
+        ))}
 
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         {pastWeek ? (
@@ -108,9 +116,10 @@ export function WeekPlannerPage() {
               past week
             </Badge>
             <Text fw={500}>{weekHeading(pastWeek, data.windowStart)}</Text>
+            {/* the way out of history is the point of being in it: filled, not a third ghost */}
             <Button
               size="xs"
-              variant="default"
+              variant="filled"
               leftSection={<IconArrowBackUp size={14} />}
               onClick={() => setPastWeek(null)}
             >
@@ -177,7 +186,6 @@ export function WeekPlannerPage() {
           windowStart={data.windowStart}
           meId={me.data?.id ?? ''}
           names={names}
-          isCaptain={me.data?.role === 'captain'}
         />
       ) : (
         <>
@@ -206,14 +214,16 @@ export function WeekPlannerPage() {
         </>
       )}
 
-      <Accordion variant="separated">
-        <Accordion.Item value="regular">
-          <Accordion.Control>My regular times</Accordion.Control>
-          <Accordion.Panel>
-            <RegularSlots slug={slug} />
-          </Accordion.Panel>
-        </Accordion.Item>
-      </Accordion>
+      {!pastWeek && (
+        <Accordion variant="separated">
+          <Accordion.Item value="regular">
+            <Accordion.Control>My regular times</Accordion.Control>
+            <Accordion.Panel>
+              <RegularSlots slug={slug} />
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+      )}
     </Stack>
   )
 }
@@ -287,6 +297,64 @@ function WindowControls({
         <Text size="xs" c="dimmed">
           Moves the two-week view for the whole team. Nothing is deleted — a week that leaves the
           window stays in History.
+        </Text>
+      </Stack>
+    </Paper>
+  )
+}
+
+/**
+ * The captain's says over a past week (§5): reading is open to everyone, writing is not.
+ *
+ * It sits where the live window controls sit, because it is the same decision in a different tense —
+ * "which weeks am I allowed to touch" — and because the alternative was a lone button floating above
+ * the week it acts on, with nothing saying who may press it.
+ */
+function PastWeekControls({ slug, startsOn }: { slug: string; startsOn: string }) {
+  const week = useWeek(slug, startsOn)
+  const unlock = useUnlockWeek(slug)
+
+  const open = week.data?.unlocked ?? false
+
+  return (
+    <Paper withBorder radius="sm" p="xs" role="group" aria-label="Captain controls for a past week">
+      <Stack gap={4}>
+        <Group gap="sm" align="center" wrap="wrap">
+          <Badge variant="light" color="orange">
+            Captain only
+          </Badge>
+          <Text size="sm" fw={500}>
+            {open ? 'This past week is open for editing' : 'This past week is closed'}
+          </Text>
+
+          <Group gap="xs" ml="auto">
+            <Button
+              size="xs"
+              variant="default"
+              loading={unlock.isPending}
+              onClick={() =>
+                unlock.mutate(
+                  { startsOn, unlocked: !open },
+                  {
+                    onError: (error: Error) =>
+                      notifications.show({ message: error.message, color: 'orange' }),
+                  },
+                )
+              }
+            >
+              {open ? 'Close week' : 'Open for editing'}
+            </Button>
+            {open && (
+              <Badge color="blue" variant="light">
+                open for edits
+              </Badge>
+            )}
+          </Group>
+        </Group>
+
+        <Text size="xs" c="dimmed">
+          Only a captain can reopen a finished week. Reopening lets every member save changes to it
+          again; closing it turns the grid back into something everybody can only read.
         </Text>
       </Stack>
     </Paper>
@@ -450,18 +518,15 @@ function PastWeekView({
   windowStart,
   meId,
   names,
-  isCaptain,
 }: {
   slug: string
   startsOn: string
   windowStart: string
   meId: string
   names: Record<string, string>
-  isCaptain: boolean
 }) {
   const week = useWeek(slug, startsOn)
   const template = usePlannerTemplate(slug)
-  const unlock = useUnlockWeek(slug)
 
   const current = week.data
   const open = current?.unlocked ?? false
@@ -470,32 +535,6 @@ function PastWeekView({
 
   return (
     <Stack gap="sm">
-      {isCaptain && (
-        <Group gap="xs">
-          <Button
-            size="xs"
-            variant="default"
-            loading={unlock.isPending}
-            onClick={() =>
-              unlock.mutate(
-                { startsOn: current.startsOn, unlocked: !open },
-                {
-                  onError: (error: Error) =>
-                    notifications.show({ message: error.message, color: 'orange' }),
-                },
-              )
-            }
-          >
-            {open ? 'Close week' : 'Open for editing'}
-          </Button>
-          {open && (
-            <Badge color="blue" variant="light">
-              open for edits
-            </Badge>
-          )}
-        </Group>
-      )}
-
       {open && template.data ? (
         <PlannerBoard
           key={`history:${current.startsOn}:${current.answered.join(',')}:${windowStart}`}
