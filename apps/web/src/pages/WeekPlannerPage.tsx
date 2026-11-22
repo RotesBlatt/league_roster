@@ -108,6 +108,25 @@ export function WeekPlannerPage() {
           <WindowControls slug={slug} windowStart={data.windowStart} today={data.today} />
         ))}
 
+      {/*
+        What the week is shown as, before which week it is: the switch reads above the tabs, since
+        it governs the whole area below. Regular times comes first because it is the one that is not
+        about a week, but the page still opens on my availability — the thing you came here to paint.
+      */}
+      {!pastWeek && (
+        <SegmentedControl
+          size="xs"
+          w="fit-content"
+          value={view}
+          onChange={(value) => setView(value as 'paint' | 'playable' | 'regular')}
+          data={[
+            { label: 'My regular times', value: 'regular' },
+            { label: 'My availability', value: 'paint' },
+            { label: 'Playable times', value: 'playable' },
+          ]}
+        />
+      )}
+
       <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
         {pastWeek ? (
           <Group gap="xs" align="center">
@@ -173,11 +192,6 @@ export function WeekPlannerPage() {
         Remounted per week and per answer set, so the grid is always the server's version of what
         I said — never a merge of it with what I happened to have painted before a save landed.
       */}
-      {/*
-        Two views of one week, not two things: what I can paint, and what the team can play. A
-        segmented control rather than a second tab row, because the week tab above already changed
-        *which* week — this only changes how the same week is read.
-      */}
       {pastWeek ? (
         <PastWeekView
           slug={slug}
@@ -188,18 +202,6 @@ export function WeekPlannerPage() {
         />
       ) : (
         <>
-          <SegmentedControl
-            size="xs"
-            w="fit-content"
-            value={view}
-            onChange={(value) => setView(value as 'paint' | 'playable' | 'regular')}
-            data={[
-              { label: 'My availability', value: 'paint' },
-              { label: 'Playable times', value: 'playable' },
-              { label: 'My regular times', value: 'regular' },
-            ]}
-          />
-
           {view === 'paint' && (
             <PlannerBoard
               key={`${week.startsOn}:${week.answered.join(',')}`}

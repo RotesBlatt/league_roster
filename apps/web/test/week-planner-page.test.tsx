@@ -319,6 +319,28 @@ describe('the captain’s window', () => {
   })
 })
 
+describe('the view switch', () => {
+  test('sits above the week tabs, regular times first, and opens on my availability', async () => {
+    renderPage()
+
+    const tabs = await screen.findByRole('tab', { name: /This week · / })
+    const radios = screen.getAllByRole('radio')
+
+    const order = ['My regular times', 'My availability', 'Playable times'].map((name) =>
+      screen.getByRole('radio', { name }),
+    )
+
+    expect(order).toHaveLength(radios.length)
+    expect(order[0]?.compareDocumentPosition(order[1]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(order[1]?.compareDocumentPosition(order[2]!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(
+      (screen.getByRole('radio', { name: 'My availability' }) as HTMLInputElement).checked,
+    ).toBe(true)
+    // the switch chooses how the week is shown, so it reads before the week it applies to
+    expect(radios[0]?.compareDocumentPosition(tabs)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+})
+
 describe('two views of the week', () => {
   test('the week opens on what I paint, not on the team summary', async () => {
     renderPage()
