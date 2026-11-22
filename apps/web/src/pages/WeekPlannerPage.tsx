@@ -321,7 +321,8 @@ function PlannerBoard({
  */
 function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<string, string> }) {
   const ranked = flattenWindows(week)
-  const stillToAnswer = week.unanswered.map((userId) => names[userId] ?? '?')
+  // keyed by id: two members may share a display name, and chips are React children
+  const stillToAnswer = week.unanswered.map((userId) => ({ userId, name: names[userId] ?? '?' }))
 
   return (
     <Stack gap="sm">
@@ -344,12 +345,27 @@ function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<str
         </Text>
       )}
 
-      <Text size="sm">
-        <Text span fw={600}>
-          Still to answer:{' '}
+      {/*
+        A sentence ("Still to answer: Ben, Cem") is a line you walk past, and these names are the
+        reason the grid understates the week: somebody who has not answered has no rows at all, so
+        the shades count only the people who did. One chip per person says that at a glance.
+      */}
+      <Group gap={6} align="center" role="group" aria-label="Waiting on">
+        <Text size="sm" c="dimmed">
+          Waiting on:
         </Text>
-        {stillToAnswer.length > 0 ? stillToAnswer.join(', ') : 'everyone has answered'}
-      </Text>
+        {stillToAnswer.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            everyone has answered
+          </Text>
+        ) : (
+          stillToAnswer.map((entry) => (
+            <Badge key={entry.userId} size="sm" variant="light" color="gray">
+              {entry.name}
+            </Badge>
+          ))
+        )}
+      </Group>
 
       <PlayableGrid week={week} label="Everyone’s availability" />
 

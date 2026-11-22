@@ -115,8 +115,9 @@ describe('what the page shows', () => {
 
     expect(await screen.findByText('1 of 3 answered — these times are provisional')).toBeDefined()
     expect(await screen.findByText('provisional')).toBeDefined()
-    expect(await screen.findByText(/Still to answer:/)).toBeDefined()
-    expect(await screen.findByText('Ben, Cem')).toBeDefined()
+    const waiting = await screen.findByRole('group', { name: 'Waiting on' })
+    expect(within(waiting).getByText('Ben')).toBeDefined()
+    expect(within(waiting).getByText('Cem')).toBeDefined()
   })
 
   test('the best session is called out with its count and who cannot make it', async () => {
@@ -325,7 +326,7 @@ describe('two views of the week', () => {
     expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
     // the summary used to sit under the grid, unreadable next to 336 cells
     expect(screen.queryByRole('group', { name: 'Everyone’s availability' })).toBeNull()
-    expect(screen.queryByText(/Still to answer:/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Waiting on' })).toBeNull()
   })
 
   test('a member switches to the team grid without losing who is missing', async () => {
@@ -338,7 +339,10 @@ describe('two views of the week', () => {
     // the paint grid is gone, not stacked under the read-only one
     expect(screen.queryByRole('group', { name: 'Your availability' })).toBeNull()
     expect(screen.getByText('provisional')).toBeDefined()
-    expect(screen.getByText('Ben, Cem')).toBeDefined()
+    // names are chips, not a sentence you can walk past
+    const waiting = screen.getByRole('group', { name: 'Waiting on' })
+    expect(within(waiting).getByText('Ben')).toBeDefined()
+    expect(within(waiting).getByText('Cem')).toBeDefined()
     expect(screen.getByText('Tue 20:00–23:00')).toBeDefined()
     expect(screen.getByText('missing: Cem')).toBeDefined()
   })
@@ -353,6 +357,37 @@ describe('two views of the week', () => {
     expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
     expect(pressed('Tue 20:00')).toBe('true')
     expect(apiState.sentPlanner).toBeUndefined()
+  })
+})
+
+describe('who has not answered yet', () => {
+  test('a member sees the pending names as chips on the playable view', async () => {
+    renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
+
+    const waiting = await screen.findByRole('group', { name: 'Waiting on' })
+    // one chip per person, so two people are not one string
+    expect(within(waiting).getAllByText(/Ben|Cem/)).toHaveLength(2)
+    expect(within(waiting).getByText('Ben')).toBeDefined()
+    expect(within(waiting).getByText('Cem')).toBeDefined()
+  })
+
+  test('a complete week says so instead of showing an empty row', async () => {
+    apiState.planner = {
+      data: planner(week({ answered: ['me', 'u2', 'u3'], unanswered: [] })),
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
+
+    const waiting = await screen.findByRole('group', { name: 'Waiting on' })
+    expect(within(waiting).getByText('everyone has answered')).toBeDefined()
   })
 })
 
