@@ -199,6 +199,23 @@ describe('the accounts list', () => {
   })
 })
 
+describe('the add-account form', () => {
+  test('a # sits between the two fields, so nobody types it themselves', async () => {
+    apiState.profile = { data: saved, error: null, status: 200 }
+    apiState.riotAccountList = { data: [mainAccount], error: null, status: 200 }
+
+    renderPage()
+
+    const gameName = await screen.findByLabelText('Game name')
+    const tagLine = screen.getByLabelText('Tag line')
+    const hash = screen.getByText('#')
+
+    // reading order, not just presence: name, then #, then tag
+    expect(gameName.compareDocumentPosition(hash) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(hash.compareDocumentPosition(tagLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
 describe('adding an account is the check', () => {
   test('there is no separate Check button — one explicit action, one lookup', async () => {
     apiState.profile = { data: saved, error: null, status: 200 }

@@ -142,16 +142,22 @@ export function AccountsSection({
               searchable
             />
 
-            <Group grow align="flex-end" gap="sm">
+            <Group align="flex-end" gap="xs" wrap="nowrap">
               <TextInput
                 label="Game name"
                 placeholder="Hide on bush"
+                flex={1}
                 value={draft.gameName}
                 onChange={(event) => update({ gameName: event.currentTarget.value })}
               />
+              {/* the # belongs to the Riot ID, not to either box: nobody has to type it */}
+              <Text aria-hidden="true" size="lg" c="dimmed" pb={6}>
+                #
+              </Text>
               <TextInput
                 label="Tag line"
                 placeholder="EUW"
+                flex={1}
                 value={draft.tagLine}
                 onChange={(event) => update({ tagLine: event.currentTarget.value })}
               />
