@@ -3,7 +3,7 @@ import type { ProfileDto, RiotAccountDto } from '@lol/api/schema-types'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The profile hooks. Their only real logic is **cache behaviour** — a save must not need a
@@ -19,7 +19,7 @@ const {
   useRiotAccounts,
   useRoster,
   useSaveProfile,
-} = await import('../src/api/hooks.ts')
+} = await import('../../src/api/hooks.ts')
 
 const profile: ProfileDto = {
   displayName: 'Julius',
