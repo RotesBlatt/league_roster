@@ -3,9 +3,9 @@ import { IconAlertCircle, IconBrandDiscord, IconUsersGroup } from '@tabler/icons
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { api, unwrap } from '../api.ts'
-import { signInWithDiscord } from '../auth-client.ts'
-import { isUnauthorized, useMe } from '../hooks.ts'
+import { api, unwrap } from '../api/api.ts'
+import { signInWithDiscord } from '../api/auth.ts'
+import { isUnauthorized, useMe } from '../api/hooks.ts'
 
 /** /join/:code — signs the visitor in (if needed) and claims the invite. */
 export function JoinPage() {

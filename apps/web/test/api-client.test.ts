@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test'
-import { createApi } from '../src/api-client.ts'
+import { createApi } from '../src/api/client.ts'
 
 /**
  * Eden Treaty turns date-looking JSON *strings* into `Date` objects by default. Our DTOs are

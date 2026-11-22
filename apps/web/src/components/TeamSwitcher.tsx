@@ -2,7 +2,7 @@ import type { Me } from '@lol/api/schema-types'
 import { Badge, Button, Group, Menu, Text } from '@mantine/core'
 import { IconChevronDown, IconPlus, IconUsersGroup } from '@tabler/icons-react'
 import { useLocation, useNavigate } from 'react-router'
-import { useMyTeams } from '../hooks.ts'
+import { useMyTeams } from '../api/hooks.ts'
 import { currentTeam, otherTeams, teamPathWithSlug, teamSlugFromPath } from '../lib/team/route.ts'
 
 /**

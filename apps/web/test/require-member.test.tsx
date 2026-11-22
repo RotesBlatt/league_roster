@@ -11,7 +11,7 @@ import { installAuthMock } from './auth-mock.ts'
  * `RequireMember` decides the whole screen state from `useMe`, so these tests drive the *network*
  * edge and let the real hook run — exactly like `app-layout.test.tsx`.
  *
- * This file used to `mock.module('../src/hooks.ts')` instead. Because `mock.module` is
+ * This file used to `mock.module('../src/api/hooks.ts')` instead. Because `mock.module` is
  * process-wide, that replaced the hooks for every file that ran afterwards, and pages importing
  * them silently stopped fetching (a 1 s `findBy…` timeout, not a clear failure). That is the third
  * time this hazard bit us — see the note in `api-mock.ts`.

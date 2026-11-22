@@ -16,9 +16,6 @@ import { notifications } from '@mantine/notifications'
 import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { GridEditor } from '../components/GridEditor.tsx'
-import { PlayableGrid } from '../components/PlayableGrid.tsx'
-import { RegularSlots } from '../components/RegularSlots.tsx'
 import {
   useMe,
   usePlanner,
@@ -30,7 +27,10 @@ import {
   useSkipWindow,
   useUnlockWeek,
   useWeek,
-} from '../hooks.ts'
+} from '../api/hooks.ts'
+import { GridEditor } from '../components/GridEditor.tsx'
+import { PlayableGrid } from '../components/PlayableGrid.tsx'
+import { RegularSlots } from '../components/RegularSlots.tsx'
 import { daysFromGrid, formatMinute, gridFromDays } from '../lib/planner/availability-grid.ts'
 import {
   currentWeekStart,

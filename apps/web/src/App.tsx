@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router'
+import { useMe } from './api/hooks.ts'
 import { RequireCompleteProfile } from './components/RequireCompleteProfile.tsx'
 import { RequireMember } from './components/RequireMember.tsx'
-import { useMe } from './hooks.ts'
 import { AdminPage } from './pages/AdminPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'

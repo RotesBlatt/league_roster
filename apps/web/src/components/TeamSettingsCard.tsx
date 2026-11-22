@@ -6,8 +6,8 @@ import { IconAlertCircle } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type SubmitEvent, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-// the pure modules: importing ApiError from './api.ts' would drag Eden into every test too
-import { ApiError, api, unwrap } from '../api.ts'
+// the pure modules: importing ApiError from './api/api.ts' would drag Eden into every test too
+import { ApiError, api, unwrap } from '../api/api.ts'
 import { teamPathWithSlug } from '../lib/team/route.ts'
 import { draftRename, renameTeamMessage } from '../lib/team/writes.ts'
 

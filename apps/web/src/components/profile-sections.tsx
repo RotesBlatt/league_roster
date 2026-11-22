@@ -19,7 +19,7 @@ import {
   useRiotAccounts,
   useSaveProfile,
   useSwitchMainRiotAccount,
-} from '../hooks.ts'
+} from '../api/hooks.ts'
 import { levelLabel } from '../lib/profile/rank.ts'
 import {
   draftAccount,

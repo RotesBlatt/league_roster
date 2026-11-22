@@ -18,7 +18,6 @@ import { notifications } from '@mantine/notifications'
 import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import { MainBadge, RankBadges, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
 import {
   useAddRosterEntry,
   useMe,
@@ -26,7 +25,8 @@ import {
   useRemoveRosterEntry,
   useRoster,
   useUpdateRosterEntry,
-} from '../hooks.ts'
+} from '../api/hooks.ts'
+import { MainBadge, RankBadges, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
 import { defaultAccountId, accountOptions as optionsFor, pickableMembers } from '../roster-form.ts'
 
 const roleData = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))

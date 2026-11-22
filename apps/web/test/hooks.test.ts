@@ -19,7 +19,7 @@ const {
   useRiotAccounts,
   useRoster,
   useSaveProfile,
-} = await import('../src/hooks.ts')
+} = await import('../src/api/hooks.ts')
 
 const profile: ProfileDto = {
   displayName: 'Julius',

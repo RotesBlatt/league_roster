@@ -9,7 +9,7 @@
 import { mock } from 'bun:test'
 
 export function installAuthMock() {
-  mock.module('../src/auth-client.ts', () => ({
+  mock.module('../src/api/auth.ts', () => ({
     authClient: {},
     signInWithDiscord: async () => {},
     signOut: async () => {},

@@ -1,5 +1,5 @@
 import { mock } from 'bun:test'
-import { ApiError, unwrap } from '../src/api-result.ts'
+import { ApiError, unwrap } from '../src/api/result.ts'
 
 /**
  * One `api.ts` mock for every UI test, because `mock.module` is **process-wide** in bun:
@@ -177,7 +177,7 @@ export function resetApiState() {
 
 /** Call once per test file, before importing the components under test. */
 export function installApiMock() {
-  mock.module('../src/api.ts', () => ({
+  mock.module('../src/api/api.ts', () => ({
     ApiError,
     unwrap,
     api: {

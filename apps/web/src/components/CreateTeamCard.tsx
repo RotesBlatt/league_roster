@@ -3,10 +3,10 @@ import { Alert, Button, Card, Stack, Text, TextInput, Title } from '@mantine/cor
 import { IconAlertCircle } from '@tabler/icons-react'
 import { type SubmitEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
-// the pure module: importing ApiError from './api.ts' would drag Eden into every test too
-import { ApiError } from '../api-result.ts'
-import { signOut } from '../auth-client.ts'
-import { useCreateTeam } from '../hooks.ts'
+import { signOut } from '../api/auth.ts'
+import { useCreateTeam } from '../api/hooks.ts'
+// the pure module: importing ApiError from './api/api.ts' would drag Eden into every test too
+import { ApiError } from '../api/result.ts'
 import { draftTeam, rosterPath, teamWriteMessage } from '../lib/team/writes.ts'
 
 /**

@@ -1,7 +1,7 @@
 import { missingProfileFields } from '@lol/shared'
 import { Card, Center, Loader, Text, Title } from '@mantine/core'
 import { Navigate, Outlet } from 'react-router'
-import { isUnauthorized, useMe, useProfile, useRiotAccounts } from '../hooks.ts'
+import { isUnauthorized, useMe, useProfile, useRiotAccounts } from '../api/hooks.ts'
 
 /**
  * The gate between "signed in" and "the app": without a **complete** profile there is nothing for

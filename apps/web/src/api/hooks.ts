@@ -1,9 +1,9 @@
 import type { Me, ProfileDto } from '@lol/api/schema-types'
 import type { Role } from '@lol/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { DayIntervals } from '../lib/planner/availability-grid.ts'
+import type { AccountBody, ProfileBody } from '../profile-form.ts'
 import { ApiError, api, unwrap } from './api.ts'
-import type { DayIntervals } from './lib/planner/availability-grid.ts'
-import type { AccountBody, ProfileBody } from './profile-form.ts'
 
 export function useMe() {
   return useQuery({

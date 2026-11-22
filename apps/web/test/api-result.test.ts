@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ApiError, messageOf, unwrap } from '../src/api-result.ts'
+import { ApiError, messageOf, unwrap } from '../src/api/result.ts'
 
 describe('unwrap', () => {
   test('returns the data on success', async () => {

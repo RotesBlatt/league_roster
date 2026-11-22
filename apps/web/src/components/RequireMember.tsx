@@ -1,7 +1,7 @@
 import { Button, Card, Center, Loader, Stack, Text, Title } from '@mantine/core'
 import { Navigate } from 'react-router'
-import { signOut } from '../auth-client.ts'
-import { isUnauthorized, useMe } from '../hooks.ts'
+import { signOut } from '../api/auth.ts'
+import { isUnauthorized, useMe } from '../api/hooks.ts'
 import { AppLayout } from './AppLayout.tsx'
 import { CreateTeamCard } from './CreateTeamCard.tsx'
 
