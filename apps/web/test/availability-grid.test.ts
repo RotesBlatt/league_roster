@@ -139,6 +139,19 @@ describe('a gesture', () => {
     expect(paintedCells(applyGesture(gesture, cell(0, 12)), 0)).toEqual([10, 11, 12])
   })
 
+  test('erasing and dragging back up does not repaint what was just cleared', () => {
+    // a full evening 09:00–15:00, cells 18…29
+    const grid = gridFromDays([{ dayOfWeek: 1, intervals: [{ start: 540, end: 900 }] }])
+    const gesture = startGesture(grid, cell(1, 20))
+
+    const down = applyGesture(gesture, cell(1, 25))
+    expect(paintedCells(down, 1)).toEqual([18, 19, 26, 27, 28, 29])
+
+    // the pointer comes back up: 23–25 were erased on the way down and must stay erased
+    const backUp = applyGesture(gesture, cell(1, 22))
+    expect(paintedCells(backUp, 1)).toEqual([18, 19, 26, 27, 28, 29])
+  })
+
   test('erasing clears the range and leaves the rest of the day alone', () => {
     const grid = gridFromDays([{ dayOfWeek: 1, intervals: [{ start: 540, end: 900 }] }])
     const gesture = startGesture(grid, cell(1, 20))

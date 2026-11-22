@@ -33,8 +33,16 @@ export type Gesture = {
   base: Grid
   mode: GestureMode
   dayOfWeek: number
-  /** Where the pointer went down; the range is always anchor ↔ current. */
+  /** Where the pointer went down; a paint range is always anchor ↔ current. */
   anchor: number
+  /**
+   * Erase only: the furthest cells the pointer has reached. An erase grows and never shrinks —
+   * dragging back up over time just cleared must not repaint it, which is exactly how a range
+   * computed from anchor ↔ current feels broken. Mutated by `applyGesture` on purpose: a gesture is
+   * session state, while the grid it produces stays immutable.
+   */
+  low: number
+  high: number
 }
 
 const range = (length: number) => Array.from({ length }, () => false)
@@ -105,6 +113,8 @@ export function startGesture(grid: Grid, cell: Cell): Gesture {
     mode: isPainted(grid, cell.dayOfWeek, cell.cell) ? 'erase' : 'paint',
     dayOfWeek: cell.dayOfWeek,
     anchor: cell.cell,
+    low: cell.cell,
+    high: cell.cell,
   }
 }
 
@@ -120,6 +130,11 @@ export function applyGesture(gesture: Gesture, cell: Cell): Grid {
     return applyRange(gesture, gesture.anchor)
   }
 
+  if (gesture.mode === 'erase') {
+    gesture.low = Math.min(gesture.low, cell.cell)
+    gesture.high = Math.max(gesture.high, cell.cell)
+  }
+
   return applyRange(gesture, cell.cell)
 }
 
@@ -128,8 +143,9 @@ function applyRange(gesture: Gesture, current: number): Grid {
   const row = grid[gesture.dayOfWeek]
   if (!row) return grid
 
-  const from = Math.min(gesture.anchor, current)
-  const to = Math.max(gesture.anchor, current)
+  // paint follows the pointer and shrinks when it comes back; erase only ever grows
+  const from = gesture.mode === 'erase' ? gesture.low : Math.min(gesture.anchor, current)
+  const to = gesture.mode === 'erase' ? gesture.high : Math.max(gesture.anchor, current)
   for (let index = from; index <= to; index++) row[index] = gesture.mode === 'paint'
 
   return grid

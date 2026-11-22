@@ -322,6 +322,9 @@ cell, nothing special.
 - **The first cell decides the gesture.** Landing on a free cell paints, landing on a filled cell
   erases, and the rest of the drag keeps that mode. No paint/erase switch to forget, and "clear
   that hour" needs no extra control.
+- **Paint shrinks, erase grows.** Dragging back toward the anchor shrinks a paint range, but an
+  eraser never repaints what it already cleared — a drag down and back up used to re-mark the
+  lower cells, which read as the grid fighting the pointer (fixed from user feedback).
 - **Tap paints one cell.** A drag that never moved is a tap, so touch gets the same grid — there is
   no second editor to keep in sync.
 - **One-step undo.** A bad drag can erase eight hours; the last gesture is revertible. One step, not
