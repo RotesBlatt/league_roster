@@ -41,6 +41,17 @@ export const apiState: {
   riotAccountList: Result
   /** POST /api/me/riot-accounts */
   riotAccountAdd: Result
+  /** GET /api/teams/:slug/planner */
+  planner: Result
+  /** PUT /api/teams/:slug/planner/:startsOn */
+  plannerSave: Result
+  /** GET /api/teams/:slug/planner/template */
+  plannerTemplate: Result
+  /** PUT /api/teams/:slug/planner/template */
+  plannerTemplateSave: Result
+  /** the bodies handed to the planner writes, for assertions */
+  sentPlanner: unknown
+  sentPlannerTemplate: unknown
   /** DELETE /api/me/riot-accounts/:id */
   riotAccountRemove: Result
   /** PUT /api/me/riot-accounts/:id/main */
@@ -59,7 +70,7 @@ export const apiState: {
   sentRoster: unknown
   sentRosterPatch: unknown
   /** how often each GET was called, so cache behaviour is observable */
-  calls: { profileGet: number; riotAccountsGet: number; rosterGet: number }
+  calls: { profileGet: number; riotAccountsGet: number; rosterGet: number; plannerGet: number }
   /** a never-resolving GET, for testing loaders without a real slow network */
   pending: { me: boolean }
 } = {
@@ -79,6 +90,12 @@ export const apiState: {
   riotAccountAdd: { data: null, error: null, status: 200 },
   riotAccountRemove: { data: { ok: true }, error: null, status: 200 },
   riotAccountSwitch: { data: null, error: null, status: 200 },
+  planner: { data: null, error: null, status: 200 },
+  plannerSave: { data: { ok: true }, error: null, status: 200 },
+  plannerTemplate: { data: { days: [] }, error: null, status: 200 },
+  plannerTemplateSave: { data: { ok: true }, error: null, status: 200 },
+  sentPlanner: undefined,
+  sentPlannerTemplate: undefined,
   sentBody: undefined,
   sentRename: undefined,
   sentProfile: undefined,
@@ -86,7 +103,7 @@ export const apiState: {
   sentAccountId: undefined,
   sentRoster: undefined,
   sentRosterPatch: undefined,
-  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0 },
+  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0 },
   pending: { me: false },
 }
 
@@ -107,6 +124,12 @@ export function resetApiState() {
   apiState.riotAccountAdd = { data: null, error: null, status: 200 }
   apiState.riotAccountRemove = { data: { ok: true }, error: null, status: 200 }
   apiState.riotAccountSwitch = { data: null, error: null, status: 200 }
+  apiState.planner = { data: null, error: null, status: 200 }
+  apiState.plannerSave = { data: { ok: true }, error: null, status: 200 }
+  apiState.plannerTemplate = { data: { days: [] }, error: null, status: 200 }
+  apiState.plannerTemplateSave = { data: { ok: true }, error: null, status: 200 }
+  apiState.sentPlanner = undefined
+  apiState.sentPlannerTemplate = undefined
   apiState.sentBody = undefined
   apiState.sentRename = undefined
   apiState.sentProfile = undefined
@@ -114,7 +137,7 @@ export function resetApiState() {
   apiState.sentAccountId = undefined
   apiState.sentRoster = undefined
   apiState.sentRosterPatch = undefined
-  apiState.calls = { profileGet: 0, riotAccountsGet: 0, rosterGet: 0 }
+  apiState.calls = { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0 }
   apiState.pending = { me: false }
 }
 
@@ -198,6 +221,28 @@ export function installApiMock() {
             },
           ),
           members: { get: () => Promise.resolve(apiState.memberList) },
+          // callable for :startsOn, verbs on the collection — same shape as `roster`
+          planner: Object.assign(
+            (params: { startsOn: string }) => ({
+              put: (body: unknown) => {
+                apiState.sentPlanner = { startsOn: params.startsOn, body }
+                return Promise.resolve(apiState.plannerSave)
+              },
+            }),
+            {
+              get: () => {
+                apiState.calls.plannerGet += 1
+                return Promise.resolve(apiState.planner)
+              },
+              template: {
+                get: () => Promise.resolve(apiState.plannerTemplate),
+                put: (body: unknown) => {
+                  apiState.sentPlannerTemplate = body
+                  return Promise.resolve(apiState.plannerTemplateSave)
+                },
+              },
+            },
+          ),
         }),
         {
           get: () => Promise.resolve(apiState.teamList),

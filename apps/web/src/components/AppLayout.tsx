@@ -1,6 +1,12 @@
 import type { Me } from '@lol/api/schema-types'
 import { AppShell, Avatar, Button, Group, Menu, Text } from '@mantine/core'
-import { IconLogout, IconShieldCog, IconUser, IconUsersGroup } from '@tabler/icons-react'
+import {
+  IconCalendarWeek,
+  IconLogout,
+  IconShieldCog,
+  IconUser,
+  IconUsersGroup,
+} from '@tabler/icons-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
@@ -44,6 +50,11 @@ export function AppLayout({ me }: { me: Me }) {
           <Group gap={4}>
             <TeamSwitcher me={me} />
             <NavButton to={`${base}/roster`} label="Roster" icon={<IconUsersGroup size={16} />} />
+            <NavButton
+              to={`${base}/planner`}
+              label="Planner"
+              icon={<IconCalendarWeek size={16} />}
+            />
             {me.role === 'captain' && (
               <NavButton to={`${base}/admin`} label="Admin" icon={<IconShieldCog size={16} />} />
             )}

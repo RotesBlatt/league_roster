@@ -2,6 +2,7 @@ import type { Me, ProfileDto } from '@lol/api/schema-types'
 import type { Role } from '@lol/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, api, unwrap } from './api.ts'
+import type { DayIntervals } from './availability-grid.ts'
 import type { AccountBody, ProfileBody } from './profile-form.ts'
 
 export function useMe() {
@@ -182,4 +183,52 @@ export function useRemoveRosterEntry(slug: string) {
 
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401
+}
+
+export const PLANNER_KEY = ['planner'] as const
+export const PLANNER_TEMPLATE_KEY = ['planner-template'] as const
+
+/**
+ * The two visible weeks, everyone's answers and the windows they enable. The API derives the
+ * window from the team's clock, so this query is always "now" — there is no stored current week
+ * to go stale.
+ */
+export function usePlanner(slug: string) {
+  return useQuery({
+    queryKey: [...PLANNER_KEY, slug],
+    queryFn: () => unwrap(api.teams({ slug }).planner.get()),
+    enabled: slug.length > 0,
+  })
+}
+
+/** The caller's standing times — the same grid shape a week save takes. */
+export function usePlannerTemplate(slug: string) {
+  return useQuery({
+    queryKey: [...PLANNER_TEMPLATE_KEY, slug],
+    queryFn: () => unwrap(api.teams({ slug }).planner.template.get()),
+    enabled: slug.length > 0,
+  })
+}
+
+/**
+ * Saving a week invalidates the planner rather than patching it: the summary is computed from
+ * everyone's rows, so the server's version of "what is playable now" is the only correct one.
+ */
+export function useSaveWeek(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ startsOn, days }: { startsOn: string; days: DayIntervals[] }) =>
+      unwrap(api.teams({ slug }).planner({ startsOn }).put({ days })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] }),
+  })
+}
+
+/** A standing schedule is not an answer, so only the template cache has to change. */
+export function useSaveTemplate(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (days: DayIntervals[]) =>
+      unwrap(api.teams({ slug }).planner.template.put({ days })),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...PLANNER_TEMPLATE_KEY, slug] }),
+  })
 }

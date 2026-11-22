@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage.tsx'
 import { NewTeamPage } from './pages/NewTeamPage.tsx'
 import { ProfilePage } from './pages/ProfilePage.tsx'
 import { RosterPage } from './pages/RosterPage.tsx'
+import { WeekPlannerPage } from './pages/WeekPlannerPage.tsx'
 import { WelcomePage } from './pages/WelcomePage.tsx'
 
 /**
@@ -34,6 +35,7 @@ export function App() {
         <Route element={<RequireMember />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/t/:slug/roster" element={<RosterPage />} />
+          <Route path="/t/:slug/planner" element={<WeekPlannerPage />} />
           <Route path="/t/:slug/admin" element={<AdminPage />} />
           {/* the data is global, but the URL carries the team so the shell cannot switch under you */}
           <Route path="/t/:slug/profile" element={<ProfilePage />} />
