@@ -2,6 +2,7 @@ import { DIVISIONS, MEMBER_STATUSES, ROLES, TIERS, USER_ROLES } from '@lol/share
 import { sql } from 'drizzle-orm'
 import {
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -217,6 +218,18 @@ export const teams = pgTable(
     /** a few characters, for badges and the switcher: "DBW". Optional. */
     shortName: text('shortName'),
     slug: text('slug').notNull().unique(),
+    /**
+     * The IANA zone the planner speaks in. Availability is wall clock (§3 of
+     * availability-planner.md), so the team carries the zone and every render uses it — a DST
+     * switch must not move everybody's evening by an hour.
+     */
+    timezone: text('timezone').notNull().default('Europe/Berlin'),
+    /**
+     * The captain's manual skip-ahead: a floor for the derived window (§5). `max(today, floor)`
+     * is self-healing — once the calendar catches up the skip stops mattering, and null means
+     * "this week". Never a counter, which would leave a team permanently ahead.
+     */
+    plannerStart: date('plannerStart', { mode: 'string' }),
     createdAt: createdAt.notNull(),
     createdBy: text('createdBy')
       .notNull()
@@ -266,8 +279,132 @@ export const invites = pgTable(
   (table) => [index('invite_code_idx').on(table.code)],
 )
 
+/**
+ * One planning week of one team. Kept as a table even though the window is derived (§5): it is the
+ * FK anchor for availability, the home of per-week metadata (`unlockedAt`), and its UNIQUE makes
+ * lazy creation idempotent (`INSERT … ON CONFLICT DO NOTHING`), so no cron has to provision it.
+ *
+ * `startsOn` is always a Monday. Nothing is ever deleted: a week that leaves the window is history.
+ */
+export const weeks = pgTable(
+  'week',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    startsOn: date('startsOn', { mode: 'string' }).notNull(),
+    createdBy: text('createdBy')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    createdAt: createdAt.notNull(),
+    /** Captain opened a past week for writing. Gates editing only, never visibility (§5). */
+    unlockedAt: timestamp('unlockedAt', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [unique('week_teamId_startsOn_idx').on(table.teamId, table.startsOn)],
+)
+
+/**
+ * "I answered this week" — separate from availability on purpose (§4). Someone free nowhere has
+ * zero availability rows either way; without this row, "I answered: nothing" and "I forgot" are
+ * the same thing, and the captain cannot chase the people he actually needs to chase.
+ */
+export const answers = pgTable(
+  'answer',
+  {
+    id: text('id').primaryKey(),
+    weekId: text('weekId')
+      .notNull()
+      .references(() => weeks.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    submittedAt: timestamp('submittedAt', { withTimezone: true, mode: 'date' }).notNull(),
+  },
+  (table) => [unique('answer_weekId_userId_idx').on(table.weekId, table.userId)],
+)
+
+/**
+ * A member's free stretches in one week, in minutes from midnight on the team's wall clock.
+ *
+ * Half-open `[startMinute, endMinute)`, with `endMinute = 1440` meaning "until midnight" —
+ * deliberately not 0, which would be a zero-length interval or a wrap (§3). The CHECKs are the
+ * same rule the write path enforces, so a bad interval cannot exist even if a route forgets.
+ *
+ * `dayOfWeek` is relative to `week.startsOn`; storing an absolute date per interval would
+ * duplicate that anchor and let the two drift.
+ */
+export const availability = pgTable(
+  'availability',
+  {
+    id: text('id').primaryKey(),
+    weekId: text('weekId')
+      .notNull()
+      .references(() => weeks.id, { onDelete: 'cascade' }),
+    userId: text('userId')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    dayOfWeek: integer('dayOfWeek').notNull(),
+    startMinute: integer('startMinute').notNull(),
+    endMinute: integer('endMinute').notNull(),
+    createdAt: createdAt.notNull(),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [
+    index('availability_weekId_idx').on(table.weekId),
+    check('availability_dayOfWeek_check', sql`${table.dayOfWeek} between 0 and 6`),
+    check(
+      'availability_minutes_check',
+      sql`${table.startMinute} >= 0 and ${table.endMinute} <= 1440 and ${table.endMinute} > ${table.startMinute}`,
+    ),
+  ],
+)
+
+/**
+ * A member's standing times — "Tuesdays 20:00–23:00, every week" (§4b). A template, never a live
+ * join: an unanswered week is *shown* with these cells, and the first save writes them into
+ * `availability` as ordinary rows. So editing the template can only affect weeks nobody has
+ * answered yet, and the aggregation reads exactly one table.
+ *
+ * Per team per user, not on `profile`: two teams may meet on different evenings. The composite FK
+ * onto `membership` makes "has a standing schedule here" and "is a member here" the same fact,
+ * the same way `roster_entry` does — leaving the team removes the template.
+ */
+export const availabilityTemplates = pgTable(
+  'availability_template',
+  {
+    id: text('id').primaryKey(),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    userId: text('userId').notNull(),
+    dayOfWeek: integer('dayOfWeek').notNull(),
+    startMinute: integer('startMinute').notNull(),
+    endMinute: integer('endMinute').notNull(),
+    createdAt: createdAt.notNull(),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [
+    index('availability_template_teamId_userId_idx').on(table.teamId, table.userId),
+    foreignKey({
+      columns: [table.teamId, table.userId],
+      foreignColumns: [memberships.teamId, memberships.userId],
+      name: 'availability_template_membership_fk',
+    }).onDelete('cascade'),
+    check('availability_template_dayOfWeek_check', sql`${table.dayOfWeek} between 0 and 6`),
+    check(
+      'availability_template_minutes_check',
+      sql`${table.startMinute} >= 0 and ${table.endMinute} <= 1440 and ${table.endMinute} > ${table.startMinute}`,
+    ),
+  ],
+)
+
 export type UserRow = typeof user.$inferSelect
 export type ProfileRow = typeof profile.$inferSelect
 export type RosterEntryRow = typeof rosterEntries.$inferSelect
 export type RiotAccountRow = typeof riotAccounts.$inferSelect
 export type InviteRow = typeof invites.$inferSelect
+export type WeekRow = typeof weeks.$inferSelect
+export type AnswerRow = typeof answers.$inferSelect
+export type AvailabilityRow = typeof availability.$inferSelect
+export type AvailabilityTemplateRow = typeof availabilityTemplates.$inferSelect

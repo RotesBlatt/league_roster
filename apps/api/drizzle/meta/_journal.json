@@ -78,6 +78,13 @@
       "when": 1795295018007,
       "tag": "0010_rare_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795347638754,
+      "tag": "0011_living_rage",
+      "breakpoints": true
     }
   ]
 }

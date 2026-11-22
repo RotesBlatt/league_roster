@@ -1,14 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { eq, sql } from 'drizzle-orm'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
-import {
-  memberships,
-  profile,
-  riotAccounts,
-  rosterEntries,
-  teams,
-  user,
-} from '../../src/db/schema.ts'
+import { memberships, profile, riotAccounts, rosterEntries, user } from '../../src/db/schema.ts'
 import { createTestContext, migrateTo, migrationsFolder, type TestContext } from './helpers.ts'
 
 /**
@@ -56,14 +49,12 @@ beforeAll(async () => {
       updatedAt: now,
     },
   ])
-  await ctx.db.insert(teams).values({
-    id: teamId,
-    name: 'Die Besten',
-    shortName: 'DBW',
-    slug: 'dbw',
-    createdAt: now,
-    createdBy: member,
-  })
+  // raw SQL on purpose: `teams` in the schema module is *today's* shape, and drizzle would name
+  // columns 0006 has never heard of (`timezone`, `plannerStart`) on a database migrated to 0006.
+  await ctx.db.execute(sql`
+    insert into "team" ("id", "name", "shortName", "slug", "createdAt", "createdBy")
+    values (${teamId}, 'Die Besten', 'DBW', 'dbw', ${now.toISOString()}, ${member})
+  `)
   await ctx.db.insert(memberships).values({
     id: 'membership-member',
     teamId,

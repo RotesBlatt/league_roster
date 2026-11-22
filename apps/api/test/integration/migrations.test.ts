@@ -35,6 +35,19 @@ type SeededRow = { table: string; key: { column: string; value: string }[] }
 const tableRef = (table: string) => sql`${sql.identifier('public')}.${sql.identifier(table)}`
 
 /**
+ * Values a generic row cannot invent: `availability_minutes_check` spans two columns, so a row of
+ * zeroes violates it and the replay test would fail for a reason that has nothing to do with the
+ * migration under review. Keyed `table.column`; the "row seeder itself" test below fails loudly
+ * the day a new CHECK needs an entry here.
+ */
+const SEED_OVERRIDES: Record<string, unknown> = {
+  'availability.startMinute': 540,
+  'availability.endMinute': 720,
+  'availability_template.startMinute': 540,
+  'availability_template.endMinute': 720,
+}
+
+/**
  * A value that satisfies any column type in this schema. Passed as a parameter, so
  * Postgres casts it to the column it lands in.
  */
@@ -93,7 +106,10 @@ async function seedEveryTable(db: Db): Promise<SeededRow[]> {
       sql`, `,
     )
     const values = sql.join(
-      writable.map((column) => sql`${seedValue(column.data_type)}`),
+      writable.map(
+        (column) =>
+          sql`${SEED_OVERRIDES[`${table}.${column.column_name}`] ?? seedValue(column.data_type)}`,
+      ),
       sql`, `,
     )
     await db.execute(sql`INSERT INTO ${tableRef(table)} (${names}) VALUES (${values})`)
@@ -182,4 +198,21 @@ describe('a migration applied to a database that already has rows', () => {
       }
     })
   }
+})
+
+describe('the row seeder itself', () => {
+  // The safety net for the safety net: if a CHECK spans two columns, the generic "0 everywhere"
+  // row can no longer be written, and the replay test would fail for a reason that has nothing to
+  // do with the migration under review.
+  test('can put a row in every table of the current schema', async () => {
+    const ctx = await createTestContext()
+    try {
+      const seeded = await seedEveryTable(ctx.db)
+
+      expect(seeded.map((row) => row.table)).toContain('availability')
+      await expectRowsSurvive(ctx.db, seeded)
+    } finally {
+      await ctx.drop()
+    }
+  })
 })
