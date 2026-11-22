@@ -24,6 +24,11 @@ The rules as stated:
   so far, clearly marked as provisional
 - a candidate time is worth showing from **4 available** (substitute included); below that it is
   ignored, not flagged
+- availability is **painted on a 30-minute grid** (7 days × 48 cells), not typed as an interval
+  list: drag to mark, drag across marked cells to clear (decided 2026-11-21, reverses §9 of the
+  first draft)
+- **regular slots**: a member can record standing times — "Tuesdays 20:00–23:00, every week" — and
+  a week they have not answered yet starts from them (decided 2026-11-21, see §4b)
 
 ## 2. The two hard parts
 
@@ -94,10 +99,53 @@ availability  id, weekId → week, userId → user, dayOfWeek (0-6),
   that user. Then the DB can never hold `9-12` and `10-13` for the same person, and the aggregation
   never has to dedupe. This kills the single most common bug in this feature (see §6).
 - No unique constraint on `(weekId, userId, dayOfWeek)` — multiple intervals per day are the point.
+- **A member's standing times live in their own table** (§4b), never in `week`/`availability`; a week
+  is the record of what was actually said about *that* week.
 - **`answer` is a separate row from `availability`, and that is what makes "hasn't answered"
   expressible.** Someone who is free *nowhere* this week has zero availability rows either way;
   without an `answer` row, "I answered: nothing" and "I forgot" are indistinguishable. One extra
   row per member per week, and the captain gets a chase list.
+
+### 4b. Regular slots — a template, copied at answer time
+
+"Tuesdays 20:00–23:00" is not an answer about a week; it is a standing habit. It gets its own table,
+and the week keeps owning the truth:
+
+```text
+availability_template  id, teamId → team, userId → user, dayOfWeek (0-6),
+                       startMinute, endMinute, createdAt, updatedAt
+                       CHECK (0 <= dayOfWeek <= 6)
+                       CHECK (0 <= startMinute < endMinute <= 1440)
+```
+
+- **Copy on answer, not live inheritance.** A week the member has not answered yet is *shown* with
+  the template's cells as unsaved suggestions; the first save writes them into `availability` like
+  any hand-painted cell. From then on the week is edited on its own. So a template edit affects
+  future, unanswered weeks only — it never rewrites a past week, never changes a summary someone
+  already acted on, and the aggregation (§6) reads exactly one table and never learns the template
+  exists.
+- **The `answer` row decides whether the template applies.** No `answer` row → suggestions; an
+  `answer` row → whatever was saved, including "nothing free" (zero rows). That is what stops
+  "I am free nowhere this week" from being silently refilled next visit, and it needs no extra flag.
+- **No write on read.** The template is read into the initial grid state, not persisted by a GET;
+  lazy week creation stays the only write a read can cause.
+- **Per team, per user**, not on `profile`: two teams can have two schedules.
+- **The captain never edits a member's template** — same rule as availability (§8). It is the
+  person's own data, and a typo in it costs one week, not a permissions debate.
+- **A template is not an answer** (§4): prefilled suggestions for someone who has not submitted do
+  not enter the summary, which is exactly the "no answer contributes nothing" rule.
+- **No overnight** (§3): same 1440 end, same refusal to cross the day boundary.
+
+### Does `week` still need to be a table?
+
+If the window is derived, `week` is a denormalized date range. Keep it anyway:
+
+1. a home for per-week metadata that will be asked for soon ("no practice this week", a note);
+2. a stable FK anchor for `availability`;
+3. `UNIQUE (teamId, startsOn)` makes lazy creation idempotent.
+
+Provision lazily — on first read or write of a window week, `INSERT … ON CONFLICT DO NOTHING`. No
+cron job, nothing to forget to run.
 
 ## 5. The window (auto-advancing)
 
@@ -159,17 +207,6 @@ can rot.
 
 `unlockedAt` therefore gates editing only. Visibility is derived; never two mechanisms claiming the
 same job.
-
-### Does `week` still need to be a table?
-
-If the window is derived, `week` is a denormalized date range. Keep it anyway:
-
-1. a home for per-week metadata that will be asked for soon ("no practice this week", a note);
-2. a stable FK anchor for `availability`;
-3. `UNIQUE (teamId, startsOn)` makes lazy creation idempotent.
-
-Provision lazily — on first read or write of a window week, `INSERT … ON CONFLICT DO NOTHING`. No
-cron job, nothing to forget to run.
 
 ## 6. The aggregation — the part worth testing hardest
 
@@ -269,8 +306,28 @@ inline in the handler — same rule as `claimInvite`.
 
 ## 9. UI
 
-- **Input:** per-day list of intervals with an "add interval" row, not a drag-select grid. Cheaper,
-  works on mobile, accessible, and the data model doesn't care. A drag grid is a later upgrade.
+- **Input:** one 30-minute grid you paint (below). It replaced the earlier "list of intervals"
+  proposal: a week planner is a grid, and one drag beats three inputs per interval.
+
+### 9.1 The grid
+
+7 rows × 48 columns, one cell = 30 minutes, cell `i` = `[30i, 30i+30)`. "Until midnight" is the last
+cell, nothing special.
+
+- **The first cell decides the gesture.** Landing on a free cell paints, landing on a filled cell
+  erases, and the rest of the drag keeps that mode. No paint/erase switch to forget, and "clear
+  that hour" needs no extra control.
+- **Tap paints one cell.** A drag that never moved is a tap, so touch gets the same grid — there is
+  no second editor to keep in sync.
+- **One-step undo.** A bad drag can erase eight hours; the last gesture is revertible. One step, not
+  a history stack.
+- **Snap, then normalise.** The grid only ever emits 30-minute boundaries; the write path still
+  merges adjacent/overlapping intervals (§4), so stored data cannot depend on which cells were
+  dragged or in which order.
+- **Same component, two sources.** The week editor and the regular-slot editor are the same grid:
+  one starts from the week's saved rows, the other from the template.
+- **The grid is not the summary.** It shows *what I said*; §6's coverage bar is a separate computed
+  rendering, so a bug in the grid can never invent a playable window.
 - **Summary:** per day, a horizontal coverage bar coloured by threshold, the recommended window
   called out, and the missing players listed.
 - **Week navigation:** two weeks side by side (or tabs); captain-only "Skip ahead" and "Back to this
@@ -288,6 +345,9 @@ inline in the handler — same rule as `claimInvite`.
 | unit (`apps/api`) | `canEditAvailability`; `resolveWindowStart(today, floor, tz)` — skip clamped forward, auto-advance overtakes a stale floor, reset returns to this week; the answered/unanswered split |
 | integration | own-only edit (403 for someone else's), captain-only skip/reset/unlock, an `answer` row is written on submit, a skipped week's data survives and shows in history, `UNIQUE(teamId, startsOn)` keeps provisioning idempotent |
 | web | summary at 5+, at 4, and **nothing rendered at 3**; the unanswered list; the provisional label; "only a start" → 1440 |
+| web (plain module) | `availability-grid`: cell ↔ interval mapping both ways, first-cell decides paint vs erase for the whole gesture, a tap paints exactly one cell, undo restores the previous cell set |
+| unit (`packages/shared`) | a template prefills like a hand edit: `[540,720)` twice becomes one interval, and a template with `end = 1440` merges with the last cell |
+| integration | an answered week is never refilled from a changed template; a template edit does not touch past weeks |
 
 ## 11. Open questions
 
@@ -301,8 +361,11 @@ inline in the handler — same rule as `claimInvite`.
    open forever invites quiet edits to settled history.
 5. **How many weeks are retained?** All of them, forever, or prune after N? "Never lost" is the
    stated requirement, so: keep all, and let the UI page through history later.
-6. **Granularity**: 30 minutes, or 15?
-7. **Overnight sessions**: forbid in v1, or support `end > 1440` from the start?
+6. **Granularity**: 30 minutes. Decided 2026-11-21 — it is the grid's cell and scrims start on the
+   half hour. Storing minutes keeps a later 15-minute grid a UI change, not a migration.
+7. **Overnight sessions**: forbidden in v1. Decided 2026-11-21. A grid makes `23:00–02:00` look
+   natural, so it needs a visible refusal ("add Monday's tail on Tuesday") rather than a silently
+   clamped interval.
 8. **Timezone**: one per team, or per member? (v1: per team.)
 9. **Does a member's availability require a complete profile?** Probably not — availability is
    useful even before someone has set a Riot ID.
