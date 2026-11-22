@@ -1,9 +1,10 @@
 # Idea — availability planner (the spreadsheet's week planner)
 
-**Status:** in progress (2026-11-22) — the whole v1 loop is running: painted weeks with answers,
-the merged provisional summary, standing times, the captain's skip/reset and opening a finished
-week, history, a self-healing unlock (§12.4), and the captain's per-week "no practice" label
-(§12.11). Still missing from this doc: history deeper than four weeks in the UI (§12.5).
+**Status:** done (2026-11-25) — landed across `22a80ec`…`ecb39c6` and the history-paging commit:
+painted weeks with autosave and undo, the merged provisional summary, standing times, the
+captain's skip/reset/unlock/no-practice, and history. The three gaps this doc carried are closed:
+unlock expiry (§12.4), the per-week "no practice" label (§12.11), and history deeper than four
+weeks in the UI (§12.5).
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md` (who a "member" is).
 
 ## 1. The idea
@@ -398,7 +399,8 @@ that changed it:
 - **The window is computed, never stored.** `max(this week, floor)` is the only state: a stale floor
   heals itself, and there is no counter that leaves a team permanently ahead.
 - **History is a derived read, not a mode.** Any Monday answers `GET /planner/:startsOn` for a
-  member; the UI lists four weeks back. Reading needs no unlock, writing does.
+  member; the UI offers four weeks and pages older ones on request (`weekStartsBefore` takes the
+  count, so paging is state, not a new read). Reading needs no unlock, writing does.
 - **The grid is the only input** (30-minute cells, the first cell decides paint/erase, one-step
   undo), and a week save replaces the whole week in one transaction with the `answer` upsert last.
 
@@ -413,8 +415,9 @@ that changed it:
 4. **Does an unlock expire?** Yes — seven days after `unlockedAt` (§11). Decided while finishing:
    the expiry is derived, so there is no `unlockExpiresAt` column to keep in sync, and a captain
    can still re-lock sooner. The window rule itself is unchanged: visibility never depends on it.
-5. **How many weeks are retained?** All of them, forever. The UI lists four weeks back; the API
-   already answers any Monday, so paging is a UI change, not a migration.
+5. **How many weeks are retained?** All of them, forever. The UI offers four weeks and an "Older
+   weeks" button that pages further; the API already answers any Monday, so paging was a UI
+   change, not a migration.
 6. **Granularity**: 30 minutes. Decided 2026-11-21 — it is the grid's cell and scrims start on the
    half hour. Storing minutes keeps a later 15-minute grid a UI change, not a migration.
 7. **Overnight sessions**: forbidden in v1. Decided 2026-11-21. A grid makes `23:00–02:00` look

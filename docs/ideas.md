@@ -39,15 +39,14 @@ line and its "decided while implementing" section in the same commit — a doc t
 and `web-architecture.md` (nothing refactored yet) are plain `idea` rows; their status lines say what
 kind of note they are.
 
-Order is dependency order, not importance: **4 of the 12 still hang off `multi-team`**, which is why
+Order is dependency order, not importance: **4 of the 11 still hang off `multi-team`**, which is why
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
-profiles are both done, so `availability-planner` was the next thing that was actually buildable —
-and it is now in progress.
+profiles are both done, and `availability-planner` — the next thing that was actually buildable —
+is now done as well.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
 | [hexserve-champion-data](ideas/integrations/hexserve-champion-data.md) | Champion names/icons and the patch come from the team's own Hexserve dump instead of Data Dragon — current patch plus one, German names, no third-party rate limit. | — | idea |
-| [availability-planner](ideas/roster/availability-planner.md) | Everyone paints when they can play on a 30-minute grid, starting from their regular slots; the team sees one merged summary of playable times and who would be missing, in wall clock, over a two-week window that nothing ever deletes from. | multi-team, player-profiles | in progress |
 | [team-home](ideas/frontend/team-home.md) | The front page per team: patch, next playable window, next match, roster by role incl. sub and coach, next birthdays, tasks/goals, meeting topics, useful links. Read-only composition of the other features. | multi-team, player-profiles, availability-planner, matchdays, hexserve | idea |
 | [matchdays](ideas/matches/matchdays.md) | Record Liga and scrim matchdays: opponent, BoN, per-game W/L + side + VOD, scouting from a pasted op.gg multisearch URL, Bilanz and head-to-head. Hand entry is the normal path — Riot usually cannot see these games. | multi-team, player-profiles | idea |
 | [match-history](ideas/matches/match-history.md) | Hourly pull of every member's Riot games into a games list and champion stats — Riot-visible games only; fixtures and sides come from `matchdays`. | multi-team, player-profiles, hexserve | idea |
@@ -72,6 +71,7 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
+| [availability-planner](ideas/done/availability-planner.md) | Everyone paints when they can play on a 30-minute grid, starting from their regular slots and autosaved; the team sees one merged provisional summary of playable times and who would be missing, in wall clock (30-minute cells, `1440` = midnight), over a two-week window that is derived from the team's clock and never stored. Captains skip/reset, unlock a finished week for seven days, and mark a week "no practice"; history is a read of any Monday and pages back from four. | 2026-11-25 |
 | [riot-api](ideas/done/riot-api.md) | The only module that speaks Riot: an injected client over two host families, types generated from a pinned spec, and a snapshot (level, icon, both ranks) written on save by re-resolving server-side. Adding an account **is** the check — no separate endpoint — and since `puuid` is required, an account Riot cannot resolve is refused and the rows that never resolved were deleted. | 2026-11-21 |
 | [player-profiles](ideas/done/player-profiles.md) | Two owners for one row, separated instead of negotiated: `profile` and `riot_account` are player-owned (names, accounts with a DB-enforced single main, preferred role, optional birthday), `roster_entry` stays captain-owned and is always a member; the roster is a join, so an edit propagates because there is no copy. Includes the blocking first-login gate and `DROP TABLE player`. Riot validation was split out into `riot-api`, which landed the same day (see above). | 2026-11-21 |
 | [logging](ideas/done/logging.md) | One line per request plus domain events, to the console and a rotating NDJSON file, so "did it do the thing?" is answerable: a thin pino facade, `x-request-id` correlation with a request-scoped `WeakMap`, credential redaction, `auth.denied`, invite/roster/lifecycle events, and the docker `api-logs` volume. Not an audit log. | 2026-11-21 |

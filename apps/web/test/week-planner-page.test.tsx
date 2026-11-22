@@ -547,6 +547,23 @@ describe('past weeks', () => {
     expect(apiState.sentWeekParam).toBeUndefined()
   })
 
+  test('the archive reaches deeper than four weeks on request', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    const options = () =>
+      screen.getByRole('combobox', { name: 'Past week' }).querySelectorAll('option')
+
+    // the placeholder plus four past weeks
+    expect(options()).toHaveLength(5)
+    expect(screen.queryByRole('option', { name: /19–25 Oct/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Older weeks' }))
+
+    expect(options()).toHaveLength(9)
+    expect(screen.getByRole('option', { name: /19–25 Oct/ })).toBeDefined()
+  })
+
   test('picking a past week replaces the live week instead of stacking under it', async () => {
     apiState.plannerWeek = {
       data: past({ answered: ['me', 'u2', 'u3'], unanswered: [] }),
