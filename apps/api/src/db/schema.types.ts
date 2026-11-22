@@ -1,4 +1,4 @@
-import type { Division, MemberStatus, Role, Tier, UserRole } from '@lol/shared'
+import type { Division, MemberStatus, PlayWindow, Role, Tier, UserRole } from '@lol/shared'
 
 export type Me = {
   id: string
@@ -50,6 +50,43 @@ export type ProfileDto = {
   /** `YYYY-MM-DD`, or null when the player declined to share it. */
   birthday: string | null
   updatedAt: number
+}
+
+/**
+ * One week of the planner as the page reads it: what everyone said, and what that makes possible.
+ *
+ * `answered`/`unanswered` come from roster + `answer` rows, never from availability — somebody
+ * free nowhere has no intervals and is still answered. `days` is derived on every read (§6), so it
+ * cannot go stale the way a stored summary would.
+ */
+export type PlannerWeekDto = {
+  /** Monday, `YYYY-MM-DD`. */
+  startsOn: string
+  /** Captain opened this (finished) week for writing; visibility is unaffected. */
+  unlocked: boolean
+  answered: string[]
+  unanswered: string[]
+  availability: {
+    userId: string
+    dayOfWeek: number
+    startMinute: number
+    endMinute: number
+  }[]
+  /** Always seven entries, Monday first — "nobody free" is an empty list, not a missing day. */
+  days: { dayOfWeek: number; windows: PlayWindow[] }[]
+}
+
+/** The two visible weeks, plus what they are relative to. */
+export type PlannerDto = {
+  /** IANA zone every time in here is expressed in — the team's, not the reader's. */
+  timezone: string
+  /** The team's wall-clock date the window was derived from (`YYYY-MM-DD`). */
+  today: string
+  /** Monday of the first visible week. */
+  windowStart: string
+  /** Active members, in join order: the authority for "who has not answered". */
+  roster: string[]
+  weeks: PlannerWeekDto[]
 }
 
 /** A stored rank: a tier, and a division only below Master. */
