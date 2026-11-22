@@ -1,5 +1,5 @@
 import { computeCoverage, findPlayWindows } from '@lol/shared'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, min } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import {
@@ -161,11 +161,19 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
             addDays(windowStart, index * 7),
           )
           const roster = await activeRoster(scope(team))
+          // The archive's floor: the first Monday this team ever wrote something to. A `week` row
+          // exists only because someone answered, unlocked or marked it — so it is exactly
+          // "first week with data", and the UI has no page size to invent.
+          const [earliest] = await db
+            .select({ startsOn: min(weeks.startsOn) })
+            .from(weeks)
+            .where(eq(weeks.teamId, team.id))
 
           return {
             timezone: team.timezone,
             today: todayInZone(now, team.timezone),
             windowStart,
+            historyStart: earliest?.startsOn ?? null,
             roster,
             weeks: await composeWeeks(db, scope(team), weekStarts, roster),
           }

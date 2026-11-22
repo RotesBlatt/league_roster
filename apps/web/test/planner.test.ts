@@ -11,7 +11,7 @@ import {
   provisionalText,
   weekHeading,
   weekRange,
-  weekStartsBefore,
+  weekStartsSince,
 } from '../src/planner.ts'
 
 /**
@@ -211,17 +211,25 @@ describe('weekHeading', () => {
   })
 })
 
-describe('weekStartsBefore — the history list', () => {
-  test('lists the weeks before the window, newest first', () => {
-    expect(weekStartsBefore('2026-11-23', 3)).toEqual(['2026-11-16', '2026-11-09', '2026-11-02'])
+describe('weekStartsSince — the history list', () => {
+  test('lists every week before the window down to the first week with data, newest first', () => {
+    expect(weekStartsSince('2026-11-02', '2026-11-23')).toEqual([
+      '2026-11-16',
+      '2026-11-09',
+      '2026-11-02',
+    ])
   })
 
   test('crosses a month and a year without special cases', () => {
-    expect(weekStartsBefore('2027-01-04', 2)).toEqual(['2026-12-28', '2026-12-21'])
+    expect(weekStartsSince('2026-12-21', '2027-01-04')).toEqual(['2026-12-28', '2026-12-21'])
   })
 
-  test('asking for nothing is an empty list, not the window itself', () => {
-    expect(weekStartsBefore('2026-11-23', 0)).toEqual([])
+  test('no data yet is an empty list, not a default page of empty weeks', () => {
+    expect(weekStartsSince(null, '2026-11-23')).toEqual([])
+  })
+
+  test('a first week inside the window means there is no past to show', () => {
+    expect(weekStartsSince('2026-11-23', '2026-11-23')).toEqual([])
   })
 })
 

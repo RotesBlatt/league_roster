@@ -42,7 +42,7 @@ import {
   provisionalText,
   weekHeading,
   weekRange,
-  weekStartsBefore,
+  weekStartsSince,
 } from '../planner.ts'
 import { usePaintGrid } from '../use-paint-grid.ts'
 
@@ -70,8 +70,6 @@ export function WeekPlannerPage() {
   const [view, setView] = useState<'paint' | 'playable' | 'regular'>('paint')
   /** Set while reading the archive: a past week replaces the live one, it does not stack under it. */
   const [pastWeek, setPastWeek] = useState<string | null>(null)
-  /** How many weeks back the archive offers. Four is the glance; the button pages it. */
-  const [historyWeeks, setHistoryWeeks] = useState(4)
 
   const data = planner.data
   const weeks = data?.weeks ?? []
@@ -85,7 +83,8 @@ export function WeekPlannerPage() {
   // the team's idea of "today", from the API — never the browser's, so the mark is the same for
   // everybody in the team even if they are in another timezone
   const currentWeek = currentWeekStart(data.today)
-  const pastWeeks = weekStartsBefore(data.windowStart, historyWeeks).map((startsOn) => ({
+  // as deep as the team's record goes, and no deeper: `historyStart` is the first week with data
+  const pastWeeks = weekStartsSince(data.historyStart, data.windowStart).map((startsOn) => ({
     value: startsOn,
     label: weekHeading(startsOn, data.windowStart),
   }))
@@ -191,9 +190,6 @@ export function WeekPlannerPage() {
             The archive: weeks that have slid out of the two-week window. Derived from the window
             (§5), loaded only when picked, and read-only unless a captain opens one for writing.
           */}
-          <Button size="xs" variant="subtle" onClick={() => setHistoryWeeks((count) => count + 4)}>
-            Older weeks
-          </Button>
           <NativeSelect
             size="xs"
             w={210}

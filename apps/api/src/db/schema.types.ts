@@ -96,6 +96,11 @@ export type PlannerDto = {
   today: string
   /** Monday of the first visible week. */
   windowStart: string
+  /**
+   * Earliest Monday with a `week` row for this team, or null when nothing has ever been written.
+   * The archive lists back to here and no further — the range comes from data, not a page size.
+   */
+  historyStart: string | null
   /** Active members, in join order: the authority for "who has not answered". */
   roster: string[]
   weeks: PlannerWeekDto[]

@@ -164,13 +164,22 @@ export function weekHeading(startsOn: string, windowStart: string): string {
 }
 
 /**
- * The `count` weeks before the window, newest first — the history list (§5 "look at a past week").
- * Pure date arithmetic, so a month or year boundary is not a special case.
+ * Every week before the window, newest first, down to the first week that has data — the history
+ * list (§5 "look at a past week"). The floor is the API's `historyStart`, so the archive is as deep
+ * as the team's own record and never invents empty weeks before it.
+ *
+ * Pure date arithmetic, so a month or year boundary is not a special case. A missing floor, or one
+ * inside the visible window, means "no history yet" rather than a default page.
  */
-export function weekStartsBefore(windowStart: string, count: number): string[] {
-  return Array.from({ length: Math.max(0, count) }, (_, index) =>
-    addDays(windowStart, -7 * (index + 1)),
-  )
+export function weekStartsSince(historyStart: string | null, windowStart: string): string[] {
+  if (!historyStart) return []
+
+  const weeks: string[] = []
+  for (let week = addDays(windowStart, -7); week >= historyStart; week = addDays(week, -7)) {
+    weeks.push(week)
+  }
+
+  return weeks
 }
 
 function addDays(date: string, days: number): string {

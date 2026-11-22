@@ -118,6 +118,8 @@ describe('GET /planner', () => {
     expect(dto.timezone).toBe('Europe/Berlin')
     expect(dto.windowStart).toBe(thisWeek())
     expect(dto.weeks.map((week) => week.startsOn)).toEqual([thisWeek(), nextWeek()])
+    // nothing has been written yet, so there is no history to page back to
+    expect(dto.historyStart).toBeNull()
   })
 
   test('the roster is the active members, and everyone still counts as unanswered', async () => {
@@ -674,6 +676,9 @@ describe('marking a week as no practice', () => {
     expect(week.noPractice).toBe(true)
     expect(week.answered).toEqual([])
     expect(week.availability).toEqual([])
+
+    // the archive's floor is data, not a fixed page size: this is now the first week with a row
+    expect((await planner(memberCookie)).historyStart).toBe(quietWeek)
   })
 })
 

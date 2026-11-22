@@ -56,6 +56,8 @@ const planner = (first: PlannerWeekDto): PlannerDto => ({
   timezone: 'Europe/Berlin',
   today: '2026-11-25',
   windowStart: '2026-11-23',
+  // five weeks of history: 16 Nov back to 19 Oct
+  historyStart: '2026-10-19',
   roster: ['me', 'u2', 'u3'],
   weeks: [
     first,
@@ -547,21 +549,32 @@ describe('past weeks', () => {
     expect(apiState.sentWeekParam).toBeUndefined()
   })
 
-  test('the archive reaches deeper than four weeks on request', async () => {
+  test('the archive lists every week down to the first one with data, and no further', async () => {
     renderPage()
 
     await cell('Mon 09:00')
     const options = () =>
       screen.getByRole('combobox', { name: 'Past week' }).querySelectorAll('option')
 
-    // the placeholder plus four past weeks
-    expect(options()).toHaveLength(5)
-    expect(screen.queryByRole('option', { name: /19–25 Oct/ })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Older weeks' }))
-
-    expect(options()).toHaveLength(9)
+    // the placeholder plus five past weeks, ending at the first week with data
+    expect(options()).toHaveLength(6)
     expect(screen.getByRole('option', { name: /19–25 Oct/ })).toBeDefined()
+    expect(screen.queryByRole('option', { name: /12–18 Oct/ })).toBeNull()
+  })
+
+  test('nothing written yet means no archive options, not a default page of empty weeks', async () => {
+    apiState.planner = {
+      data: { ...planner(week()), historyStart: null },
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    await cell('Mon 09:00')
+    const options = screen.getByRole('combobox', { name: 'Past week' }).querySelectorAll('option')
+
+    expect(options).toHaveLength(1)
   })
 
   test('picking a past week replaces the live week instead of stacking under it', async () => {
