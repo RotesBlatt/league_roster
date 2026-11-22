@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
 import { answers, availability, availabilityTemplates, weeks } from '../../src/db/schema.ts'
-import type { PlannerDto } from '../../src/db/schema.types.ts'
+import type { PlannerDto, PlannerTemplateDto } from '../../src/db/schema.types.ts'
 import { addDays, resolveWindowStart } from '../../src/planner/week.ts'
 import {
   addMembership,
@@ -361,5 +361,119 @@ describe('the database rules the route relies on', () => {
 
     expect(mine).toHaveLength(1)
     expect(new Set(rows.map((row) => row.userId)).size).toBe(rows.length)
+  })
+})
+
+describe('the standing schedule (regular slots)', () => {
+  const alphaTemplate = '/api/teams/alpha/planner/template'
+  const betaTemplate = '/api/teams/beta/planner/template'
+
+  let latecomerId: string
+  let latecomerCookie: string
+
+  const template = async (cookie: string, path = alphaTemplate): Promise<PlannerTemplateDto> => {
+    const response = await call(path, { cookie })
+    expect(response.status).toBe(200)
+    return (await response.json()) as PlannerTemplateDto
+  }
+
+  const writeTemplate = (cookie: string, path: string, days: unknown) =>
+    call(path, { method: 'PUT', cookie, body: { days } })
+
+  beforeAll(async () => {
+    // somebody who has not answered any week — the case a template must not silently answer
+    latecomerId = await createUser(ctx, { name: 'Latecomer' })
+    await addMembership(ctx, { teamId, userId: latecomerId })
+    latecomerCookie = await createSessionCookie(ctx, latecomerId)
+
+    const betaTeamId = await seedTeam(ctx, { createdBy: captainId, slug: 'beta', name: 'Beta' })
+    await addMembership(ctx, { teamId: betaTeamId, userId: members[0]! })
+  })
+
+  test('starts empty, seven days, for everybody', async () => {
+    const dto = await template(latecomerCookie)
+
+    expect(dto.days.map((day) => day.dayOfWeek)).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(dto.days.every((day) => day.intervals.length === 0)).toBe(true)
+  })
+
+  test('saves the grid, merges touching cells and reads back in grid shape', async () => {
+    const response = await writeTemplate(latecomerCookie, alphaTemplate, [
+      {
+        dayOfWeek: 1,
+        intervals: [
+          { start: 1200, end: 1290 },
+          { start: 1290, end: 1380 },
+        ],
+      },
+    ])
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true, intervals: 1 })
+    expect((await template(latecomerCookie)).days[1]).toEqual({
+      dayOfWeek: 1,
+      intervals: [{ start: 1200, end: 1380 }],
+    })
+  })
+
+  test('is personal: one member’s schedule is not another’s', async () => {
+    const mine = await template(memberCookie)
+
+    expect(mine.days.every((day) => day.intervals.length === 0)).toBe(true)
+  })
+
+  test('is per team: the same person keeps a different schedule in each team', async () => {
+    expect(
+      (
+        await writeTemplate(memberCookie, alphaTemplate, [
+          { dayOfWeek: 2, intervals: [{ start: 540, end: 720 }] },
+        ])
+      ).status,
+    ).toBe(200)
+
+    expect((await template(memberCookie)).days[2]?.intervals).toHaveLength(1)
+    expect((await template(memberCookie, betaTemplate)).days[2]?.intervals).toEqual([])
+  })
+
+  test('a template is not an answer: the week stays unanswered and empty', async () => {
+    const week = (await planner(latecomerCookie)).weeks[0]
+
+    expect(week?.unanswered).toContain(latecomerId)
+    expect(week?.answered).not.toContain(latecomerId)
+    // the shared week holds other people's rows; none of them are this member's
+    expect(week?.availability.filter((row) => row.userId === latecomerId)).toEqual([])
+  })
+
+  test('editing the template does not rewrite a week that was already answered', async () => {
+    const mine = (await planner(memberCookie)).weeks[0]?.availability.filter(
+      (row) => row.userId === members[0],
+    )
+
+    expect(
+      (
+        await writeTemplate(memberCookie, alphaTemplate, [
+          { dayOfWeek: 3, intervals: [{ start: 600, end: 690 }] },
+        ])
+      ).status,
+    ).toBe(200)
+
+    expect(
+      (await planner(memberCookie)).weeks[0]?.availability.filter(
+        (row) => row.userId === members[0],
+      ),
+    ).toEqual(mine)
+  })
+
+  test('the same half-hour rule applies: a sliver is a 422', async () => {
+    const response = await writeTemplate(latecomerCookie, alphaTemplate, [
+      { dayOfWeek: 4, intervals: [{ start: 540, end: 560 }] },
+    ])
+
+    expect(response.status).toBe(422)
+  })
+
+  test('guards: a session is needed and only members can read their own', async () => {
+    expect((await call(alphaTemplate)).status).toBe(401)
+    expect((await call(betaTemplate, { cookie: latecomerCookie })).status).toBe(404)
   })
 })

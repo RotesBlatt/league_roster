@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   type DayWrite,
+  daysFromRows,
   isWeekWritable,
   normalizeWeekWrite,
   SLOT_MINUTES,
@@ -129,5 +130,38 @@ describe('isWeekWritable', () => {
     expect(isWeekWritable(unlocked, windowStart)).toBe(true)
     // visibility is derived and unaffected: without the row being unlocked it stays closed
     expect(isWeekWritable(week('2026-09-28'), windowStart)).toBe(false)
+  })
+})
+
+describe('daysFromRows — the template read back into grid shape', () => {
+  test('seven days always come out, empty ones included', () => {
+    const days = daysFromRows([])
+
+    expect(days.map((entry) => entry.dayOfWeek)).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(days.every((entry) => entry.intervals.length === 0)).toBe(true)
+  })
+
+  test('two rows on one day become two intervals, in time order', () => {
+    const days = daysFromRows([
+      { dayOfWeek: 1, startMinute: 1200, endMinute: 1380 },
+      { dayOfWeek: 1, startMinute: 540, endMinute: 720 },
+    ])
+
+    expect(days[1]).toEqual({
+      dayOfWeek: 1,
+      intervals: [
+        { start: 540, end: 720 },
+        { start: 1200, end: 1380 },
+      ],
+    })
+  })
+
+  test('rows that touch are merged on the way out — the grid cannot show a seam that is not there', () => {
+    const days = daysFromRows([
+      { dayOfWeek: 3, startMinute: 540, endMinute: 720 },
+      { dayOfWeek: 3, startMinute: 720, endMinute: 900 },
+    ])
+
+    expect(days[3]?.intervals).toEqual([{ start: 540, end: 900 }])
   })
 })

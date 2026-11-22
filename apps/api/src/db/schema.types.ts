@@ -76,6 +76,16 @@ export type PlannerWeekDto = {
   days: { dayOfWeek: number; windows: PlayWindow[] }[]
 }
 
+/**
+ * A member's standing times (`availability_template`) in the same shape the grid paints.
+ *
+ * Always seven days. This is *not* an answer about any week: the client uses it to prefill a week
+ * the member has not answered yet, and the save that follows is the statement (§4b).
+ */
+export type PlannerTemplateDto = {
+  days: { dayOfWeek: number; intervals: { start: number; end: number }[] }[]
+}
+
 /** The two visible weeks, plus what they are relative to. */
 export type PlannerDto = {
   /** IANA zone every time in here is expressed in — the team's, not the reader's. */

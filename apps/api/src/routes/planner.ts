@@ -6,11 +6,12 @@ import {
   type AvailabilityRow,
   answers,
   availability,
+  availabilityTemplates,
   memberships,
   type WeekRow,
   weeks,
 } from '../db/schema.ts'
-import type { PlannerDto, PlannerWeekDto } from '../db/schema.types.ts'
+import type { PlannerDto, PlannerTemplateDto, PlannerWeekDto } from '../db/schema.types.ts'
 import type { TeamScope } from '../lib/team-db.ts'
 import type { TeamRow } from '../lib/teams.ts'
 import { canEditAvailability } from '../planner/access.ts'
@@ -23,6 +24,7 @@ import {
 } from '../planner/week.ts'
 import {
   DAYS_PER_WEEK,
+  daysFromRows,
   isWeekWritable,
   normalizeWeekWrite,
   VISIBLE_WEEKS,
@@ -42,20 +44,26 @@ import type { AuthPlugin } from '../plugins/auth.ts'
  * Weeks are provisioned on **write**, not on read: a GET stays a GET (§4b's "no write on read").
  */
 
+/** The painted grid, as the browser sends it: seven optional days of half-hour intervals. */
+const daysBody = t.Array(
+  t.Object({
+    dayOfWeek: t.Integer(),
+    intervals: t.Array(t.Object({ start: t.Integer(), end: t.Integer() }), { maxItems: 48 }),
+  }),
+  { maxItems: DAYS_PER_WEEK },
+)
+
 const weekBody = t.Object({
   /**
    * Whose week. Optional and almost always absent: the rule is "your own", and naming somebody
    * else is a 403 rather than a silently redirected write (§8).
    */
   userId: t.Optional(t.String()),
-  days: t.Array(
-    t.Object({
-      dayOfWeek: t.Integer(),
-      intervals: t.Array(t.Object({ start: t.Integer(), end: t.Integer() }), { maxItems: 48 }),
-    }),
-    { maxItems: DAYS_PER_WEEK },
-  ),
+  days: daysBody,
 })
+
+/** A standing schedule names nobody: it is always the caller's own (§4b). */
+const templateBody = t.Object({ days: daysBody })
 
 const weekParams = t.Object({
   slug: t.String(),
@@ -159,6 +167,69 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
           }
         },
         { teamMember: true },
+      )
+      /**
+       * My standing times (§4b). Read and written independently of any week: this is a template, and
+       * the week it prefills stays the member's statement about that week.
+       *
+       * Registered before `/:startsOn` so the literal path is never read as a date.
+       */
+      .get(
+        '/template',
+        async ({ team, me }): Promise<PlannerTemplateDto> => {
+          const rows = await scope(team).selectFrom(
+            availabilityTemplates,
+            eq(availabilityTemplates.userId, me.id),
+          )
+
+          return { days: daysFromRows(rows) }
+        },
+        { teamMember: true },
+      )
+      .put(
+        '/template',
+        async ({ body, team, me, status }) => {
+          const { rows, problems } = normalizeWeekWrite(body.days)
+          if (problems.length > 0) {
+            return status(422, {
+              message: 'Invalid availability',
+              details: problems.map((problem) => ({
+                path: problem.field,
+                message: problem.message,
+              })),
+            })
+          }
+
+          const now = new Date()
+          await db.transaction(async (tx) => {
+            // wholesale replace, like a week save: the grid is what this person said their week
+            // looks like, and a delete + insert cannot leave half of the old schedule behind
+            await tx
+              .delete(availabilityTemplates)
+              .where(
+                and(
+                  eq(availabilityTemplates.teamId, team.id),
+                  eq(availabilityTemplates.userId, me.id),
+                ),
+              )
+
+            if (rows.length > 0) {
+              await tx.insert(availabilityTemplates).values(
+                rows.map((row) => ({
+                  id: crypto.randomUUID(),
+                  teamId: team.id,
+                  userId: me.id,
+                  ...row,
+                  createdAt: now,
+                  updatedAt: now,
+                })),
+              )
+            }
+          })
+
+          return { ok: true, intervals: rows.length }
+        },
+        { teamMember: true, body: templateBody },
       )
       /**
        * Save one week for one person: replace their rows wholesale, then stamp the answer.

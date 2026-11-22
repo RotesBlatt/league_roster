@@ -123,6 +123,24 @@ export function normalizeWeekWrite(days: readonly DayWrite[]): {
 }
 
 /**
+ * Rows back into grid shape: always seven days, intervals merged and in time order.
+ *
+ * The inverse of `normalizeWeekWrite`, for the standing-schedule editor. Merging on the way out as
+ * well as on the way in means the grid can never show a seam the database does not have — a
+ * half-hour cell painted twice is one interval on both sides of the wire.
+ */
+export function daysFromRows(rows: readonly AvailabilityWrite[]): DayWrite[] {
+  return Array.from({ length: DAYS_PER_WEEK }, (_, dayOfWeek) => ({
+    dayOfWeek,
+    intervals: mergeIntervals(
+      rows
+        .filter((row) => row.dayOfWeek === dayOfWeek)
+        .map((row) => ({ start: row.startMinute, end: row.endMinute })),
+    ),
+  }))
+}
+
+/**
  * Whether this week still takes writes: a week in the visible window, or a finished one the
  * captain explicitly unlocked (§5, §8).
  *
