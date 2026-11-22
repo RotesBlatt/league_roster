@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import type { PlannerWeekDto } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, render, screen } from '@testing-library/react'
-import { PlayableGrid } from '../src/components/planner/PlayableGrid.tsx'
+import { PlayableGrid } from '../../../src/components/planner/PlayableGrid.tsx'
 
 /**
  * The team's grid: what everybody said, drawn read-only.

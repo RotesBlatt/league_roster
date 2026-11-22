@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The planner page as a member sees it: paint, save, and read who is missing.
@@ -14,7 +14,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { WeekPlannerPage } = await import('../src/pages/WeekPlannerPage.tsx')
+const { WeekPlannerPage } = await import('../../src/pages/WeekPlannerPage.tsx')
 
 const me: Me = {
   id: 'me',

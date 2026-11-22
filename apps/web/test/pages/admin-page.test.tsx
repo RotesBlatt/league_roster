@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The admin page as a whole: which team decides captaincy, and where a save leaves you.
@@ -13,7 +13,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 
 installApiMock()
 
-const { AdminPage } = await import('../src/pages/AdminPage.tsx')
+const { AdminPage } = await import('../../src/pages/AdminPage.tsx')
 
 const alpha: TeamSummary = {
   id: 'id-alpha',

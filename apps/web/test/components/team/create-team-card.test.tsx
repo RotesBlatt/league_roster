@@ -3,8 +3,8 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
-import { installAuthMock } from './auth-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../../api-mock.ts'
+import { installAuthMock } from '../../auth-mock.ts'
 
 /**
  * The card's wiring only: what leaves the component (the body handed to the mutation),
@@ -20,7 +20,7 @@ installAuthMock()
 
 installAuthMock()
 
-const { CreateTeamCard } = await import('../src/components/team/CreateTeamCard.tsx')
+const { CreateTeamCard } = await import('../../../src/components/team/CreateTeamCard.tsx')
 
 function renderCard() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

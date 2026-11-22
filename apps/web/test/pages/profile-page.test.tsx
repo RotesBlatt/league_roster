@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The profile page: what it shows, and what a save actually sends. The thinking lives in
@@ -12,7 +12,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { ProfilePage } = await import('../src/pages/ProfilePage.tsx')
+const { ProfilePage } = await import('../../src/pages/ProfilePage.tsx')
 
 const me: Me = {
   id: 'u1',

@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The roster page renders the **join**: the captain's entry (note, active, override) plus what the
@@ -13,7 +13,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { RosterPage } = await import('../src/pages/RosterPage.tsx')
+const { RosterPage } = await import('../../src/pages/RosterPage.tsx')
 
 const me = (role: Me['role'] = 'captain'): Me => ({
   id: 'u1',

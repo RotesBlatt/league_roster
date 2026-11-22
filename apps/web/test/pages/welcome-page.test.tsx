@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The first-login page. It is **blocking** on purpose: the roster is built from this, so "Continue"
@@ -13,7 +13,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { WelcomePage } = await import('../src/pages/WelcomePage.tsx')
+const { WelcomePage } = await import('../../src/pages/WelcomePage.tsx')
 
 const me: Me = {
   id: 'u1',

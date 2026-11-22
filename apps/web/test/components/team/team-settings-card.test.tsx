@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../../api-mock.ts'
 
 /**
  * The rename card's wiring: what it starts with, when Save is allowed, what it sends (including
@@ -22,7 +22,7 @@ const alpha: TeamSummary = {
 
 installApiMock()
 
-const { TeamSettingsCard } = await import('../src/components/team/TeamSettingsCard.tsx')
+const { TeamSettingsCard } = await import('../../../src/components/team/TeamSettingsCard.tsx')
 
 function AdminProbe() {
   const { slug } = useParams()

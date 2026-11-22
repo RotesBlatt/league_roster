@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, jest, test } from 'bun:test'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { AUTOSAVE_DELAY_MS, GridEditor } from '../src/components/planner/GridEditor.tsx'
-import { emptyGrid, type Grid } from '../src/lib/planner/availability-grid.ts'
+import { AUTOSAVE_DELAY_MS, GridEditor } from '../../../src/components/planner/GridEditor.tsx'
+import { emptyGrid, type Grid } from '../../../src/lib/planner/availability-grid.ts'
 
 /**
  * One editor for both grids that save: the week's availability and the standing times.

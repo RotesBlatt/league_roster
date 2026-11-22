@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useParams } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../../api-mock.ts'
 
 /**
  * The switcher's wiring: what the header names, that the menu only offers *other* teams, and
@@ -31,7 +31,7 @@ const bravo: TeamSummary = {
 
 installApiMock()
 
-const { TeamSwitcher } = await import('../src/components/team/TeamSwitcher.tsx')
+const { TeamSwitcher } = await import('../../../src/components/team/TeamSwitcher.tsx')
 
 const me: Me = {
   id: 'u1',
