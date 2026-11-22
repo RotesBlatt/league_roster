@@ -87,6 +87,9 @@ const cell = (label: string) => screen.findByRole('button', { name: label })
 const pressed = (label: string) =>
   screen.getByRole('button', { name: label }).getAttribute('aria-pressed')
 
+/** The week has two views: what I paint, and what the team can actually play. */
+const showPlayable = () => fireEvent.click(screen.getByRole('radio', { name: 'Playable times' }))
+
 beforeEach(() => {
   resetApiState()
   apiState.me = { data: me, error: null, status: 200 }
@@ -107,6 +110,9 @@ describe('what the page shows', () => {
   test('a partly answered week says so, and names who is still missing', async () => {
     renderPage()
 
+    await cell('Tue 20:00')
+    showPlayable()
+
     expect(await screen.findByText('1 of 3 answered — these times are provisional')).toBeDefined()
     expect(await screen.findByText('provisional')).toBeDefined()
     expect(await screen.findByText(/Still to answer:/)).toBeDefined()
@@ -115,6 +121,9 @@ describe('what the page shows', () => {
 
   test('the best session is called out with its count and who cannot make it', async () => {
     renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
 
     expect(await screen.findByText('Tue 20:00–23:00')).toBeDefined()
     expect(await screen.findByText('4 available')).toBeDefined()
@@ -309,6 +318,44 @@ describe('the captain’s window', () => {
   })
 })
 
+describe('two views of the week', () => {
+  test('the week opens on what I paint, not on the team summary', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
+    // the summary used to sit under the grid, unreadable next to 336 cells
+    expect(screen.queryByRole('group', { name: 'Everyone’s availability' })).toBeNull()
+    expect(screen.queryByText(/Still to answer:/)).toBeNull()
+  })
+
+  test('a member switches to the team grid without losing who is missing', async () => {
+    renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
+
+    expect(await screen.findByRole('group', { name: 'Everyone’s availability' })).toBeDefined()
+    // the paint grid is gone, not stacked under the read-only one
+    expect(screen.queryByRole('group', { name: 'Your availability' })).toBeNull()
+    expect(screen.getByText('provisional')).toBeDefined()
+    expect(screen.getByText('Ben, Cem')).toBeDefined()
+    expect(screen.getByText('Tue 20:00–23:00')).toBeDefined()
+    expect(screen.getByText('missing: Cem')).toBeDefined()
+  })
+
+  test('switching back returns to the grid I can paint, and nothing was saved', async () => {
+    renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
+    fireEvent.click(await screen.findByRole('radio', { name: 'My availability' }))
+
+    expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
+    expect(pressed('Tue 20:00')).toBe('true')
+    expect(apiState.sentPlanner).toBeUndefined()
+  })
+})
+
 describe('history', () => {
   const past = (overrides: Partial<PlannerWeekDto> = {}) =>
     week({ startsOn: '2026-11-16', ...overrides })
@@ -336,6 +383,7 @@ describe('history', () => {
     await waitFor(() => expect(apiState.sentWeekParam).toBe('2026-11-16'))
 
     expect(await screen.findByText('complete')).toBeDefined()
+    expect(screen.getByRole('group', { name: 'Everyone’s availability' })).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Open for editing' })).toBeNull()
     // the only editable grid is the live week
     expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(1)

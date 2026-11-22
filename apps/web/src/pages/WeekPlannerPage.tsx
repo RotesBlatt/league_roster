@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Paper,
+  SegmentedControl,
   Stack,
   Tabs,
   Text,
@@ -17,6 +18,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router'
 import { daysFromGrid, formatMinute, gridFromDays } from '../availability-grid.ts'
 import { AvailabilityGrid } from '../components/AvailabilityGrid.tsx'
+import { PlayableGrid } from '../components/PlayableGrid.tsx'
 import { RegularSlots } from '../components/RegularSlots.tsx'
 import {
   useMe,
@@ -63,6 +65,8 @@ export function WeekPlannerPage() {
   const template = usePlannerTemplate(slug)
   const roster = useRoster(slug)
   const [selected, setSelected] = useState('0')
+  /** Paint, or read: the same week from my side and from the team's. Paint is the default. */
+  const [view, setView] = useState<'paint' | 'playable'>('paint')
 
   const data = planner.data
   const weeks = data?.weeks ?? []
@@ -122,14 +126,33 @@ export function WeekPlannerPage() {
         Remounted per week and per answer set, so the grid is always the server's version of what
         I said — never a merge of it with what I happened to have painted before a save landed.
       */}
-      <PlannerBoard
-        key={`${week.startsOn}:${week.answered.join(',')}`}
-        slug={slug}
-        week={week}
-        template={template.data}
-        meId={me.data?.id ?? ''}
-        names={names}
+      {/*
+        Two views of one week, not two things: what I can paint, and what the team can play. A
+        segmented control rather than a second tab row, because the week tab above already changed
+        *which* week — this only changes how the same week is read.
+      */}
+      <SegmentedControl
+        size="xs"
+        w="fit-content"
+        value={view}
+        onChange={(value) => setView(value === 'playable' ? 'playable' : 'paint')}
+        data={[
+          { label: 'My availability', value: 'paint' },
+          { label: 'Playable times', value: 'playable' },
+        ]}
       />
+
+      {view === 'paint' ? (
+        <PlannerBoard
+          key={`${week.startsOn}:${week.answered.join(',')}`}
+          slug={slug}
+          week={week}
+          template={template.data}
+          meId={me.data?.id ?? ''}
+        />
+      ) : (
+        <PlayableView week={week} names={names} />
+      )}
 
       <Accordion variant="separated">
         <Accordion.Item value="regular">
@@ -231,13 +254,11 @@ function PlannerBoard({
   week,
   template,
   meId,
-  names,
 }: {
   slug: string
   week: PlannerWeekDto
   template: PlannerTemplateDto
   meId: string
-  names: Record<string, string>
 }) {
   const save = useSaveWeek(slug)
   const paint = usePaintGrid(gridFromDays(initialDays(week, template, meId)))
@@ -286,23 +307,24 @@ function PlannerBoard({
         onDrag={paint.drag}
         onEnd={paint.end}
       />
-
-      <WeekSummary week={week} names={names} />
     </Stack>
   )
 }
 
 /**
- * The merged summary: how provisional the week is, who has not answered, and the sessions the
- * answers make possible (§6, §9). Shared by the live board and by a read-only past week, because
- * "what was playable then" is the same question as "what is playable now".
+ * The team's side of a week: the grid of who is free when, how provisional that is, and the sessions
+ * the answers make possible (§6, §9).
+ *
+ * Shared by the live week's second view and by a read-only past week, because "what was playable
+ * then" is the same question as "what is playable now". The ranked list stays: the grid says *when*,
+ * the list says *who cannot make it*, and a session is a decision about people.
  */
-function WeekSummary({ week, names }: { week: PlannerWeekDto; names: Record<string, string> }) {
+function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<string, string> }) {
   const ranked = flattenWindows(week)
   const stillToAnswer = week.unanswered.map((userId) => names[userId] ?? '?')
 
   return (
-    <Stack gap="xs">
+    <Stack gap="sm">
       <Group gap="sm">
         <Title order={4}>Playable</Title>
         {isProvisional(week) ? (
@@ -328,6 +350,8 @@ function WeekSummary({ week, names }: { week: PlannerWeekDto; names: Record<stri
         </Text>
         {stillToAnswer.length > 0 ? stillToAnswer.join(', ') : 'everyone has answered'}
       </Text>
+
+      <PlayableGrid week={week} label="Everyone’s availability" />
 
       {ranked.length === 0 ? (
         <Text size="sm" c="dimmed">
@@ -435,10 +459,9 @@ function HistoryPanel({
               week={current}
               template={template.data}
               meId={meId}
-              names={names}
             />
           ) : (
-            <WeekSummary week={current} names={names} />
+            <PlayableView week={current} names={names} />
           )}
         </Stack>
       )}
