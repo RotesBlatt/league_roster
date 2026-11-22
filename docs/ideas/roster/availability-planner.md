@@ -2,8 +2,8 @@
 
 **Status:** in progress (2026-11-22) — the whole v1 loop is running: painted weeks with answers,
 the merged provisional summary, standing times, the captain's skip/reset and opening a finished
-week, and history. Still missing from this doc: the per-week "no practice" note (§12.11), an
-unlock expiry (§12.4), and history deeper than four weeks in the UI (§12.5).
+week, history, and a self-healing unlock (§12.4). Still missing from this doc: the per-week
+"no practice" note (§12.11) and history deeper than four weeks in the UI (§12.5).
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md` (who a "member" is).
 
 ## 1. The idea
@@ -374,7 +374,10 @@ that changed it:
   the team takes the standing schedule with it.
 - **Unlocking is past-only** (§5, §8). A week at or after `windowStart` answers 409 — otherwise an
   unlock would route around the skip cap that keeps a team from jumping to 2027. Re-locking is the
-  same route with `unlocked: false`; there is no expiry yet (§12.4).
+  same route with `unlocked: false`.
+- **An unlock expires after seven days** (`UNLOCK_DAYS`), derived from `unlockedAt` rather than
+  stored as a second column. A forgotten unlock heals itself, exactly like a stale skip floor: no
+  reset job, and the derived window is never pinned by old state (§12.4).
 - **The skip cap is 8 weeks** (`MAX_SKIP_WEEKS`), and a refused skip is reported, not clamped
   silently: `applied: false` from the pure function becomes a 409 a captain can act on.
 - **The window is computed, never stored.** `max(this week, floor)` is the only state: a stale floor
@@ -392,7 +395,9 @@ that changed it:
    every member's rows next to the computed windows, and the page shows the merged summary.
 3. **Can members edit their own rows in an unlocked week?** Yes, and only their own — the unlock
    opens the week, never somebody else's rows (the 403 above still applies).
-4. **Does an unlock expire?** Still open. Today it is until the captain re-locks it.
+4. **Does an unlock expire?** Yes — seven days after `unlockedAt` (§11). Decided while finishing:
+   the expiry is derived, so there is no `unlockExpiresAt` column to keep in sync, and a captain
+   can still re-lock sooner. The window rule itself is unchanged: visibility never depends on it.
 5. **How many weeks are retained?** All of them, forever. The UI lists four weeks back; the API
    already answers any Monday, so paging is a UI change, not a migration.
 6. **Granularity**: 30 minutes. Decided 2026-11-21 — it is the grid's cell and scrims start on the

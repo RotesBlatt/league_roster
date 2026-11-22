@@ -109,27 +109,39 @@ describe('normalizeWeekWrite', () => {
 
 describe('isWeekWritable', () => {
   const windowStart = '2026-11-23' // a Monday
+  const now = new Date('2026-11-25T10:00:00Z')
   const week = (startsOn: string, unlockedAt: Date | null = null) => ({ startsOn, unlockedAt })
+  const writable = (startsOn: string, unlockedAt: Date | null = null, at = now) =>
+    isWeekWritable(week(startsOn, unlockedAt), windowStart, at)
 
   test('this week and next week are the window, and both are writable', () => {
-    expect(isWeekWritable(week('2026-11-23'), windowStart)).toBe(true)
-    expect(isWeekWritable(week('2026-11-30'), windowStart)).toBe(true)
+    expect(writable('2026-11-23')).toBe(true)
+    expect(writable('2026-11-30')).toBe(true)
   })
 
   test('a week the window does not show is not writable, even in the future', () => {
-    expect(isWeekWritable(week('2026-12-07'), windowStart)).toBe(false)
+    expect(writable('2026-12-07')).toBe(false)
   })
 
   test('the past is closed — it is history, not a draft', () => {
-    expect(isWeekWritable(week('2026-11-16'), windowStart)).toBe(false)
+    expect(writable('2026-11-16')).toBe(false)
   })
 
   test('a captain can unlock a finished week for writing, and that is the only way in', () => {
-    const unlocked = week('2026-11-16', new Date('2026-11-25T10:00:00Z'))
+    const unlocked = new Date('2026-11-25T10:00:00Z')
 
-    expect(isWeekWritable(unlocked, windowStart)).toBe(true)
+    expect(writable('2026-11-16', unlocked)).toBe(true)
     // visibility is derived and unaffected: without the row being unlocked it stays closed
-    expect(isWeekWritable(week('2026-09-28'), windowStart)).toBe(false)
+    expect(writable('2026-09-28')).toBe(false)
+  })
+
+  test('an unlock expires after seven days, so a forgotten one heals itself', () => {
+    const unlocked = new Date('2026-11-18T10:00:00Z')
+
+    expect(writable('2026-11-16', unlocked, new Date('2026-11-25T09:59:59Z'))).toBe(true)
+    // exactly seven days later is already expired: the window is half-open like every other
+    expect(writable('2026-11-16', unlocked, new Date('2026-11-25T10:00:00Z'))).toBe(false)
+    expect(writable('2026-11-16', unlocked, new Date('2026-11-26T10:00:00Z'))).toBe(false)
   })
 })
 

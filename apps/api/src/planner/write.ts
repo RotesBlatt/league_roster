@@ -21,6 +21,8 @@ export const SLOT_MINUTES = 30
 export const DAY_MINUTES = 1440
 /** Weeks the window shows: this one and the next. */
 export const VISIBLE_WEEKS = 2
+/** How long a captain's unlock stays open. A forgotten one heals itself (§12.4). */
+export const UNLOCK_DAYS = 7
 /** Days in a week, Monday first. */
 export const DAYS_PER_WEEK = 7
 
@@ -146,12 +148,20 @@ export function daysFromRows(rows: readonly AvailabilityWrite[]): DayWrite[] {
  *
  * Visibility and writability are deliberately different questions: the window decides what you
  * can *see* (derived from today, never stored), `unlockedAt` decides what you can *change*.
+ *
+ * An unlock is temporary: the captain opens a finished week to fix an answer, not to leave a
+ * hole in "the window is derived" forever. After `UNLOCK_DAYS` it expires on its own, so a
+ * forgotten unlock cannot become the pin §5 forbids — no reset job, same as the skip.
  */
 export function isWeekWritable(
   week: { startsOn: string; unlockedAt: Date | null },
   windowStart: string,
+  now: Date,
 ): boolean {
-  if (week.unlockedAt) return true
+  if (week.unlockedAt) {
+    const expiresAt = week.unlockedAt.getTime() + UNLOCK_DAYS * 24 * 60 * 60 * 1000
+    if (now.getTime() < expiresAt) return true
+  }
 
   const lastVisible = addDays(windowStart, (VISIBLE_WEEKS - 1) * 7)
   return week.startsOn >= windowStart && week.startsOn <= lastVisible

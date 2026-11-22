@@ -610,6 +610,21 @@ describe('unlocking a finished week', () => {
     expect((await unlock(captainCookie, lastWeek(), false)).status).toBe(200)
     expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
   })
+
+  test('an unlock that was never closed expires after seven days', async () => {
+    expect((await unlock(captainCookie, lastWeek())).status).toBe(200)
+
+    // the unlock happened eight days ago — older than UNLOCK_DAYS, so the write is refused again
+    await ctx.db
+      .update(weeks)
+      .set({ unlockedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) })
+      .where(eq(weeks.startsOn, lastWeek()))
+
+    expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
+
+    // leave history closed for the tests that follow, like the test above does
+    expect((await unlock(captainCookie, lastWeek(), false)).status).toBe(200)
+  })
 })
 
 describe('reading history', () => {

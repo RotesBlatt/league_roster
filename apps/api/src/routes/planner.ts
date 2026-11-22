@@ -390,6 +390,7 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
           const writable = isWeekWritable(
             { startsOn, unlockedAt: existing?.unlockedAt ?? null },
             windowOf(team, now),
+            now,
           )
           if (!writable) return status(409, CLOSED)
 
