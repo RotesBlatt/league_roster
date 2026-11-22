@@ -19,8 +19,8 @@ import {
   useRiotAccounts,
   useSaveProfile,
   useSwitchMainRiotAccount,
-} from '../api/hooks.ts'
-import { levelLabel } from '../lib/profile/rank.ts'
+} from '../../api/hooks.ts'
+import { levelLabel } from '../../lib/profile/rank.ts'
 import {
   draftAccount,
   draftProfile,
@@ -28,8 +28,8 @@ import {
   prefillProfile,
   profileChanged,
   todayIso,
-} from '../profile-form.ts'
-import { MainBadge, RankBadges, UnverifiedBadge } from './badges.tsx'
+} from '../../profile-form.ts'
+import { MainBadge, RankBadges, UnverifiedBadge } from '../Badges.tsx'
 
 const roleOptions = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 

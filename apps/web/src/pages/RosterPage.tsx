@@ -26,7 +26,7 @@ import {
   useRoster,
   useUpdateRosterEntry,
 } from '../api/hooks.ts'
-import { MainBadge, RankBadges, RoleBadge, UnverifiedBadge } from '../components/badges.tsx'
+import { MainBadge, RankBadges, RoleBadge, UnverifiedBadge } from '../components/Badges.tsx'
 import { defaultAccountId, accountOptions as optionsFor, pickableMembers } from '../roster-form.ts'
 
 const roleData = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))

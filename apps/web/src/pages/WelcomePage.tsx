@@ -2,7 +2,7 @@ import { missingProfileFields, type ProfileField } from '@lol/shared'
 import { Button, Group, Stack, Text, Title } from '@mantine/core'
 import { Navigate, useNavigate } from 'react-router'
 import { isUnauthorized, useMe, useProfile, useRiotAccounts } from '../api/hooks.ts'
-import { AccountsSection, ProfileSection } from '../components/profile-sections.tsx'
+import { AccountsSection, ProfileSection } from '../components/profile/ProfileSections.tsx'
 
 /** What a person reads in place of a field name. */
 const MISSING_LABELS: Record<ProfileField, string> = {

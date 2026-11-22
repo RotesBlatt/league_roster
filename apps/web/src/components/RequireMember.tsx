@@ -3,7 +3,7 @@ import { Navigate } from 'react-router'
 import { signOut } from '../api/auth.ts'
 import { isUnauthorized, useMe } from '../api/hooks.ts'
 import { AppLayout } from './AppLayout.tsx'
-import { CreateTeamCard } from './CreateTeamCard.tsx'
+import { CreateTeamCard } from './team/CreateTeamCard.tsx'
 
 /** Gate for every page behind "signed in + an active membership in some team". */
 export function RequireMember() {

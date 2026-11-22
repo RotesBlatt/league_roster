@@ -1,5 +1,5 @@
 import { Stack, Text, Title } from '@mantine/core'
-import { AccountsSection, ProfileSection } from '../components/profile-sections.tsx'
+import { AccountsSection, ProfileSection } from '../components/profile/ProfileSections.tsx'
 
 /**
  * The player's own page: edit what `/welcome` asked for the first time, any time.

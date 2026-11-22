@@ -18,7 +18,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useParams } from 'react-router'
 import { api, unwrap } from '../api/api.ts'
 import { useInvites, useMe, useMembers, useMyTeams } from '../api/hooks.ts'
-import { TeamSettingsCard } from '../components/TeamSettingsCard.tsx'
+import { TeamSettingsCard } from '../components/team/TeamSettingsCard.tsx'
 import { teamRole } from '../lib/team/route.ts'
 
 type MemberPatch = {

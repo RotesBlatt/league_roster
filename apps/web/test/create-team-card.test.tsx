@@ -20,7 +20,7 @@ installAuthMock()
 
 installAuthMock()
 
-const { CreateTeamCard } = await import('../src/components/CreateTeamCard.tsx')
+const { CreateTeamCard } = await import('../src/components/team/CreateTeamCard.tsx')
 
 function renderCard() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

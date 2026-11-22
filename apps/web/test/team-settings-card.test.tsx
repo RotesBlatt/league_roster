@@ -22,7 +22,7 @@ const alpha: TeamSummary = {
 
 installApiMock()
 
-const { TeamSettingsCard } = await import('../src/components/TeamSettingsCard.tsx')
+const { TeamSettingsCard } = await import('../src/components/team/TeamSettingsCard.tsx')
 
 function AdminProbe() {
   const { slug } = useParams()

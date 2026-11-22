@@ -1,5 +1,5 @@
 import { Center } from '@mantine/core'
-import { CreateTeamCard } from '../components/CreateTeamCard.tsx'
+import { CreateTeamCard } from '../components/team/CreateTeamCard.tsx'
 
 /**
  * `/new-team` — creating another team while already in one (the switcher links here).

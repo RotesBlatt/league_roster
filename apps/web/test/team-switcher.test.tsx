@@ -31,7 +31,7 @@ const bravo: TeamSummary = {
 
 installApiMock()
 
-const { TeamSwitcher } = await import('../src/components/TeamSwitcher.tsx')
+const { TeamSwitcher } = await import('../src/components/team/TeamSwitcher.tsx')
 
 const me: Me = {
   id: 'u1',

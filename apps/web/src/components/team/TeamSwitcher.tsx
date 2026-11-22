@@ -2,8 +2,13 @@ import type { Me } from '@lol/api/schema-types'
 import { Badge, Button, Group, Menu, Text } from '@mantine/core'
 import { IconChevronDown, IconPlus, IconUsersGroup } from '@tabler/icons-react'
 import { useLocation, useNavigate } from 'react-router'
-import { useMyTeams } from '../api/hooks.ts'
-import { currentTeam, otherTeams, teamPathWithSlug, teamSlugFromPath } from '../lib/team/route.ts'
+import { useMyTeams } from '../../api/hooks.ts'
+import {
+  currentTeam,
+  otherTeams,
+  teamPathWithSlug,
+  teamSlugFromPath,
+} from '../../lib/team/route.ts'
 
 /**
  * One account may be in several teams (multi-team.md §7.3). The header names the team in the

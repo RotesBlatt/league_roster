@@ -3,11 +3,11 @@ import { Alert, Button, Card, Stack, Text, TextInput, Title } from '@mantine/cor
 import { IconAlertCircle } from '@tabler/icons-react'
 import { type SubmitEvent, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { signOut } from '../api/auth.ts'
-import { useCreateTeam } from '../api/hooks.ts'
+import { signOut } from '../../api/auth.ts'
+import { useCreateTeam } from '../../api/hooks.ts'
 // the pure module: importing ApiError from './api/api.ts' would drag Eden into every test too
-import { ApiError } from '../api/result.ts'
-import { draftTeam, rosterPath, teamWriteMessage } from '../lib/team/writes.ts'
+import { ApiError } from '../../api/result.ts'
+import { draftTeam, rosterPath, teamWriteMessage } from '../../lib/team/writes.ts'
 
 /**
  * The other way into the app besides an invite link: creating a team is what makes you its

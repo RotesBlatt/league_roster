@@ -3,7 +3,7 @@ import { IconBrandDiscord } from '@tabler/icons-react'
 import { Navigate } from 'react-router'
 import { signInWithDiscord } from '../api/auth.ts'
 import { useMe } from '../api/hooks.ts'
-import { CreateTeamCard } from '../components/CreateTeamCard.tsx'
+import { CreateTeamCard } from '../components/team/CreateTeamCard.tsx'
 
 export function LoginPage() {
   const me = useMe()

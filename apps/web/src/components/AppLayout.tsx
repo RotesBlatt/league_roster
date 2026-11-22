@@ -11,8 +11,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../api/auth.ts'
 import { teamSlugFromPath } from '../lib/team/route.ts'
-import { StatusBadge } from './badges.tsx'
-import { TeamSwitcher } from './TeamSwitcher.tsx'
+import { StatusBadge } from './Badges.tsx'
+import { TeamSwitcher } from './team/TeamSwitcher.tsx'
 
 function NavButton({ to, label, icon }: { to: string; label: string; icon: React.ReactNode }) {
   const { pathname } = useLocation()
