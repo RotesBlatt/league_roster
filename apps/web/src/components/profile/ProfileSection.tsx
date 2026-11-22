@@ -10,7 +10,7 @@ import {
   prefillProfile,
   profileChanged,
   todayIso,
-} from '../../profile-form.ts'
+} from '../../lib/profile/profile-form.ts'
 
 const roleOptions = ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))
 

@@ -6,7 +6,7 @@ import {
   prefillProfile,
   profileChanged,
   todayIso,
-} from '../src/profile-form.ts'
+} from '../../../src/lib/profile/profile-form.ts'
 
 /**
  * The profile form's thinking, without a DOM: what to send, and what the form starts with.

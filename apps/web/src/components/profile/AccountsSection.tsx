@@ -8,8 +8,8 @@ import {
   useRiotAccounts,
   useSwitchMainRiotAccount,
 } from '../../api/hooks.ts'
+import { draftAccount } from '../../lib/profile/profile-form.ts'
 import { levelLabel } from '../../lib/profile/rank.ts'
-import { draftAccount } from '../../profile-form.ts'
 import { MainBadge, RankBadges, UnverifiedBadge } from '../Badges.tsx'
 
 /**
