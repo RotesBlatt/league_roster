@@ -17,21 +17,29 @@ export function RegularSlots({ slug }: { slug: string }) {
   const template = usePlannerTemplate(slug)
   if (!template.data) return <Loader size="xs" />
 
-  // remounted when the stored schedule changes, so the grid is the server's version, not a merge
-  return (
-    <SlotsEditor key={JSON.stringify(template.data.days)} slug={slug} template={template.data} />
-  )
+  /*
+    Deliberately not re-keyed on `template.data`: saving invalidates the query, and a remount
+    there would discard the one-step undo straight after the autosave that wrote the schedule.
+    Switching away and back still opens on the stored version, which is the case that matters.
+  */
+  return <SlotsEditor slug={slug} template={template.data} />
 }
 
 function SlotsEditor({ slug, template }: { slug: string; template: PlannerTemplateDto }) {
   const save = useSaveTemplate(slug)
   const paint = usePaintGrid(gridFromDays(template.days))
 
-  const onSave = () =>
+  const onSave = () => {
+    // the revision the save is about: anything painted while it was in flight stays dirty
+    const revision = paint.revision
     save.mutate(daysFromGrid(paint.grid), {
-      onSuccess: () => notifications.show({ message: 'Regular times saved', color: 'green' }),
+      onSuccess: () => {
+        paint.markSaved(revision)
+        notifications.show({ message: 'Regular times saved', color: 'green' })
+      },
       onError: (error: Error) => notifications.show({ message: error.message, color: 'red' }),
     })
+  }
 
   return (
     <GridEditor
@@ -44,6 +52,7 @@ function SlotsEditor({ slug, template }: { slug: string; template: PlannerTempla
       onUndo={paint.undo}
       canUndo={paint.canUndo}
       dirty={paint.dirty}
+      revision={paint.revision}
       saving={save.isPending}
       saveLabel="Save my regular times"
       onSave={onSave}

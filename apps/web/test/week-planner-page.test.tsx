@@ -207,6 +207,37 @@ describe('painting and saving', () => {
     })
   })
 
+  test('a painted week saves itself after a pause, and undo still saves the undo', async () => {
+    renderPage()
+
+    fireEvent.pointerDown(await cell('Mon 09:00'))
+    await waitFor(() => expect(pressed('Mon 09:00')).toBe('true'))
+
+    // nobody pressed Save: the pause did
+    await waitFor(() => expect(apiState.sentPlanner).toBeDefined(), { timeout: 3000 })
+    const saved = apiState.sentPlanner as {
+      body: { days: { intervals: { start: number; end: number }[] }[] }
+    }
+    expect(saved.body.days[0]?.intervals).toEqual([{ start: 540, end: 570 }])
+
+    // the grid now agrees with the server, so Save is disabled — but undo is not
+    expect(screen.getByRole('button', { name: 'Save my week' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(false)
+
+    // undoing is itself a change, so the pause saves it again
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(
+      () => {
+        const latest = apiState.sentPlanner as {
+          body: { days: { intervals: { start: number; end: number }[] }[] }
+        }
+        expect(latest.body.days[0]?.intervals).toEqual([])
+      },
+      { timeout: 3000 },
+    )
+    expect(pressed('Mon 09:00')).toBe('false')
+  })
+
   test('undo puts the grid back to where the gesture started', async () => {
     renderPage()
 
@@ -726,6 +757,33 @@ describe('my regular times', () => {
     expect(sent.days[3]).toEqual({ dayOfWeek: 3, intervals: [{ start: 1260, end: 1290 }] })
     // a template is not an answer: no week save went out
     expect(apiState.sentPlanner).toBeUndefined()
+  })
+
+  test('the standing schedule autosaves, and undo survives the save', async () => {
+    renderPage()
+    await openEditor()
+
+    const thursday = () => editor().getByRole('button', { name: 'Thu 21:00' })
+    fireEvent.pointerDown(thursday())
+    await waitFor(() => expect(thursday().getAttribute('aria-pressed')).toBe('true'))
+
+    await waitFor(() => expect(apiState.sentPlannerTemplate).toBeDefined(), { timeout: 3000 })
+    // a clean grid disables Save, but the last gesture is still undoable
+    expect(
+      screen.getByRole('button', { name: 'Save my regular times' }).hasAttribute('disabled'),
+    ).toBe(true)
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(
+      () => {
+        const latest = apiState.sentPlannerTemplate as {
+          days: { intervals: { start: number; end: number }[] }[]
+        }
+        expect(latest.days[3]?.intervals).toEqual([])
+      },
+      { timeout: 3000 },
+    )
   })
 })
 

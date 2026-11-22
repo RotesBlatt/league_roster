@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, jest, test } from 'bun:test'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { emptyGrid, type Grid } from '../src/availability-grid.ts'
-import { GridEditor } from '../src/components/GridEditor.tsx'
+import { AUTOSAVE_DELAY_MS, GridEditor } from '../src/components/GridEditor.tsx'
 
 /**
  * One editor for both grids that save: the week's availability and the standing times.
@@ -11,7 +11,10 @@ import { GridEditor } from '../src/components/GridEditor.tsx'
  * this test is what keeps "the same" from meaning "looks similar today".
  */
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  jest.useRealTimers()
+})
 
 const grid = (painted: boolean): Grid => {
   const next = emptyGrid()
@@ -99,6 +102,22 @@ describe('GridEditor', () => {
     expect(screen.getByRole('button', { name: 'Mon 09:00' }).getAttribute('aria-pressed')).toBe(
       'true',
     )
+  })
+
+  test('a dirty grid saves itself after a pause, and a clean one never does', () => {
+    jest.useFakeTimers()
+    const calls = renderEditor({ dirty: true })
+
+    jest.advanceTimersByTime(AUTOSAVE_DELAY_MS - 1)
+    expect(calls.save).toBe(0)
+
+    jest.advanceTimersByTime(1)
+    expect(calls.save).toBe(1)
+
+    cleanup()
+    const clean = renderEditor({ dirty: false })
+    jest.advanceTimersByTime(AUTOSAVE_DELAY_MS * 4)
+    expect(clean.save).toBe(0)
   })
 
   test('a dated grid shows the dates; an undated one does not', () => {

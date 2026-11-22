@@ -328,7 +328,12 @@ cell, nothing special.
 - **Tap paints one cell.** A drag that never moved is a tap, so touch gets the same grid — there is
   no second editor to keep in sync.
 - **One-step undo.** A bad drag can erase eight hours; the last gesture is revertible. One step, not
-  a history stack.
+  a history stack. Saving does not consume the undo: after an autosave the last gesture is still
+  revertible, and the undo autosaves itself.
+- **Idle autosave.** `AUTOSAVE_DELAY_MS` (1.5 s) after the last change the grid saves itself; the
+  Save button remains as "save now" and disables once the server has the current revision. Changes
+  are counted (`revision`), not just flagged dirty, so a save that lands after another paint cannot
+  claim the newer cells as saved. A failed autosave does not retry in a loop — the next change does.
 - **Snap, then normalise.** The grid only ever emits 30-minute boundaries; the write path still
   merges adjacent/overlapping intervals (§4), so stored data cannot depend on which cells were
   dragged or in which order.

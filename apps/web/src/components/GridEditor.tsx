@@ -1,7 +1,11 @@
 import { Button, Group, Stack, Text } from '@mantine/core'
 import { IconArrowBackUp } from '@tabler/icons-react'
+import { useEffect, useRef } from 'react'
 import type { Cell, Grid } from '../availability-grid.ts'
 import { AvailabilityGrid } from './AvailabilityGrid.tsx'
+
+/** How long the grid waits after the last change before saving itself. */
+export const AUTOSAVE_DELAY_MS = 1500
 
 /**
  * The week grid and its toolbar, once.
@@ -26,6 +30,7 @@ export function GridEditor({
   onUndo,
   canUndo,
   dirty,
+  revision = 0,
   saving,
   saveLabel,
   onSave,
@@ -43,10 +48,30 @@ export function GridEditor({
   onUndo: () => void
   canUndo: boolean
   dirty: boolean
+  /** Counts changes; the autosave timer restarts whenever it moves. */
+  revision?: number
   saving: boolean
   saveLabel: string
   onSave: () => void
 }) {
+  // Latest handler without making the timer restart on every render the page happens to do.
+  const onSaveRef = useRef(onSave)
+  onSaveRef.current = onSave
+  // One autosave per revision: a failed save must not retry in a loop behind the user's back,
+  // while the next paint (a new revision) still schedules one.
+  const attempted = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!dirty || saving || attempted.current === revision) return
+
+    const timer = setTimeout(() => {
+      attempted.current = revision
+      onSaveRef.current()
+    }, AUTOSAVE_DELAY_MS)
+
+    return () => clearTimeout(timer)
+  }, [dirty, saving, revision])
+
   return (
     <Stack gap="lg">
       <Group justify="space-between" align="flex-start" gap="md" wrap="nowrap">

@@ -218,8 +218,14 @@ export function WeekPlannerPage() {
       ) : (
         <>
           {view === 'paint' && (
+            /*
+              Keyed by the week only. An answer arriving used to remount the board, which is
+              harmless for showing the server's rows but deletes the one-step undo — and after an
+              autosave of an unanswered week the answer always arrives. A different week still
+              gets a fresh grid; my own save no longer throws away what I could undo.
+            */
             <PlannerBoard
-              key={`${week.startsOn}:${week.answered.join(',')}`}
+              key={week.startsOn}
               slug={slug}
               week={week}
               template={template.data}
@@ -389,10 +395,15 @@ function PlannerBoard({
   const answered = week.answered.includes(meId)
 
   const onSave = () => {
+    // the revision the save is about: anything painted while it was in flight stays dirty
+    const revision = paint.revision
     save.mutate(
       { startsOn: week.startsOn, days: daysFromGrid(paint.grid) },
       {
-        onSuccess: () => notifications.show({ message: 'Week saved', color: 'green' }),
+        onSuccess: () => {
+          paint.markSaved(revision)
+          notifications.show({ message: 'Week saved', color: 'green' })
+        },
         onError: (error: Error) => notifications.show({ message: error.message, color: 'red' }),
       },
     )
@@ -414,6 +425,7 @@ function PlannerBoard({
       onUndo={paint.undo}
       canUndo={paint.canUndo}
       dirty={paint.dirty}
+      revision={paint.revision}
       saving={save.isPending}
       saveLabel="Save my week"
       onSave={onSave}
@@ -540,7 +552,7 @@ function PastWeekView({
     <Stack gap="sm">
       {open && template.data ? (
         <PlannerBoard
-          key={`history:${current.startsOn}:${current.answered.join(',')}:${windowStart}`}
+          key={`history:${current.startsOn}:${windowStart}`}
           slug={slug}
           week={current}
           template={template.data}

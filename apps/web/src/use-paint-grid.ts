@@ -19,19 +19,28 @@ export function usePaintGrid(initial: Grid) {
   const [grid, setGrid] = useState<Grid>(initial)
   const [gesture, setGesture] = useState<Gesture | null>(null)
   const [before, setBefore] = useState<Grid | null>(null)
-  const [dirty, setDirty] = useState(false)
+  /**
+   * Changes are counted, not just flagged. Autosave may finish after the painter moved on, and a
+   * boolean `dirty` would then swallow the newer change as "saved" — the grid would look clean
+   * while the server holds the older version. A revision per change makes that race impossible.
+   */
+  const [revision, setRevision] = useState(0)
+  const [savedRevision, setSavedRevision] = useState(0)
+
+  const changed = () => setRevision((current) => current + 1)
 
   const begin = (cell: Cell) => {
     const started = startGesture(grid, cell)
     setBefore(grid)
     setGesture(started)
     setGrid(applyGesture(started, cell))
-    setDirty(true)
+    changed()
   }
 
   const drag = (cell: Cell) => {
     if (!gesture) return
     setGrid(applyGesture(gesture, cell))
+    changed()
   }
 
   const end = () => setGesture(null)
@@ -41,8 +50,21 @@ export function usePaintGrid(initial: Grid) {
     setGrid(before)
     setBefore(null)
     setGesture(null)
-    setDirty(true)
+    changed()
   }
 
-  return { grid, dirty, canUndo: before !== null, begin, drag, end, undo }
+  /** Which revision the server acknowledged. Anything painted since then stays dirty. */
+  const markSaved = (saved: number) => setSavedRevision((current) => Math.max(current, saved))
+
+  return {
+    grid,
+    revision,
+    dirty: revision > savedRevision,
+    canUndo: before !== null,
+    begin,
+    drag,
+    end,
+    undo,
+    markSaved,
+  }
 }
