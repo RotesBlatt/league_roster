@@ -8,8 +8,8 @@ import { type SubmitEvent, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 // the pure modules: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError, api, unwrap } from '../api.ts'
+import { teamPathWithSlug } from '../lib/team/route.ts'
 import { renameTeamMessage } from '../team-messages.ts'
-import { teamPathWithSlug } from '../team-path.ts'
 import { draftRename } from '../team-rename.ts'
 
 /**

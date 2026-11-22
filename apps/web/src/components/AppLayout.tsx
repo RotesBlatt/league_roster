@@ -10,7 +10,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'react-router'
 import { signOut } from '../auth-client.ts'
-import { teamSlugFromPath } from '../team-path.ts'
+import { teamSlugFromPath } from '../lib/team/route.ts'
 import { StatusBadge } from './badges.tsx'
 import { TeamSwitcher } from './TeamSwitcher.tsx'
 

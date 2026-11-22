@@ -19,7 +19,7 @@ import { Navigate, useParams } from 'react-router'
 import { api, unwrap } from '../api.ts'
 import { TeamSettingsCard } from '../components/TeamSettingsCard.tsx'
 import { useInvites, useMe, useMembers, useMyTeams } from '../hooks.ts'
-import { teamRole } from '../team-role.ts'
+import { teamRole } from '../lib/team/route.ts'
 
 type MemberPatch = {
   role?: 'captain' | 'member'
