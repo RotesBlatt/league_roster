@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { MantineProvider } from '@mantine/core'
 import { render, screen } from '@testing-library/react'
-import { AppErrorBoundary } from '../src/components/AppErrorBoundary.tsx'
+import { AppErrorBoundary } from '../../src/components/AppErrorBoundary.tsx'
 
 /**
  * The one guarantee: a render exception must never leave a blank page. React 19 unmounts the

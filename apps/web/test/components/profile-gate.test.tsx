@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
 /**
  * The gate between "signed in" and "the app". It answers one question — `missingProfileFields`
@@ -16,7 +16,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
  */
 installApiMock()
 
-const { RequireCompleteProfile } = await import('../src/components/RequireCompleteProfile.tsx')
+const { RequireCompleteProfile } = await import('../../src/components/RequireCompleteProfile.tsx')
 
 const me: Me = {
   id: 'u1',

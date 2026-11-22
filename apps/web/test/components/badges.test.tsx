@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { ROLE_LABELS, ROLES } from '@lol/shared'
 import { MantineProvider } from '@mantine/core'
 import { render, screen } from '@testing-library/react'
-import { MainBadge, RoleBadge, StatusBadge, UnverifiedBadge } from '../src/components/Badges.tsx'
+import { MainBadge, RoleBadge, StatusBadge, UnverifiedBadge } from '../../src/components/Badges.tsx'
 
 function ui(node: React.ReactNode) {
   return render(<MantineProvider>{node}</MantineProvider>)

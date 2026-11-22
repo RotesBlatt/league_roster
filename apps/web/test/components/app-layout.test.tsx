@@ -4,8 +4,8 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { installApiMock } from './api-mock.ts'
-import { installAuthMock } from './auth-mock.ts'
+import { installApiMock } from '../api-mock.ts'
+import { installAuthMock } from '../auth-mock.ts'
 
 /**
  * Regression: the header's links used to be built from `me.teamSlug`, which `/api/me` pins to
@@ -21,7 +21,7 @@ installAuthMock()
 
 installAuthMock()
 
-const { AppLayout } = await import('../src/components/AppLayout.tsx')
+const { AppLayout } = await import('../../src/components/AppLayout.tsx')
 
 // the account's oldest team is alpha, and it is what /api/me reports
 const me: Me = {

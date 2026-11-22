@@ -4,8 +4,8 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
-import { installAuthMock } from './auth-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
+import { installAuthMock } from '../auth-mock.ts'
 
 /**
  * The real routing, not the page in isolation: `/profile` sits inside `RequireCompleteProfile`
@@ -17,7 +17,7 @@ installAuthMock()
 
 installAuthMock()
 
-const { App } = await import('../src/App.tsx')
+const { App } = await import('../../src/App.tsx')
 
 const me: Me = {
   id: 'u1',

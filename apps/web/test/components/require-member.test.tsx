@@ -4,8 +4,8 @@ import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { apiState, installApiMock, resetApiState } from './api-mock.ts'
-import { installAuthMock } from './auth-mock.ts'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
+import { installAuthMock } from '../auth-mock.ts'
 
 /**
  * `RequireMember` decides the whole screen state from `useMe`, so these tests drive the *network*
@@ -21,7 +21,7 @@ installAuthMock()
 
 installAuthMock()
 
-const { RequireMember } = await import('../src/components/RequireMember.tsx')
+const { RequireMember } = await import('../../src/components/RequireMember.tsx')
 
 const member = (over: Partial<Me> = {}): Me => ({
   id: '1',
