@@ -1,22 +1,12 @@
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
-import { Badge, Button, Group, Loader, Stack, Tabs, Text, Title } from '@mantine/core'
+import { Accordion, Badge, Button, Group, Loader, Stack, Tabs, Text, Title } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
-import {
-  applyGesture,
-  CELLS_PER_DAY,
-  type Cell,
-  DAYS_PER_WEEK,
-  daysFromGrid,
-  formatMinute,
-  type Gesture,
-  type Grid,
-  gridFromDays,
-  SLOT_MINUTES,
-  startGesture,
-} from '../availability-grid.ts'
+import { daysFromGrid, formatMinute, gridFromDays } from '../availability-grid.ts'
+import { AvailabilityGrid } from '../components/AvailabilityGrid.tsx'
+import { RegularSlots } from '../components/RegularSlots.tsx'
 import {
   useMe,
   usePlanner,
@@ -37,9 +27,9 @@ import {
   weekLabel,
   weekStartsBefore,
 } from '../planner.ts'
+import { usePaintGrid } from '../use-paint-grid.ts'
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 /**
  * The week planner (availability-planner.md §9).
@@ -102,6 +92,15 @@ export function WeekPlannerPage() {
         meId={me.data?.id ?? ''}
         names={names}
       />
+
+      <Accordion variant="separated">
+        <Accordion.Item value="regular">
+          <Accordion.Control>My regular times</Accordion.Control>
+          <Accordion.Panel>
+            <RegularSlots slug={slug} />
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
 
       <HistoryPanel
         slug={slug}
@@ -176,38 +175,13 @@ function PlannerBoard({
   names: Record<string, string>
 }) {
   const save = useSaveWeek(slug)
-  const [grid, setGrid] = useState<Grid>(() => gridFromDays(initialDays(week, template, meId)))
-  const [gesture, setGesture] = useState<Gesture | null>(null)
-  /** The grid before the current gesture: one-step undo, because a bad drag can wipe eight hours. */
-  const [before, setBefore] = useState<Grid | null>(null)
-  const [dirty, setDirty] = useState(false)
+  const paint = usePaintGrid(gridFromDays(initialDays(week, template, meId)))
 
   const answered = week.answered.includes(meId)
 
-  const begin = (cell: Cell) => {
-    const started = startGesture(grid, cell)
-    setBefore(grid)
-    setGesture(started)
-    setGrid(applyGesture(started, cell))
-    setDirty(true)
-  }
-
-  const drag = (cell: Cell) => {
-    if (!gesture) return
-    setGrid(applyGesture(gesture, cell))
-  }
-
-  const undo = () => {
-    if (!before) return
-    setGrid(before)
-    setBefore(null)
-    setGesture(null)
-    setDirty(true)
-  }
-
   const onSave = () => {
     save.mutate(
-      { startsOn: week.startsOn, days: daysFromGrid(grid) },
+      { startsOn: week.startsOn, days: daysFromGrid(paint.grid) },
       {
         onSuccess: () => notifications.show({ message: 'Week saved', color: 'green' }),
         onError: (error: Error) => notifications.show({ message: error.message, color: 'red' }),
@@ -228,52 +202,24 @@ function PlannerBoard({
             variant="subtle"
             size="xs"
             leftSection={<IconArrowBackUp size={14} />}
-            onClick={undo}
-            disabled={!before}
+            onClick={paint.undo}
+            disabled={!paint.canUndo}
           >
             Undo
           </Button>
-          <Button size="sm" onClick={onSave} loading={save.isPending} disabled={!dirty}>
+          <Button size="sm" onClick={onSave} loading={save.isPending} disabled={!paint.dirty}>
             Save my week
           </Button>
         </Group>
       </Group>
 
-      <Stack gap={2} aria-label="Your availability">
-        {Array.from({ length: DAYS_PER_WEEK }, (_, dayOfWeek) => (
-          <Group key={DAY_KEYS[dayOfWeek]} gap={4} wrap="nowrap">
-            <Text size="xs" w={32} c="dimmed">
-              {DAY_LABELS[dayOfWeek]}
-            </Text>
-            {Array.from({ length: CELLS_PER_DAY }, (_, cell) => {
-              const free = grid[dayOfWeek]?.[cell] ?? false
-              const label = `${DAY_LABELS[dayOfWeek]} ${formatMinute(cell * SLOT_MINUTES)}`
-
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  aria-pressed={free}
-                  aria-label={label}
-                  onPointerDown={() => begin({ dayOfWeek, cell })}
-                  onPointerEnter={() => drag({ dayOfWeek, cell })}
-                  onPointerUp={() => setGesture(null)}
-                  style={{
-                    flex: 1,
-                    height: 18,
-                    minWidth: 6,
-                    padding: 0,
-                    border: 'none',
-                    borderLeft: cell % 2 === 0 ? '1px solid rgba(0,0,0,0.15)' : 'none',
-                    cursor: 'pointer',
-                    background: free ? 'var(--mantine-color-brand-6)' : 'rgba(0,0,0,0.06)',
-                  }}
-                />
-              )
-            })}
-          </Group>
-        ))}
-      </Stack>
+      <AvailabilityGrid
+        grid={paint.grid}
+        label="Your availability"
+        onBegin={paint.begin}
+        onDrag={paint.drag}
+        onEnd={paint.end}
+      />
 
       <WeekSummary week={week} names={names} />
     </Stack>

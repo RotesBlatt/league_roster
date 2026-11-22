@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import type { Me, PlannerDto, PlannerWeekDto, RosterEntryDto } from '@lol/api/schema-types'
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 
@@ -318,5 +318,62 @@ describe('history', () => {
     expect(await screen.findByText('open for edits')).toBeDefined()
     expect(await screen.findByRole('button', { name: 'Close week' })).toBeDefined()
     expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(2)
+  })
+})
+
+describe('my regular times', () => {
+  const editor = () => within(screen.getByLabelText('Regular times grid'))
+
+  const openEditor = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'My regular times' }))
+    await screen.findByRole('button', { name: 'Save my regular times' })
+  }
+
+  test('starts collapsed — a standing schedule is not what you came here to paint', async () => {
+    renderPage()
+
+    await cell('Mon 09:00')
+    expect(screen.queryByRole('button', { name: 'Save my regular times' })).toBeNull()
+    expect(screen.queryByLabelText('Regular times grid')).toBeNull()
+  })
+
+  test('opens on the times I saved before', async () => {
+    apiState.plannerTemplate = {
+      data: { days: [{ dayOfWeek: 2, intervals: [{ start: 1200, end: 1260 }] }] },
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+    await openEditor()
+
+    expect(editor().getByRole('button', { name: 'Wed 20:00' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    expect(editor().getByRole('button', { name: 'Wed 21:00' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    )
+  })
+
+  test('painting and saving sends the template, and writes no week', async () => {
+    renderPage()
+    await openEditor()
+
+    fireEvent.pointerDown(editor().getByRole('button', { name: 'Thu 21:00' }))
+    await waitFor(() =>
+      expect(editor().getByRole('button', { name: 'Thu 21:00' }).getAttribute('aria-pressed')).toBe(
+        'true',
+      ),
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save my regular times' }))
+    await waitFor(() => expect(apiState.sentPlannerTemplate).toBeDefined())
+
+    const sent = apiState.sentPlannerTemplate as {
+      days: { dayOfWeek: number; intervals: { start: number; end: number }[] }[]
+    }
+    expect(sent.days[3]).toEqual({ dayOfWeek: 3, intervals: [{ start: 1260, end: 1290 }] })
+    // a template is not an answer: no week save went out
+    expect(apiState.sentPlanner).toBeUndefined()
   })
 })
