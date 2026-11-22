@@ -1,7 +1,7 @@
 import { Button, Group, Stack, Text } from '@mantine/core'
 import { IconArrowBackUp } from '@tabler/icons-react'
 import { useEffect, useRef } from 'react'
-import type { Cell, Grid } from '../lib/planner/availability-grid.ts'
+import type { Cell, Grid } from '../../lib/planner/availability-grid.ts'
 import { AvailabilityGrid } from './AvailabilityGrid.tsx'
 
 /** How long the grid waits after the last change before saving itself. */

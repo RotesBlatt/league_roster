@@ -28,9 +28,9 @@ import {
   useUnlockWeek,
   useWeek,
 } from '../api/hooks.ts'
-import { GridEditor } from '../components/GridEditor.tsx'
-import { PlayableGrid } from '../components/PlayableGrid.tsx'
-import { RegularSlots } from '../components/RegularSlots.tsx'
+import { GridEditor } from '../components/planner/GridEditor.tsx'
+import { PlayableGrid } from '../components/planner/PlayableGrid.tsx'
+import { RegularSlots } from '../components/planner/RegularSlots.tsx'
 import { daysFromGrid, formatMinute, gridFromDays } from '../lib/planner/availability-grid.ts'
 import {
   currentWeekStart,

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, jest, test } from 'bun:test'
 import { MantineProvider } from '@mantine/core'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { AUTOSAVE_DELAY_MS, GridEditor } from '../src/components/GridEditor.tsx'
+import { AUTOSAVE_DELAY_MS, GridEditor } from '../src/components/planner/GridEditor.tsx'
 import { emptyGrid, type Grid } from '../src/lib/planner/availability-grid.ts'
 
 /**

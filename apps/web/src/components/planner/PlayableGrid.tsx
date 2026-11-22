@@ -1,8 +1,8 @@
 import type { PlannerWeekDto } from '@lol/api/schema-types'
 import { MIN_PLAYABLE } from '@lol/shared'
 import { Group, Stack, Text } from '@mantine/core'
-import { formatMinute, SLOT_MINUTES } from '../lib/planner/availability-grid.ts'
-import { coverageFromWeek, playableFromWeek } from '../lib/planner/playable-grid.ts'
+import { formatMinute, SLOT_MINUTES } from '../../lib/planner/availability-grid.ts'
+import { coverageFromWeek, playableFromWeek } from '../../lib/planner/playable-grid.ts'
 import { cellName, ROW_HEIGHT, rowRule, WeekGridFrame } from './WeekGridFrame.tsx'
 
 /** Three shades, because four would be a palette nobody learns. `MIN_PLAYABLE` sets the top one. */

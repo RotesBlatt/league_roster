@@ -3,7 +3,7 @@ import {
   formatMinute,
   type Grid,
   SLOT_MINUTES,
-} from '../lib/planner/availability-grid.ts'
+} from '../../lib/planner/availability-grid.ts'
 import { cellName, ROW_HEIGHT, rowRule, WeekGridFrame } from './WeekGridFrame.tsx'
 
 /**

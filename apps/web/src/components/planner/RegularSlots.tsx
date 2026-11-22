@@ -1,9 +1,9 @@
 import type { PlannerTemplateDto } from '@lol/api/schema-types'
 import { Loader } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { usePlannerTemplate, useSaveTemplate } from '../api/hooks.ts'
-import { daysFromGrid, gridFromDays } from '../lib/planner/availability-grid.ts'
-import { usePaintGrid } from '../lib/planner/use-paint-grid.ts'
+import { usePlannerTemplate, useSaveTemplate } from '../../api/hooks.ts'
+import { daysFromGrid, gridFromDays } from '../../lib/planner/availability-grid.ts'
+import { usePaintGrid } from '../../lib/planner/use-paint-grid.ts'
 import { GridEditor } from './GridEditor.tsx'
 
 /**
