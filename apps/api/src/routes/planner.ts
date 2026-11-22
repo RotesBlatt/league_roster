@@ -8,6 +8,7 @@ import {
   availability,
   availabilityTemplates,
   memberships,
+  teams,
   type WeekRow,
   weeks,
 } from '../db/schema.ts'
@@ -17,6 +18,7 @@ import type { TeamRow } from '../lib/teams.ts'
 import { canEditAvailability } from '../planner/access.ts'
 import {
   addDays,
+  moveFloor,
   resolveWindowStart,
   splitAnswers,
   startOfWeek,
@@ -71,6 +73,7 @@ const weekParams = t.Object({
 })
 
 const CLOSED = { message: 'That week is closed' }
+const ALREADY_OPEN = { message: 'Only a finished week can be opened' }
 const NOT_MONDAY = { message: 'A week starts on a Monday' }
 const NOT_YOURS = { message: 'Availability is personal — you can only write your own' }
 
@@ -230,6 +233,110 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
           return { ok: true, intervals: rows.length }
         },
         { teamMember: true, body: templateBody },
+      )
+      /**
+       * Move the window by one week (§5). Captain only, team state, never per user.
+       *
+       * `moveFloor` decides and says whether it applied, so a click that hits the cap answers 409
+       * instead of quietly doing nothing — and a skip is always relative to the *effective* start,
+       * not to today, or a second skip the same Wednesday would go nowhere.
+       */
+      .post(
+        '/skip',
+        async ({ body, team, status }) => {
+          const now = new Date()
+          const moved = moveFloor(now, {
+            floor: team.plannerStart,
+            weeks: body.weeks,
+            timezone: team.timezone,
+          })
+
+          if (!moved.applied) {
+            return status(409, {
+              message:
+                body.weeks > 0
+                  ? 'That is as far ahead as the planner goes'
+                  : 'Already on this week',
+            })
+          }
+
+          await db.update(teams).set({ plannerStart: moved.floor }).where(eq(teams.id, team.id))
+
+          return {
+            ok: true,
+            plannerStart: moved.floor,
+            windowStart: resolveWindowStart(now, {
+              floor: moved.floor,
+              timezone: team.timezone,
+            }),
+          }
+        },
+        // TypeBox spells the numeric bounds `minimum`/`maximum`; `min`/`max` are silently ignored,
+        // which is how a "one week at a time" rule would have accepted a two-week jump
+        { teamCaptain: true, body: t.Object({ weeks: t.Integer({ minimum: -1, maximum: 1 }) }) },
+      )
+      /**
+       * Back to this week in one click. Not "undo the skip" with a counter — the floor is cleared,
+       * and `max(today, floor)` takes it from there (§5).
+       */
+      .post(
+        '/reset',
+        async ({ team }) => {
+          await db.update(teams).set({ plannerStart: null }).where(eq(teams.id, team.id))
+          const now = new Date()
+
+          return {
+            ok: true,
+            plannerStart: null,
+            windowStart: resolveWindowStart(now, { floor: null, timezone: team.timezone }),
+          }
+        },
+        { teamCaptain: true },
+      )
+      /**
+       * Open a **finished** week for writing (§5, §8). Visibility stays derived: this changes who may
+       * write, never what the window shows, so a forgotten unlock cannot pin the planner to the past.
+       *
+       * Only the past qualifies. A week ahead of the window is what skipping is for, and letting an
+       * unlock reach it would route around the very cap that keeps a team from jumping to 2027.
+       */
+      .post(
+        '/:startsOn/unlock',
+        async ({ body, params: { startsOn }, team, me, status }) => {
+          if (startOfWeek(startsOn) !== startsOn) return status(422, NOT_MONDAY)
+
+          const now = new Date()
+          if (startsOn >= windowOf(team, now)) return status(409, ALREADY_OPEN)
+
+          // provision lazily, like a save: a past week with no rows is exactly a week nobody
+          // answered, and the captain may still want to open it
+          await db
+            .insert(weeks)
+            .values({
+              id: crypto.randomUUID(),
+              teamId: team.id,
+              startsOn,
+              createdBy: me.id,
+              createdAt: now,
+            })
+            .onConflictDoNothing()
+
+          const updated = await db
+            .update(weeks)
+            .set({ unlockedAt: body.unlocked ? now : null })
+            .where(and(eq(weeks.teamId, team.id), eq(weeks.startsOn, startsOn)))
+            .returning()
+
+          const week = updated[0]
+          if (!week) return status(500, { message: 'Could not open that week' })
+
+          return { ok: true, startsOn, unlocked: week.unlockedAt != null }
+        },
+        {
+          teamCaptain: true,
+          params: weekParams,
+          body: t.Object({ unlocked: t.Boolean() }),
+        },
       )
       /**
        * Save one week for one person: replace their rows wholesale, then stamp the answer.

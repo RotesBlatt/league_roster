@@ -477,3 +477,137 @@ describe('the standing schedule (regular slots)', () => {
     expect((await call(betaTemplate, { cookie: latecomerCookie })).status).toBe(404)
   })
 })
+
+describe('the captain moves the window', () => {
+  const skipPath = '/api/teams/alpha/planner/skip'
+  const resetPath = '/api/teams/alpha/planner/reset'
+
+  let captainCookie: string
+
+  const skip = (cookie: string, weeks: number) =>
+    call(skipPath, { method: 'POST', cookie, body: { weeks } })
+  const reset = (cookie: string) => call(resetPath, { method: 'POST', cookie })
+
+  beforeAll(async () => {
+    captainCookie = await createSessionCookie(ctx, captainId)
+  })
+
+  test('a member cannot move the window, in either direction', async () => {
+    expect((await skip(memberCookie, 1)).status).toBe(403)
+    expect((await skip(memberCookie, -1)).status).toBe(403)
+    expect((await reset(memberCookie)).status).toBe(403)
+  })
+
+  test('more than one week at a time is not a thing the route accepts', async () => {
+    expect((await skip(captainCookie, 2)).status).toBe(422)
+  })
+
+  test('skipping one week moves the window for the whole team', async () => {
+    const response = await skip(captainCookie, 1)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      plannerStart: addDays(thisWeek(), 7),
+      windowStart: addDays(thisWeek(), 7),
+    })
+    // team state, not per user: another member sees the same window
+    expect((await planner(memberCookie)).windowStart).toBe(addDays(thisWeek(), 7))
+  })
+
+  test('a second skip goes from the effective start, not from today', async () => {
+    expect((await skip(captainCookie, 1)).status).toBe(200)
+    expect((await planner(memberCookie)).windowStart).toBe(addDays(thisWeek(), 14))
+  })
+
+  test('back one week keeps the plan the team had made', async () => {
+    expect((await skip(captainCookie, -1)).status).toBe(200)
+    expect((await planner(memberCookie)).windowStart).toBe(addDays(thisWeek(), 7))
+  })
+
+  test('back from this week clears the skip and is not an error state', async () => {
+    expect((await skip(captainCookie, -1)).status).toBe(200)
+    expect((await planner(memberCookie)).windowStart).toBe(thisWeek())
+
+    const again = await skip(captainCookie, -1)
+    expect(again.status).toBe(409)
+    expect(await again.json()).toEqual({ message: 'Already on this week' })
+  })
+
+  test('the cap stops the ninth week ahead', async () => {
+    for (let week = 0; week < 8; week += 1) {
+      expect((await skip(captainCookie, 1)).status).toBe(200)
+    }
+    expect((await planner(memberCookie)).windowStart).toBe(addDays(thisWeek(), 56))
+
+    const ninth = await skip(captainCookie, 1)
+    expect(ninth.status).toBe(409)
+    expect(await ninth.json()).toEqual({ message: 'That is as far ahead as the planner goes' })
+  })
+
+  test('reset returns to this week from anywhere', async () => {
+    const response = await reset(captainCookie)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ ok: true, plannerStart: null })
+    expect((await planner(memberCookie)).windowStart).toBe(thisWeek())
+  })
+
+  test('skipping over an answered week does not delete it', async () => {
+    const [week] = await ctx.db
+      .select()
+      .from(weeks)
+      .where(and(eq(weeks.teamId, teamId), eq(weeks.startsOn, thisWeek())))
+    const before = (
+      await ctx.db.select().from(availability).where(eq(availability.weekId, week!.id))
+    ).length
+    expect(before).toBeGreaterThan(0)
+
+    await skip(captainCookie, 1)
+
+    const after = (
+      await ctx.db.select().from(availability).where(eq(availability.weekId, week!.id))
+    ).length
+    expect(after).toBe(before)
+
+    await reset(captainCookie)
+  })
+})
+
+describe('unlocking a finished week', () => {
+  const unlockPath = (startsOn: string) => `/api/teams/alpha/planner/${startsOn}/unlock`
+  let captainCookie: string
+  const lastWeek = () => addDays(thisWeek(), -7)
+
+  const unlock = (cookie: string, startsOn: string, unlocked = true) =>
+    call(unlockPath(startsOn), { method: 'POST', cookie, body: { unlocked } })
+
+  beforeAll(async () => {
+    captainCookie = await createSessionCookie(ctx, captainId)
+  })
+
+  test('a member cannot open anybody’s finished week', async () => {
+    expect((await unlock(memberCookie, lastWeek())).status).toBe(403)
+  })
+
+  test('only the past can be opened — this week is already open', async () => {
+    const response = await unlock(captainCookie, thisWeek())
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ message: 'Only a finished week can be opened' })
+  })
+
+  test('a week still has to start on a Monday', async () => {
+    expect((await unlock(captainCookie, addDays(lastWeek(), 3))).status).toBe(422)
+  })
+
+  test('opening a finished week lets its members write again, and closing it stops them', async () => {
+    expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
+
+    expect((await unlock(captainCookie, lastWeek())).status).toBe(200)
+    expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(200)
+
+    expect((await unlock(captainCookie, lastWeek(), false)).status).toBe(200)
+    expect((await save(memberCookie, lastWeek(), tuesdayEvening)).status).toBe(409)
+  })
+})
