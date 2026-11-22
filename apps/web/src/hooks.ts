@@ -268,6 +268,22 @@ export function useWeek(slug: string, startsOn: string | null) {
   })
 }
 
+/**
+ * Captain only. "We looked, there is nothing this week" (§12.11) — a label, not a skip: the window
+ * does not move and answers stay, so both the planner and any open history copy must refresh.
+ */
+export function useSetNoPractice(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ startsOn, noPractice }: { startsOn: string; noPractice: boolean }) =>
+      unwrap(api.teams({ slug }).planner({ startsOn })['no-practice'].post({ noPractice })),
+    onSuccess: (_result, { startsOn }) => {
+      void queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug] })
+      void queryClient.invalidateQueries({ queryKey: [...PLANNER_KEY, slug, 'week', startsOn] })
+    },
+  })
+}
+
 /** Captain only. Opening a finished week changes writing, never visibility. */
 export function useUnlockWeek(slug: string) {
   const queryClient = useQueryClient()

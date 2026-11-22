@@ -265,6 +265,58 @@ describe('painting and saving', () => {
   })
 })
 
+describe('saying there is no practice', () => {
+  const asCaptain = () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+  }
+
+  test('a marked week shows the badge next to “complete”, but only a captain gets the control', async () => {
+    apiState.planner = {
+      data: planner(week({ noPractice: true, answered: ['me', 'u2', 'u3'], unanswered: [] })),
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    await cell('Mon 09:00')
+    showPlayable()
+
+    const status = await screen.findByRole('group', { name: 'Week status' })
+    expect(within(status).getByText('complete')).toBeDefined()
+    expect(within(status).getByText('No practice this week')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Clear no practice' })).toBeNull()
+  })
+
+  test('a captain can mark the week, and the route is told which Monday', async () => {
+    asCaptain()
+    renderPage()
+
+    await cell('Mon 09:00')
+    showPlayable()
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark as no practice' }))
+
+    await waitFor(() =>
+      expect(apiState.sentNoPractice).toEqual({ startsOn: '2026-11-23', noPractice: true }),
+    )
+  })
+
+  test('a marked week offers clearing it', async () => {
+    asCaptain()
+    apiState.planner = { data: planner(week({ noPractice: true })), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Mon 09:00')
+    showPlayable()
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear no practice' }))
+
+    await waitFor(() =>
+      expect(apiState.sentNoPractice).toEqual({ startsOn: '2026-11-23', noPractice: false }),
+    )
+  })
+})
+
 describe('the captain’s window', () => {
   const captain = () => {
     apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }

@@ -2,8 +2,8 @@
 
 **Status:** in progress (2026-11-22) — the whole v1 loop is running: painted weeks with answers,
 the merged provisional summary, standing times, the captain's skip/reset and opening a finished
-week, history, and a self-healing unlock (§12.4). Still missing from this doc: the per-week
-"no practice" note (§12.11) and history deeper than four weeks in the UI (§12.5).
+week, history, a self-healing unlock (§12.4), and the captain's per-week "no practice" label
+(§12.11). Still missing from this doc: history deeper than four weeks in the UI (§12.5).
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md` (who a "member" is).
 
 ## 1. The idea

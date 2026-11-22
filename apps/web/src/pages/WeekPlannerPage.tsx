@@ -27,6 +27,7 @@ import {
   useResetWindow,
   useRoster,
   useSaveWeek,
+  useSetNoPractice,
   useSkipWindow,
   useUnlockWeek,
   useWeek,
@@ -183,18 +184,20 @@ export function WeekPlannerPage() {
           </Tabs>
         )}
 
-        {/*
-          The archive: weeks that have slid out of the two-week window. Derived from the window
-          (§5), loaded only when picked, and read-only unless a captain opens one for writing.
-        */}
-        <NativeSelect
-          size="xs"
-          w={210}
-          label="Past week"
-          data={[{ value: '', label: 'Look at a past week' }, ...pastWeeks]}
-          value={pastWeek ?? ''}
-          onChange={(event) => setPastWeek(event.currentTarget.value || null)}
-        />
+        <Group gap="xs" align="flex-end" wrap="wrap" style={{ flexShrink: 0 }}>
+          {/*
+            The archive: weeks that have slid out of the two-week window. Derived from the window
+            (§5), loaded only when picked, and read-only unless a captain opens one for writing.
+          */}
+          <NativeSelect
+            size="xs"
+            w={210}
+            label="Past week"
+            data={[{ value: '', label: 'Look at a past week' }, ...pastWeeks]}
+            value={pastWeek ?? ''}
+            onChange={(event) => setPastWeek(event.currentTarget.value || null)}
+          />
+        </Group>
       </Group>
 
       {/*
@@ -221,6 +224,7 @@ export function WeekPlannerPage() {
           windowStart={data.windowStart}
           meId={me.data?.id ?? ''}
           names={names}
+          captain={me.data?.role === 'captain'}
         />
       ) : (
         <>
@@ -239,7 +243,14 @@ export function WeekPlannerPage() {
               meId={me.data?.id ?? ''}
             />
           )}
-          {view === 'playable' && <PlayableView week={week} names={names} />}
+          {view === 'playable' && (
+            <PlayableView
+              slug={slug}
+              week={week}
+              names={names}
+              captain={me.data?.role === 'captain'}
+            />
+          )}
           {/*
             My standing times are about me, not about this Tuesday: a third view rather than a
             section under the grid, because "when am I generally free" is the same kind of question
@@ -249,6 +260,55 @@ export function WeekPlannerPage() {
         </>
       )}
     </Stack>
+  )
+}
+
+/**
+ * The captain's "no practice" statement about the week on screen (§12.11).
+ *
+ * It is deliberately not in the window panel: that panel moves *which* weeks are visible for the
+ * whole team, while this is a sentence about one week. Nobody but the captain can write it, and
+ * everybody can read it — the badge is the read side.
+ */
+function NoPracticeControl({
+  slug,
+  week,
+  captain,
+}: {
+  slug: string
+  week: PlannerWeekDto
+  captain: boolean
+}) {
+  const setNoPractice = useSetNoPractice(slug)
+
+  if (!week.noPractice && !captain) return null
+
+  return (
+    <Group gap="xs" align="center">
+      {week.noPractice && (
+        <Badge variant="light" color="gray">
+          No practice this week
+        </Badge>
+      )}
+      {captain && (
+        <Button
+          size="xs"
+          variant="default"
+          loading={setNoPractice.isPending}
+          onClick={() =>
+            setNoPractice.mutate(
+              { startsOn: week.startsOn, noPractice: !week.noPractice },
+              {
+                onError: (error: Error) =>
+                  notifications.show({ message: error.message, color: 'orange' }),
+              },
+            )
+          }
+        >
+          {week.noPractice ? 'Clear no practice' : 'Mark as no practice'}
+        </Button>
+      )}
+    </Group>
   )
 }
 
@@ -448,14 +508,24 @@ function PlannerBoard({
  * then" is the same question as "what is playable now". The ranked list stays: the grid says *when*,
  * the list says *who cannot make it*, and a session is a decision about people.
  */
-function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<string, string> }) {
+function PlayableView({
+  slug,
+  week,
+  names,
+  captain,
+}: {
+  slug: string
+  week: PlannerWeekDto
+  names: Record<string, string>
+  captain: boolean
+}) {
   const ranked = flattenWindows(week)
   // keyed by id: two members may share a display name, and chips are React children
   const stillToAnswer = week.unanswered.map((userId) => ({ userId, name: names[userId] ?? '?' }))
 
   return (
     <Stack gap="sm">
-      <Group gap="sm">
+      <Group gap="sm" role="group" aria-label="Week status">
         <Title order={4}>Playable</Title>
         {isProvisional(week) ? (
           <Badge color="yellow" variant="light">
@@ -466,6 +536,8 @@ function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<str
             complete
           </Badge>
         )}
+        {/* The week's own statement sits with its completeness: both answer "what is this week?" */}
+        <NoPracticeControl slug={slug} week={week} captain={captain} />
       </Group>
 
       {/*
@@ -540,12 +612,14 @@ function PastWeekView({
   windowStart,
   meId,
   names,
+  captain,
 }: {
   slug: string
   startsOn: string
   windowStart: string
   meId: string
   names: Record<string, string>
+  captain: boolean
 }) {
   const week = useWeek(slug, startsOn)
   const template = usePlannerTemplate(slug)
@@ -566,7 +640,7 @@ function PastWeekView({
           meId={meId}
         />
       ) : (
-        <PlayableView week={current} names={names} />
+        <PlayableView slug={slug} week={current} names={names} captain={captain} />
       )}
     </Stack>
   )

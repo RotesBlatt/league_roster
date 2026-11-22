@@ -56,6 +56,8 @@ export const apiState: {
   plannerWeek: Result
   /** POST /api/teams/:slug/planner/:startsOn/unlock */
   plannerUnlock: Result
+  /** POST /api/teams/:slug/planner/:startsOn/no-practice */
+  plannerNoPractice: Result
   /** the bodies handed to the planner writes, for assertions */
   sentPlanner: unknown
   sentPlannerTemplate: unknown
@@ -63,6 +65,7 @@ export const apiState: {
   sentReset: unknown
   sentWeekParam: string | undefined
   sentUnlock: { startsOn: string; unlocked: boolean } | undefined
+  sentNoPractice: { startsOn: string; noPractice: boolean } | undefined
   /** DELETE /api/me/riot-accounts/:id */
   riotAccountRemove: Result
   /** PUT /api/me/riot-accounts/:id/main */
@@ -109,12 +112,14 @@ export const apiState: {
   plannerReset: { data: { ok: true }, error: null, status: 200 },
   plannerWeek: { data: null, error: null, status: 200 },
   plannerUnlock: { data: { ok: true }, error: null, status: 200 },
+  plannerNoPractice: { data: { ok: true }, error: null, status: 200 },
   sentPlanner: undefined,
   sentPlannerTemplate: undefined,
   sentSkip: undefined,
   sentReset: undefined,
   sentWeekParam: undefined,
   sentUnlock: undefined,
+  sentNoPractice: undefined,
   sentBody: undefined,
   sentRename: undefined,
   sentProfile: undefined,
@@ -151,12 +156,14 @@ export function resetApiState() {
   apiState.plannerReset = { data: { ok: true }, error: null, status: 200 }
   apiState.plannerWeek = { data: null, error: null, status: 200 }
   apiState.plannerUnlock = { data: { ok: true }, error: null, status: 200 }
+  apiState.plannerNoPractice = { data: { ok: true }, error: null, status: 200 }
   apiState.sentPlanner = undefined
   apiState.sentPlannerTemplate = undefined
   apiState.sentSkip = undefined
   apiState.sentReset = undefined
   apiState.sentWeekParam = undefined
   apiState.sentUnlock = undefined
+  apiState.sentNoPractice = undefined
   apiState.sentBody = undefined
   apiState.sentRename = undefined
   apiState.sentProfile = undefined
@@ -266,6 +273,15 @@ export function installApiMock() {
                     unlocked: (body as { unlocked: boolean }).unlocked,
                   }
                   return Promise.resolve(apiState.plannerUnlock)
+                },
+              },
+              'no-practice': {
+                post: (body: unknown) => {
+                  apiState.sentNoPractice = {
+                    startsOn: params.startsOn,
+                    noPractice: (body as { noPractice: boolean }).noPractice,
+                  }
+                  return Promise.resolve(apiState.plannerNoPractice)
                 },
               },
             }),
