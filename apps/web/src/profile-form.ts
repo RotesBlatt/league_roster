@@ -11,8 +11,8 @@ import {
 
 /**
  * Everything the profile form decides, kept out of the component so it can be tested without a
- * DOM: what to send, and what the form starts with. Same shape as `create-team.ts` /
- * `team-rename.ts` — the API stays authoritative, these checks only save a round trip.
+ * DOM: what to send, and what the form starts with. Same shape as `lib/team/writes.ts` — the
+ * API stays authoritative, these checks only save a round trip.
  */
 
 /** The form's state. A date input gives `''`, never `null`, so that is what the draft holds. */

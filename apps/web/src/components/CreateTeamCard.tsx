@@ -6,14 +6,13 @@ import { useNavigate } from 'react-router'
 // the pure module: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError } from '../api-result.ts'
 import { signOut } from '../auth-client.ts'
-import { draftTeam, rosterPath } from '../create-team.ts'
 import { useCreateTeam } from '../hooks.ts'
-import { teamWriteMessage } from '../team-messages.ts'
+import { draftTeam, rosterPath, teamWriteMessage } from '../lib/team/writes.ts'
 
 /**
  * The other way into the app besides an invite link: creating a team is what makes you its
  * captain, so this card is the whole signup — no approval step, no captain to wait for.
- * All of its thinking lives in `create-team.ts`; this is the wiring.
+ * All of its thinking lives in `lib/team/writes.ts`; this is the wiring.
  */
 export function CreateTeamCard({ signedInAs }: { signedInAs?: string }) {
   const [name, setName] = useState('')

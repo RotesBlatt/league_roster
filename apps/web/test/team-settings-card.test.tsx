@@ -9,7 +9,7 @@ import { apiState, installApiMock, resetApiState } from './api-mock.ts'
 /**
  * The rename card's wiring: what it starts with, when Save is allowed, what it sends (including
  * the empty short name that clears a tag), and where it lands afterwards. The thinking itself —
- * trimming, limits, `unchanged`, messages — is `team-rename.test.ts`.
+ * trimming, limits, `unchanged`, messages — is `lib/team/writes.test.ts`.
  */
 
 const alpha: TeamSummary = {

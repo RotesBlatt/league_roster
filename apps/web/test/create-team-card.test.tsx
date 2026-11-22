@@ -9,7 +9,7 @@ import { installAuthMock } from './auth-mock.ts'
 /**
  * The card's wiring only: what leaves the component (the body handed to the mutation),
  * where it navigates on success, and what a human sees when the API refuses. The
- * thinking itself is covered in `create-team.test.ts`.
+ * thinking itself is covered in `lib/team/writes.test.ts`.
  *
  * `api.ts` comes from the shared mock in api-mock.ts: bun's `mock.module` is process-wide,
  * so per-file factories clobber each other.

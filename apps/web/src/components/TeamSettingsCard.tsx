@@ -9,13 +9,12 @@ import { useLocation, useNavigate } from 'react-router'
 // the pure modules: importing ApiError from './api.ts' would drag Eden into every test too
 import { ApiError, api, unwrap } from '../api.ts'
 import { teamPathWithSlug } from '../lib/team/route.ts'
-import { renameTeamMessage } from '../team-messages.ts'
-import { draftRename } from '../team-rename.ts'
+import { draftRename, renameTeamMessage } from '../lib/team/writes.ts'
 
 /**
  * The captain's rename (team-rename.md §3–4). The slug follows the name, so saving usually
  * changes the team's URL — which is why this navigates instead of just refetching, and why the
- * form says so. All of the thinking lives in `team-rename.ts`; this is the wiring.
+ * form says so. All of the thinking lives in `lib/team/writes.ts`; this is the wiring.
  *
  * Mount it with `key={team.id}`: the name is local form state, seeded once from the team.
  */

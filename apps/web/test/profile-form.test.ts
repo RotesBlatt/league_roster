@@ -11,7 +11,7 @@ import {
 /**
  * The profile form's thinking, without a DOM: what to send, and what the form starts with.
  * The API stays authoritative — these checks only save a round trip, exactly like
- * `create-team.ts` and `team-rename.ts`.
+ * `lib/team/writes.ts`.
  */
 const today = '2026-02-01'
 
