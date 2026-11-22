@@ -396,6 +396,21 @@ describe('who has not answered yet', () => {
     expect(within(waiting).getByText('Cem')).toBeDefined()
   })
 
+  test('the count and the waiting chips share one line', async () => {
+    renderPage()
+
+    await cell('Tue 20:00')
+    showPlayable()
+
+    await screen.findByText('1 of 3 answered — these times are provisional')
+    const waiting = screen.getByRole('group', { name: 'Waiting on' })
+
+    // one row of exactly these two, so answering (or switching week) moves the grid by one line
+    const row = waiting.parentElement
+    expect(row?.children).toHaveLength(2)
+    expect(row?.textContent).toContain('1 of 3 answered')
+  })
+
   test('a complete week says so instead of showing an empty row', async () => {
     apiState.planner = {
       data: planner(week({ answered: ['me', 'u2', 'u3'], unanswered: [] })),

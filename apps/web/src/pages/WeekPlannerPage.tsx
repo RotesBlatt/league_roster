@@ -449,32 +449,37 @@ function PlayableView({ week, names }: { week: PlannerWeekDto; names: Record<str
         )}
       </Group>
 
-      {provisionalText(week) && (
-        <Text size="sm" c="dimmed">
-          {provisionalText(week)}
-        </Text>
-      )}
-
       {/*
+        How finished the week is, and who it is waiting for — one row, not two.
+
         A sentence ("Still to answer: Ben, Cem") is a line you walk past, and these names are the
         reason the grid understates the week: somebody who has not answered has no rows at all, so
-        the shades count only the people who did. One chip per person says that at a glance.
+        the shades count only the people who did. One chip per person says that at a glance. They
+        share the line with the count so the grid below does not move when an answer lands.
       */}
-      <Group gap={6} align="center" role="group" aria-label="Waiting on">
-        <Text size="sm" c="dimmed">
-          Waiting on:
-        </Text>
-        {stillToAnswer.length === 0 ? (
+      <Group gap="md" align="center" wrap="wrap">
+        {provisionalText(week) && (
           <Text size="sm" c="dimmed">
-            everyone has answered
+            {provisionalText(week)}
           </Text>
-        ) : (
-          stillToAnswer.map((entry) => (
-            <Badge key={entry.userId} size="sm" variant="light" color="gray">
-              {entry.name}
-            </Badge>
-          ))
         )}
+
+        <Group gap={6} align="center" role="group" aria-label="Waiting on">
+          <Text size="sm" c="dimmed">
+            Waiting on:
+          </Text>
+          {stillToAnswer.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              everyone has answered
+            </Text>
+          ) : (
+            stillToAnswer.map((entry) => (
+              <Badge key={entry.userId} size="sm" variant="light" color="gray">
+                {entry.name}
+              </Badge>
+            ))
+          )}
+        </Group>
       </Group>
 
       <PlayableGrid week={week} label="Everyone’s availability" />
