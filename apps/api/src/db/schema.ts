@@ -300,6 +300,11 @@ export const weeks = pgTable(
     createdAt: createdAt.notNull(),
     /** Captain opened a past week for writing. Gates editing only, never visibility (§5). */
     unlockedAt: timestamp('unlockedAt', { withTimezone: true, mode: 'date' }),
+    /**
+     * Captain's statement "we looked, there is nothing this week" (§12.11). Not a skip: the
+     * window does not move, and answers/windows are kept — this only labels the week.
+     */
+    noPractice: boolean('noPractice').notNull().default(false),
   },
   (table) => [unique('week_teamId_startsOn_idx').on(table.teamId, table.startsOn)],
 )

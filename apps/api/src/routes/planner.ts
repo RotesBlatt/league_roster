@@ -123,6 +123,7 @@ async function composeWeeks(
     return {
       startsOn,
       unlocked: week?.unlockedAt != null,
+      noPractice: week?.noPractice ?? false,
       ...splitAnswers(roster, answeredIds),
       availability: rows.map((row) => ({
         userId: row.userId,
@@ -336,6 +337,46 @@ export function createPlannerRoutes(db: Db, scope: TeamScope, authPlugin: AuthPl
           teamCaptain: true,
           params: weekParams,
           body: t.Object({ unlocked: t.Boolean() }),
+        },
+      )
+      /**
+       * The captain's "we looked, there is nothing this week" (§12.11). A statement about a week,
+       * not a visibility move: the window does not shift, and answers/windows are kept. Any Monday
+       * qualifies, past or future, and a week with no rows is provisioned just to carry it — the
+       * same lazy `ON CONFLICT DO NOTHING` a save uses, so the UNIQUE stays the only idempotency.
+       */
+      .post(
+        '/:startsOn/no-practice',
+        async ({ body, params: { startsOn }, team, me, status }) => {
+          if (startOfWeek(startsOn) !== startsOn) return status(422, NOT_MONDAY)
+
+          const now = new Date()
+          await db
+            .insert(weeks)
+            .values({
+              id: crypto.randomUUID(),
+              teamId: team.id,
+              startsOn,
+              createdBy: me.id,
+              createdAt: now,
+            })
+            .onConflictDoNothing()
+
+          const updated = await db
+            .update(weeks)
+            .set({ noPractice: body.noPractice })
+            .where(and(eq(weeks.teamId, team.id), eq(weeks.startsOn, startsOn)))
+            .returning()
+
+          const week = updated[0]
+          if (!week) return status(500, { message: 'Could not mark that week' })
+
+          return { ok: true, startsOn, noPractice: week.noPractice }
+        },
+        {
+          teamCaptain: true,
+          params: weekParams,
+          body: t.Object({ noPractice: t.Boolean() }),
         },
       )
       /**

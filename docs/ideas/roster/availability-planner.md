@@ -85,6 +85,7 @@ team          …, plannerStart (date, nullable)   ← captain's manual skip-ahe
 
 week          id, teamId → team, startsOn (date, a Monday), createdBy → user,
               createdAt, unlockedAt (nullable)  ← captain opened a past week for editing
+              noPractice (boolean, default false) ← "we looked, there is nothing" (§12.11)
               UNIQUE (teamId, startsOn)         ← makes lazy creation idempotent
 
 answer        id, weekId → week, userId → user, submittedAt
@@ -391,6 +392,9 @@ that changed it:
   reset job, and the derived window is never pinned by old state (§12.4).
 - **The skip cap is 8 weeks** (`MAX_SKIP_WEEKS`), and a refused skip is reported, not clamped
   silently: `applied: false` from the pure function becomes a 409 a captain can act on.
+- **"No practice" is a week column, not a skip.** `POST /planner/:startsOn/no-practice` sets it for
+  any Monday (past or future), provisioning a data-free week lazily so the statement has a row;
+  the window and every answer are untouched (§12.11).
 - **The window is computed, never stored.** `max(this week, floor)` is the only state: a stale floor
   heals itself, and there is no counter that leaves a team permanently ahead.
 - **History is a derived read, not a mode.** Any Monday answers `GET /planner/:startsOn` for a
@@ -422,5 +426,6 @@ that changed it:
    so nothing in it depends on a Riot ID.
 10. **How far ahead may the captain skip?** Eight weeks, with "Back to this week" always one click
     away; beyond that the route refuses (409) instead of clamping silently.
-11. **Per-week "no practice" flag** — still open. Skipping says "don't plan here", the flag says
-    "we looked, there's nothing"; `week` exists now, so the flag is a column and a button.
+11. **Per-week "no practice" flag** — yes: `week.noPractice` (default false) and a captain-only
+    route. Skipping says "don't plan here" and moves the window; the flag says "we looked, there's
+    nothing" and moves nothing. Answers and computed windows stay — it is a label, not a delete.

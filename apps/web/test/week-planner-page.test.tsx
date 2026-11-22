@@ -40,6 +40,7 @@ const roster: RosterEntryDto[] = ['Anna', 'Ben', 'Cem'].map((displayName, index)
 const week = (overrides: Partial<PlannerWeekDto> = {}): PlannerWeekDto => ({
   startsOn: '2026-11-23',
   unlocked: false,
+  noPractice: false,
   answered: ['me'],
   unanswered: ['u2', 'u3'],
   availability: [{ userId: 'me', dayOfWeek: 1, startMinute: 1200, endMinute: 1380 }],

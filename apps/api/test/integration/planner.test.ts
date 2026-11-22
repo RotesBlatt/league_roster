@@ -627,6 +627,56 @@ describe('unlocking a finished week', () => {
   })
 })
 
+describe('marking a week as no practice', () => {
+  const noPracticePath = (startsOn: string) => `/api/teams/alpha/planner/${startsOn}/no-practice`
+  let captainCookie: string
+
+  const mark = (cookie: string, startsOn: string, noPractice = true) =>
+    call(noPracticePath(startsOn), { method: 'POST', cookie, body: { noPractice } })
+
+  const readWeek = async (startsOn: string): Promise<PlannerWeekDto> => {
+    const response = await call(`/api/teams/alpha/planner/${startsOn}`, { cookie: memberCookie })
+    expect(response.status).toBe(200)
+    return (await response.json()) as PlannerWeekDto
+  }
+
+  beforeAll(async () => {
+    captainCookie = await createSessionCookie(ctx, captainId)
+  })
+
+  test('only a captain may set it', async () => {
+    expect((await mark(memberCookie, thisWeek())).status).toBe(403)
+  })
+
+  test('a week still has to start on a Monday', async () => {
+    expect((await mark(captainCookie, addDays(thisWeek(), 3))).status).toBe(422)
+  })
+
+  test('setting and clearing it is visible in the week, and does not move the window', async () => {
+    expect((await mark(captainCookie, thisWeek())).status).toBe(200)
+    expect((await readWeek(thisWeek())).noPractice).toBe(true)
+
+    const dto = await planner(memberCookie)
+    expect(dto.windowStart).toBe(thisWeek())
+    expect(dto.weeks[0]?.noPractice).toBe(true)
+
+    expect((await mark(captainCookie, thisWeek(), false)).status).toBe(200)
+    expect((await readWeek(thisWeek())).noPractice).toBe(false)
+  })
+
+  test('a past week with no data is provisioned lazily just to carry the statement', async () => {
+    const quietWeek = addDays(thisWeek(), -21)
+
+    expect((await mark(captainCookie, quietWeek)).status).toBe(200)
+
+    const week = await readWeek(quietWeek)
+    expect(week.startsOn).toBe(quietWeek)
+    expect(week.noPractice).toBe(true)
+    expect(week.answered).toEqual([])
+    expect(week.availability).toEqual([])
+  })
+})
+
 describe('reading history', () => {
   const lastWeek = () => addDays(thisWeek(), -7)
   const weekPath = (startsOn: string) => `/api/teams/alpha/planner/${startsOn}`

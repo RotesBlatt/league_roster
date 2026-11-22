@@ -13,6 +13,7 @@ function week(overrides: Partial<PlannerWeekDto> = {}): PlannerWeekDto {
   return {
     startsOn: '2025-11-24',
     unlocked: false,
+    noPractice: false,
     answered: [],
     unanswered: [],
     availability: [],

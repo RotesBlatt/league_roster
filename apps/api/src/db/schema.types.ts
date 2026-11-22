@@ -64,6 +64,8 @@ export type PlannerWeekDto = {
   startsOn: string
   /** Captain opened this (finished) week for writing; visibility is unaffected. */
   unlocked: boolean
+  /** Captain said there is nothing to plan here; availability and windows are unaffected. */
+  noPractice: boolean
   answered: string[]
   unanswered: string[]
   availability: {

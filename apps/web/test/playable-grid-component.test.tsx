@@ -14,6 +14,7 @@ import { PlayableGrid } from '../src/components/PlayableGrid.tsx'
 const week = (overrides: Partial<PlannerWeekDto> = {}): PlannerWeekDto => ({
   startsOn: '2026-11-23',
   unlocked: false,
+  noPractice: false,
   answered: ['me'],
   unanswered: ['u3'],
   // 1140 = 19:00, 1200 = 20:00, 1260 = 21:00 — two people leave at 20:00, three stay until 21:00

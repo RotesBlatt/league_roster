@@ -26,6 +26,7 @@ const OTHER = 'other'
 const week = (overrides: Partial<PlannerWeekDto> = {}): PlannerWeekDto => ({
   startsOn: '2026-11-23',
   unlocked: false,
+  noPractice: false,
   answered: [],
   unanswered: [ME, OTHER],
   availability: [],
