@@ -391,21 +391,30 @@ describe('who has not answered yet', () => {
   })
 })
 
-describe('history', () => {
+describe('past weeks', () => {
   const past = (overrides: Partial<PlannerWeekDto> = {}) =>
     week({ startsOn: '2026-11-16', ...overrides })
 
-  test('lists the weeks before the window by date', async () => {
+  /** The archive is a dropdown at the top now, not a section you scroll to. */
+  const pickPastWeek = (value: string) =>
+    fireEvent.change(screen.getByRole('combobox', { name: 'Past week' }), {
+      target: { value },
+    })
+
+  test('the archive is a control next to the week tabs, not a section at the bottom', async () => {
     renderPage()
 
     await cell('Mon 09:00')
-    expect(await screen.findByRole('button', { name: /16–22 Nov/ })).toBeDefined()
-    expect(await screen.findByRole('button', { name: /9–15 Nov/ })).toBeDefined()
-    expect(await screen.findByRole('button', { name: /2–8 Nov/ })).toBeDefined()
-    expect(await screen.findByRole('button', { name: /26 Oct – 1 Nov/ })).toBeDefined()
+    expect(screen.getByRole('combobox', { name: 'Past week' })).toBeDefined()
+    // every week before the window is offered, by date
+    expect(screen.getByRole('option', { name: /16–22 Nov/ })).toBeDefined()
+    expect(screen.getByRole('option', { name: /26 Oct – 1 Nov/ })).toBeDefined()
+    // nothing is loaded until somebody asks for it
+    expect(screen.queryByRole('group', { name: 'Everyone’s availability' })).toBeNull()
+    expect(apiState.sentWeekParam).toBeUndefined()
   })
 
-  test('a member reads a finished week without opening it', async () => {
+  test('picking a past week replaces the live week instead of stacking under it', async () => {
     apiState.plannerWeek = {
       data: past({ answered: ['me', 'u2', 'u3'], unanswered: [] }),
       error: null,
@@ -414,14 +423,32 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+
     await waitFor(() => expect(apiState.sentWeekParam).toBe('2026-11-16'))
 
     expect(await screen.findByText('complete')).toBeDefined()
     expect(screen.getByRole('group', { name: 'Everyone’s availability' })).toBeDefined()
+    // the live week's day tabs and its paint grid are gone while a past week is open
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Your availability' })).toBeNull()
+    expect(screen.getByText('past week')).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Open for editing' })).toBeNull()
-    // the only editable grid is the live week
-    expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(1)
+  })
+
+  test('"Back to the live week" returns the tabs and the grid I can paint', async () => {
+    apiState.plannerWeek = { data: past(), error: null, status: 200 }
+
+    renderPage()
+
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
+    fireEvent.click(await screen.findByRole('button', { name: 'Back to the live week' }))
+
+    expect(await screen.findByRole('tab', { name: /This week · / })).toBeDefined()
+    expect(await screen.findByRole('group', { name: 'Your availability' })).toBeDefined()
+    expect(pressed('Tue 20:00')).toBe('true')
   })
 
   test('a captain opens a finished week for writing', async () => {
@@ -430,7 +457,8 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
     fireEvent.click(await screen.findByRole('button', { name: 'Open for editing' }))
 
     await waitFor(() =>
@@ -453,11 +481,13 @@ describe('history', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: /16–22 Nov/ }))
+    await cell('Tue 20:00')
+    pickPastWeek('2026-11-16')
 
     expect(await screen.findByText('open for edits')).toBeDefined()
     expect(await screen.findByRole('button', { name: 'Close week' })).toBeDefined()
-    expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(2)
+    // the live board is not rendered behind it, so this is the only save on screen
+    expect(screen.getAllByRole('button', { name: 'Save my week' })).toHaveLength(1)
   })
 })
 
