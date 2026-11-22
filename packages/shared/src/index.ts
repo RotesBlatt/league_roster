@@ -197,3 +197,6 @@ export function isValidBirthday(value: string, today: string): boolean {
 export function canManageTeam(user: { role: UserRole; status: MemberStatus } | null): boolean {
   return user?.status === 'active' && user.role === 'captain'
 }
+
+/** The week planner's arithmetic lives in its own module; the barrel just makes it reachable. */
+export * from './availability.ts'
