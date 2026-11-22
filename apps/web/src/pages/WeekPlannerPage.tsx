@@ -1,5 +1,16 @@
 import type { PlannerTemplateDto, PlannerWeekDto } from '@lol/api/schema-types'
-import { Accordion, Badge, Button, Group, Loader, Stack, Tabs, Text, Title } from '@mantine/core'
+import {
+  Accordion,
+  Badge,
+  Button,
+  Group,
+  Loader,
+  Paper,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowBackUp, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useState } from 'react'
@@ -75,7 +86,9 @@ export function WeekPlannerPage() {
         </Text>
       </Group>
 
-      {me.data?.role === 'captain' && <WindowControls slug={slug} />}
+      {me.data?.role === 'captain' && (
+        <WindowControls slug={slug} windowStart={data.windowStart} today={data.today} />
+      )}
 
       <Tabs value={selected} onChange={(value) => setSelected(value ?? '0')}>
         <Tabs.List>
@@ -145,44 +158,71 @@ export function WeekPlannerPage() {
  * decides whether a click was allowed. A refusal (the cap, or "already on this week") is shown as
  * the sentence the API sent, because "nothing happened" is not an answer a captain can act on.
  */
-function WindowControls({ slug }: { slug: string }) {
+function WindowControls({
+  slug,
+  windowStart,
+  today,
+}: {
+  slug: string
+  windowStart: string
+  today: string
+}) {
   const skip = useSkipWindow(slug)
   const reset = useResetWindow(slug)
 
   const refuse = (error: Error) => notifications.show({ message: error.message, color: 'orange' })
+  const atThisWeek = currentWeekStart(today) === windowStart
 
   return (
-    <Group gap="xs">
-      <Text size="sm" c="dimmed">
-        Window
-      </Text>
-      <Button
-        size="xs"
-        variant="default"
-        leftSection={<IconChevronLeft size={14} />}
-        onClick={() => skip.mutate(-1, { onError: refuse })}
-        loading={skip.isPending}
-      >
-        Back
-      </Button>
-      <Button
-        size="xs"
-        variant="default"
-        rightSection={<IconChevronRight size={14} />}
-        onClick={() => skip.mutate(1, { onError: refuse })}
-        loading={skip.isPending}
-      >
-        Forward
-      </Button>
-      <Button
-        size="xs"
-        variant="subtle"
-        onClick={() => reset.mutate(undefined, { onError: refuse })}
-        loading={reset.isPending}
-      >
-        Back to this week
-      </Button>
-    </Group>
+    <Paper withBorder radius="sm" p="xs">
+      <Stack gap={4}>
+        <Group gap="sm" align="center" wrap="wrap">
+          <Badge variant="light" color="orange">
+            Captain only
+          </Badge>
+          <Text size="sm" fw={500}>
+            Planning {weekRange(windowStart)} · Week {isoWeekNumber(windowStart)}
+          </Text>
+
+          <Group gap="xs" ml="auto">
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconChevronLeft size={14} />}
+              onClick={() => skip.mutate(-1, { onError: refuse })}
+              loading={skip.isPending}
+            >
+              Earlier week
+            </Button>
+            <Button
+              size="xs"
+              variant="default"
+              rightSection={<IconChevronRight size={14} />}
+              onClick={() => skip.mutate(1, { onError: refuse })}
+              loading={skip.isPending}
+            >
+              Later week
+            </Button>
+            {/* outlined like its siblings: as a subtle button it looked like a caption, not a
+                control, and "can I press this?" was a fair question */}
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => reset.mutate(undefined, { onError: refuse })}
+              loading={reset.isPending}
+              disabled={atThisWeek}
+            >
+              Back to this week
+            </Button>
+          </Group>
+        </Group>
+
+        <Text size="xs" c="dimmed">
+          Moves the two-week view for the whole team. Nothing is deleted — a week that leaves the
+          window stays in History.
+        </Text>
+      </Stack>
+    </Paper>
   )
 }
 

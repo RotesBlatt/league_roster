@@ -212,31 +212,88 @@ describe('painting and saving', () => {
 })
 
 describe('the captain’s window', () => {
+  const captain = () => {
+    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+  }
+
   test('a member sees no window controls at all', async () => {
     renderPage()
 
     await cell('Mon 09:00')
-    expect(screen.queryByRole('button', { name: 'Forward' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Later week' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Back to this week' })).toBeNull()
   })
 
-  test('a captain can move the window forward and back, and return to this week', async () => {
-    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+  test('the controls say what they move, and that they are captain-only', async () => {
+    captain()
+    renderPage()
+
+    expect(await screen.findByText('Planning 23–29 Nov · Week 48')).toBeDefined()
+    expect(screen.getByText('Captain only')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Earlier week' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Later week' })).toBeDefined()
+    expect(screen.getByText(/Moves the two-week view for the whole team/)).toBeDefined()
+  })
+
+  test('"Back to this week" is outlined like its siblings and disabled when already there', async () => {
+    captain()
+    renderPage()
+
+    const reset = await screen.findByRole('button', { name: 'Back to this week' })
+
+    // subtle text with no border reads as a label, not as something you can press
+    expect(reset.getAttribute('data-variant')).toBe('default')
+    expect(reset.hasAttribute('disabled')).toBe(true)
+  })
+
+  test('a captain can move the window later and earlier', async () => {
+    captain()
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Later week' }))
+    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: 1 }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Earlier week' }))
+    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: -1 }))
+  })
+
+  test('a skipped window can be returned to this week, and says which window it is on', async () => {
+    captain()
+    apiState.planner = {
+      data: {
+        ...planner(week({ startsOn: '2026-12-07' })),
+        windowStart: '2026-12-07',
+        weeks: [
+          week({
+            startsOn: '2026-12-07',
+            answered: [],
+            unanswered: ['me', 'u2', 'u3'],
+            availability: [],
+          }),
+          week({
+            startsOn: '2026-12-14',
+            answered: [],
+            unanswered: ['me', 'u2', 'u3'],
+            availability: [],
+          }),
+        ],
+      },
+      error: null,
+      status: 200,
+    }
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Forward' }))
-    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: 1 }))
+    expect(await screen.findByText('Planning 7–13 Dec · Week 50')).toBeDefined()
+    const reset = await screen.findByRole('button', { name: 'Back to this week' })
+    expect(reset.hasAttribute('disabled')).toBe(false)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
-    await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: -1 }))
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Back to this week' }))
+    fireEvent.click(reset)
     await waitFor(() => expect(apiState.sentReset).toBe(true))
   })
 
   test('a refused skip does not move anything — the server said no', async () => {
-    apiState.me = { data: { ...me, role: 'captain' }, error: null, status: 200 }
+    captain()
     apiState.plannerSkip = {
       data: null,
       error: { value: { message: 'Already on this week' } },
@@ -245,7 +302,7 @@ describe('the captain’s window', () => {
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Earlier week' }))
     await waitFor(() => expect(apiState.sentSkip).toEqual({ weeks: -1 }))
     // the board is still the week the planner reported; a refusal changed no state
     expect((await cell('Tue 20:00')).getAttribute('aria-pressed')).toBe('true')
