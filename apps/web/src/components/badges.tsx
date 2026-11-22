@@ -2,9 +2,8 @@ import type { Me } from '@lol/api/schema-types'
 import type { Role } from '@lol/shared'
 import { ROLE_LABELS } from '@lol/shared'
 import { Badge } from '@mantine/core'
-import type { RankPair } from '../account-card.ts'
-import { ranksToShow } from '../account-card.ts'
-import { rankQueueLabel, TIER_COLORS } from '../rank.ts'
+import type { RankPair } from '../lib/profile/rank.ts'
+import { rankQueueLabel, ranksToShow, TIER_COLORS } from '../lib/profile/rank.ts'
 
 const COLORS: Record<Role, string> = {
   TOP: 'red',

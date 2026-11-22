@@ -11,7 +11,6 @@ import {
 import { Alert, Button, Card, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle } from '@tabler/icons-react'
 import { type SubmitEvent, useEffect, useMemo, useState } from 'react'
-import { levelLabel } from '../account-card.ts'
 import {
   useAddRiotAccount,
   useMe,
@@ -21,6 +20,7 @@ import {
   useSaveProfile,
   useSwitchMainRiotAccount,
 } from '../hooks.ts'
+import { levelLabel } from '../lib/profile/rank.ts'
 import {
   draftAccount,
   draftProfile,

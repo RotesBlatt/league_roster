@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { TIERS } from '@lol/shared'
-import { QUEUE_SHORT_LABELS, rankLabel, rankQueueLabel, TIER_COLORS } from '../src/rank.ts'
+import {
+  levelLabel,
+  QUEUE_SHORT_LABELS,
+  rankLabel,
+  rankQueueLabel,
+  ranksToShow,
+  TIER_COLORS,
+} from '../../../src/lib/profile/rank.ts'
 
 /**
  * Rank display is a pure mapping, so it is tested without a DOM: Riot's `GOLD`/`II` becomes
@@ -43,5 +50,45 @@ describe('rankQueueLabel', () => {
     for (const label of Object.values(QUEUE_SHORT_LABELS)) {
       expect(label.length).toBeLessThanOrEqual(4)
     }
+  })
+})
+
+/**
+ * Which ranks a card shows, tested without a DOM. The rules that matter: a divisionless tier
+ * is not a division of null, and an unverified account shows no level rather than a fake one.
+ */
+describe('ranksToShow', () => {
+  test('solo leads, flex follows, and each rank carries its queue', () => {
+    expect(
+      ranksToShow({
+        solo: { tier: 'GOLD', division: 'II' },
+        flex: { tier: 'SILVER', division: 'IV' },
+      }),
+    ).toEqual([
+      { queue: 'RANKED_SOLO_5x5', rank: { tier: 'GOLD', division: 'II' } },
+      { queue: 'RANKED_FLEX_SR', rank: { tier: 'SILVER', division: 'IV' } },
+    ])
+  })
+
+  test('absent queues are dropped, not rendered as blanks', () => {
+    expect(ranksToShow({ solo: null, flex: null })).toEqual([])
+    expect(ranksToShow({ solo: { tier: 'MASTER', division: null }, flex: null })).toEqual([
+      { queue: 'RANKED_SOLO_5x5', rank: { tier: 'MASTER', division: null } },
+    ])
+  })
+})
+
+describe('levelLabel', () => {
+  test('a fetched snapshot shows the level', () => {
+    expect(levelLabel({ fetchedAt: 1, summonerLevel: 512 })).toBe('Level 512')
+  })
+
+  test('no snapshot (unverified) shows nothing — not "Level null"', () => {
+    expect(levelLabel({ fetchedAt: null, summonerLevel: null })).toBeNull()
+    expect(levelLabel({ fetchedAt: null, summonerLevel: 512 })).toBeNull()
+  })
+
+  test('a partial lookup fetched no level, so nothing is claimed', () => {
+    expect(levelLabel({ fetchedAt: 1, summonerLevel: null })).toBeNull()
   })
 })
