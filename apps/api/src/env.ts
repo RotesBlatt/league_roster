@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path'
+import { HEXSERVE_BASE_URL } from './hexserve/client.ts'
 
 /** <repo root> — apps/api/src/env.ts -> ../../.. */
 export const REPO_ROOT = join(import.meta.dir, '../../..')
@@ -52,6 +53,12 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     // trailing whitespace and a newline survive a copy-paste into .env; trim them here, once
     apiKey: (source.RIOT_API_KEY ?? '').trim(),
   }
+  // One base URL for the dump, overridable per deploy: `dump-collector.de` is a hobby domain and
+  // will outlive its name (hexserve-champion-data.md §9.7). The default lives in the client so a
+  // fresh checkout works without a .env entry. A blank value is not a URL — the default stands.
+  const hexserve = {
+    baseUrl: (source.HEXSERVE_BASE_URL?.trim() || HEXSERVE_BASE_URL).replace(/\/+$/, ''),
+  }
 
   const env = {
     isProduction,
@@ -63,6 +70,7 @@ export function readEnv(source: EnvSource = process.env, options: { warn?: boole
     webDist: resolve(REPO_ROOT, source.WEB_DIST ?? 'apps/web/dist'),
     discord,
     riot,
+    hexserve,
     log: {
       level: envLogLevel(source.LOG_LEVEL),
       toFile: envBool(source.LOG_TO_FILE, true),

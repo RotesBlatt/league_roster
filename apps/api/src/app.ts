@@ -64,7 +64,7 @@ export function createApp(options: AppOptions = {}) {
   const authPlugin = createAuthPlugin({ auth, db, requestLogger })
   const riot = options.riot ?? createRiotClient({ apiKey: env.riot.apiKey })
   const riotThrottle = options.riotThrottle ?? createThrottle()
-  const hexserve = options.hexserve ?? createHexserveClient()
+  const hexserve = options.hexserve ?? createHexserveClient({ baseUrl: env.hexserve.baseUrl })
 
   return (
     new Elysia()

@@ -183,3 +183,33 @@ describe('readEnv riot settings', () => {
     ).toBe(key)
   })
 })
+
+/**
+ * The dump's base URL is configuration, not a string sprinkled through the client
+ * (hexserve-champion-data.md §9.7): `dump-collector.de` is a hobby domain and will outlive its
+ * name. The default keeps a fresh checkout working; the env var is what a deploy changes.
+ */
+describe('readEnv hexserve settings', () => {
+  const DEFAULT_BASE_URL = 'https://hexserve.dump-collector.de'
+
+  test('a fresh checkout points at the team dump without configuring anything', () => {
+    expect(readEnv(base, { warn: false }).hexserve.baseUrl).toBe(DEFAULT_BASE_URL)
+  })
+
+  test('HEXSERVE_BASE_URL wins, and a trailing slash cannot become a double slash in a path', () => {
+    const env = readEnv(
+      { ...base, HEXSERVE_BASE_URL: 'https://mirror.example.com/' },
+      { warn: false },
+    )
+
+    expect(env.hexserve.baseUrl).toBe('https://mirror.example.com')
+  })
+
+  test('a blank value is not a URL: the default stands', () => {
+    for (const value of ['', '   ']) {
+      expect(readEnv({ ...base, HEXSERVE_BASE_URL: value }, { warn: false }).hexserve.baseUrl).toBe(
+        DEFAULT_BASE_URL,
+      )
+    }
+  })
+})
