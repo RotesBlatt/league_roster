@@ -1,6 +1,10 @@
 # Idea — champion & patch data from our own dump (Hexserve)
 
-**Status:** idea, nothing implemented.
+**Status:** in progress (2026-11-25). Live: the `champion` + `champion_patch` cache tables, the
+Hexserve client, the lazy refresh with its transaction and prune, `GET /api/champions`, the SPA's
+`useChampions` lookup with `ChampionIcon`/`ChampionLabel`, and the header patch chip. Still missing:
+a page that renders a champion (that is `champion-pools.md` / `match-history.md`, the actual
+consumers), `de_DE`, and the icon mirroring question (§9.1).
 **Used by:** `champion-pools.md` (name + icon per pool cell), `match-history.md` (champion names/icons
 in the games list and the stats table, and the `WR-BASIS` numbers next to them).
 **Supersedes:** Data Dragon and hardcoded champion tables in this repo.
@@ -232,3 +236,33 @@ feature that shows a champion (`champion-pools.md` §12 step 2).
    but names and icons, so a regression is immediately obvious.
 5. Only then: `match-history.md`'s games list and stats table consume the same endpoint. Nothing there
    changes but the lookup.
+
+## 12. Decided while implementing
+
+- **The dump's names are inverted from Data Dragon, and that decides the primary key.** Live
+  `champion-index.json` sends `id: 1` (numeric) and `key: "Annie"` (string) — DDragon has it the
+  other way round. We store the numeric `id` as `championId`, because Riot match data references
+  numeric champion ids; `key` is ignored.
+- **A second table, `champion_patch`.** `version.json`'s `lastUpdate` (when the patch was
+  published) and `timestamp` (the only ordering key retention may use) are facts about the *patch*,
+  so they live in one row per patch instead of on 173 label rows. `champion.fetchedAt` moved there,
+  and `champion.patch` cascades from it, which makes pruning one statement rather than two.
+- **Refresh is lazy, on `GET /api/champions`.** No scheduler exists in this repo, and a
+  self-healing read cannot die quietly at boot (§9.6's second option).
+- **Two concurrent requests cannot collide.** The HTTP calls happen *outside* the transaction; the
+  transaction takes a `pg_try_advisory_xact_lock`, re-checks `needsRefresh` under it, and the
+  loser returns. Taken before the calls, a slow dump would hold a connection for its whole timeout.
+- **An empty champion list is a failed fetch, not a patch with no champions.** Storing it would
+  leave a patch row that resolves no labels — the blank page §5 and §7 exist to prevent.
+- **`state` is computed against the live `version.json` read of that request**, so `previous` is
+  honest rather than optimistic: during an outage we cannot know we are current, and the chip says
+  `stale` instead of guessing.
+- **The endpoint requires a session and has no `?patch=` parameter** (§6): champion ids are the same
+  for every team, and a parameter would turn retention into an API contract.
+- **Icons are rendered straight from the `iconUrl` the dump gives** (CommunityDragon). The SPA
+  therefore talks to one third host; §9.1 stays open, and removing it is a stored-URL change.
+- **The header chip shows absolute dates, not "5 minutes ago"** — `Patch 16.23.1 · 19.11.`, with
+  exact publication and fetch times in the tooltip. A relative label would need poll bookkeeping
+  and would still be a guess, since a poll that finds nothing new fetches nothing.
+- **`en_US` is stored today**, in a `locale` column, so another language is a refetch and not a
+  schema change.

@@ -12,6 +12,7 @@ import { Outlet, NavLink as RouterNavLink, useLocation, useNavigate } from 'reac
 import { signOut } from '../api/auth.ts'
 import { teamSlugFromPath } from '../lib/team/route.ts'
 import { StatusBadge } from './Badges.tsx'
+import { PatchStatus } from './champions/PatchStatus.tsx'
 import { TeamSwitcher } from './team/TeamSwitcher.tsx'
 
 function NavButton({ to, label, icon }: { to: string; label: string; icon: React.ReactNode }) {
@@ -60,38 +61,43 @@ export function AppLayout({ me }: { me: Me }) {
             )}
           </Group>
 
-          <Menu position="bottom-end" width={220} withinPortal>
-            <Menu.Target>
-              <Button variant="subtle" px="xs">
-                <Group gap="xs">
-                  <Avatar src={me.image} name={me.name} size="sm" color="brand" />
-                  <Text size="sm" visibleFrom="xs">
-                    {me.name}
-                  </Text>
-                </Group>
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Label>
-                <Group justify="space-between" gap="xs">
-                  <Text size="xs">{me.email}</Text>
-                  <StatusBadge me={me} />
-                </Group>
-              </Menu.Label>
-              <Menu.Divider />
-              <Menu.Item
-                leftSection={<IconUser size={16} />}
-                // the team stays in the URL: bare `/profile` would fall back to the oldest
-                // membership and silently switch the shell to another team
-                onClick={() => navigate(`${base}/profile`)}
-              >
-                My profile
-              </Menu.Item>
-              <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
-                Log out
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+          <Group gap="md">
+            {/* which champion labels the pages below are using — one query, shared with them */}
+            <PatchStatus />
+
+            <Menu position="bottom-end" width={220} withinPortal>
+              <Menu.Target>
+                <Button variant="subtle" px="xs">
+                  <Group gap="xs">
+                    <Avatar src={me.image} name={me.name} size="sm" color="brand" />
+                    <Text size="sm" visibleFrom="xs">
+                      {me.name}
+                    </Text>
+                  </Group>
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>
+                  <Group justify="space-between" gap="xs">
+                    <Text size="xs">{me.email}</Text>
+                    <StatusBadge me={me} />
+                  </Group>
+                </Menu.Label>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconUser size={16} />}
+                  // the team stays in the URL: bare `/profile` would fall back to the oldest
+                  // membership and silently switch the shell to another team
+                  onClick={() => navigate(`${base}/profile`)}
+                >
+                  My profile
+                </Menu.Item>
+                <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout}>
+                  Log out
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
         </Group>
       </AppShell.Header>
       <AppShell.Main>
