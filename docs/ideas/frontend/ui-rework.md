@@ -6,7 +6,9 @@ behaviour and no endpoint, but anything built afterwards (`team-home.md`'s cards
 should be built on the tokens this lands, otherwise it gets restyled twice.
 **Interacts with:** `team-home.md` (new pages are the natural first consumers), `realtime.md` (both
 touch `main.tsx`/providers — sequence the patches, don't overlap them), `web-architecture.md` (both
-touch `RosterPage`/`AdminPage`; the refactor and the restyle must not share a diff).
+touch `RosterPage`/`AdminPage`; the refactor and the restyle must not share a diff), and
+`theme-presets.md`, which is the *next* idea on top of this one: the tokens landed here are what
+makes a preset a data change instead of a restyle.
 **Introduces:** `apps/web/src/theme.ts` rewritten as tokens (§3), a `PageContainer` (§5), a `Tag`
 component that replaces most `Badge` usage (§4), `lib/ui/role-icons.ts` + `lib/ui/rank-emblem.ts`
 (§6), and an icon vocabulary module (§6.4).
@@ -18,9 +20,10 @@ row of nav buttons on the left, `Badge` pills for every fact, tables edge to edg
 everywhere. It works and it is legible — it just doesn't *feel* like anything. This idea is a
 presentation-only rework:
 
-1. **Palette → League's own colours.** Hextech blue as the primary, Noxus red for danger, Void
-   purple / Arcane pink as the secondary accents, gold as the highlight. Dark is the only scheme
-   (as today).
+1. **Palette → League's own colours, with violet/pink leading.** Arcane violet→magenta as the
+   primary (`brand`), gold as the single highlight, hextech cyan for informational/reference facts,
+   Noxus red for danger. Dark is the only scheme (as today). Per-user presets are a separate idea
+   (`theme-presets.md`) — this one ships exactly one palette.
 2. **Fewer pills, and no pill that is just a word.** A `Badge` stays for *state*; labels become
    text, small square tokens, or icon + text.
 3. **Real League art where it means something.** Position/role icons, ranked emblems for tier +
@@ -55,23 +58,47 @@ Inventory, so the rework has a checklist instead of a vibe:
 
 League's visual identity is not one colour; it is a small set of **factions** used semantically. The
 trap is using all of them decoratively — that is a rainbow, and it is exactly as anonymous as the
-single teal ramp. So: **two families carry the UI, two accents carry meaning.**
+single teal ramp. So: **one family carries identity, one carries highlight, two carry meaning.**
+
+**Violet and pink are the same family, not two.** That is the whole trick: a single `brand` ramp
+that runs violet at the mid steps (the button fill, the active nav, the focus ring) and magenta/pink
+at the light end (hover, glow, the "alive" edge). Two separate families would make every screen a
+fight over which one wins; one ramp that shifts hue reads as *one* identity with depth.
 
 | Token | Maps to | Mantine name | Used for |
 | --- | --- | --- | --- |
-| Hextech blue / cyan | `--lol-primary` | `brand` (renamed ramp) | primary buttons, active nav, focus ring, links, "current" states |
+| Arcane violet → pink | `--lol-primary` | `brand` (rewritten ramp) | primary buttons, active nav, focus ring, links, "current" states |
 | Arcane gold | `--lol-gold` | `gold` | the one highlight per screen: the primary CTA's edge, the patch chip when current, a "main" marker |
+| Hextech cyan | `--lol-info` | `cyan`/custom `info` | informational and reference facts (patch chip, levels, counts) and second-class emphasis — deliberately *not* interactive |
 | Noxus red | danger | `red` (Mantine's) | destructive actions, errors, disabled/lost |
-| Void purple | `--lol-void` | `grape`/custom `void` | secondary emphasis: captain, history/past-week, "archived" |
-| Arcane pink / magenta | `--lol-arcane` | `pink`/custom `arcane` | rare third accent — badges of *attention*, not of state |
+
+Why violet leads and not the client's blue-gold: the League client is hextech blue because it is a
+*store*. Violet/magenta is the Arcane/void lens — it reads as League without being a copy of the
+client, and it is the palette that makes gold and cyan pop. Say this out loud so the next person
+doesn't "correct" it back to blue.
 
 Decisions to write down while implementing:
 
-- **Backgrounds are not flat `#1a1b1e`.** A blue-black base (`#0a0e14`-ish) with a slightly lighter
-  surface and a 1 px low-contrast border is what makes the accent read as light. This is a `Card`/
+- **The violet ramp is tuned for a dark surface, not taken from Tailwind.** Violet at 600–700 on
+  `#0b0a12` is where a fill still passes contrast; the light steps are magenta so hover reads as
+  *heat*, not as a different colour.
+- **Pink is fill, not type.** Above ~18 px semibold it is fine; as small text it drops under 4.5:1
+  and the whole screen turns muddy. Small text gets the violet mid-steps or `dimmed`.
+- **Danger must survive next to the primary.** Violet/pink and red are the pair that red-green
+  colour-blindness does *not* separate for you: a destructive button next to a primary one needs an
+  icon or a word, not just a hue. This is the one place the "never hue alone" rule is load-bearing
+  rather than polite.
+
+Decisions to write down while implementing:
+
+- **Backgrounds are not flat `#1a1b1e`.** A violet-black base (`#0b0a12`-ish) with a slightly
+  lighter surface (`#151222`-ish) and a 1 px low-contrast border is what makes the violet read as
+  *light* instead of as a grey button. The base is tinted toward the primary on purpose: a neutral
+  grey-black under a violet accent is what makes it look like a default theme. This is a `Card`/
   `Paper` `defaultProps` change in `theme.ts`, not a per-page change.
-- **One accent per screen, by rule.** If a screen needs gold *and* red *and* purple, the screen has
-  a hierarchy problem; fix that instead of the palette.
+- **One accent per screen, by rule.** If a screen needs gold *and* red *and* cyan, the screen has
+  a hierarchy problem; fix that instead of the palette. Violet is the default *which is why it does
+  not count as an accent* — accents are what you spend on top of it.
 - **Never rely on hue alone** for meaning: red/green must also carry an icon or a word (the planner
   already has this problem — see `availability` cells). Colour-blind safety is a `Tag` prop, not a
   wish.
@@ -106,8 +133,8 @@ Replacement vocabulary — one component, `Tag`, with three shapes and a `tone`:
 | `chip` | 1 px bordered, transparent, small radius (`sm`) | states that must be scannable in a table row |
 | `marker` | 4 px coloured left edge (or a dot) + text | "main", "captain", membership state — colour without a box |
 
-`tone` is an enum (`primary | gold | danger | void | muted | neutral`), not a Mantine colour string
-at the call site. That single change is what stops `'grape'` vs `'violet'` vs `'teal'` drifting:
+`tone` is an enum (`primary | gold | danger | info | muted | neutral`), not a Mantine colour string
+at the call site. That single change is what stops `'grape'` vs `'violet'` vs `'pink'` drifting:
 `Tag` maps tone → colour tuple in one place, and `lib/ui/tone.ts` is a pure function a unit test can
 pin.
 
@@ -242,7 +269,7 @@ A small table in `lib/ui/icons.ts` (or a single `iconFor(kind)` function):
 | saved / verified | `IconCheck` | forms, account rows |
 | unverified | `IconAlertTriangle` | account rows |
 | main account | `IconStarFilled` (gold) | account rows |
-| captain | `IconCrown` (void) | roster, admin |
+| captain | `IconCrown` (gold) | roster, admin |
 | disabled | `IconBan` | admin |
 | past week / history | `IconHistory` | planner |
 | patch current / stale | `IconClock` vs `IconRefresh` | `PatchStatus` |
@@ -297,7 +324,7 @@ Deliberately small: this is the largest visual change in the project and the rev
 
 | # | Patch | Touches | Red until |
 | --- | --- | --- | --- |
-| 1 | **Tokens**: rewrite `theme.ts` — blue/gold/void/pink ramps, surface + border, radius, `Tag` colour mapping | `theme.ts`, `lib/ui/tone.ts` + test | nothing (everything inherits) |
+| 1 | **Tokens**: rewrite `theme.ts` — violet→pink `brand` ramp, gold, cyan, red; surface + border, radius, `Tag` colour mapping | `theme.ts`, `lib/ui/tone.ts` + test | nothing (everything inherits) |
 | 2 | **Shell + container**: header aligned to a centred container, nav as tabs, `PageContainer` | `AppLayout.tsx`, new `components/layout/PageContainer.tsx` | pages not yet using it |
 | 3 | **`Tag` + kill the pills**: `Badges.tsx` → `RoleTag`/`RankTag`/`StateTag`; delete `w={64}` | `Badges.tsx`, `Tag.tsx`, roster/admin/planner call sites | — |
 | 4 | **Icons**: `role-icons.ts`, `rank-emblem.ts`, `iconFor()`; `PatchStatus` moves out of the header | `lib/ui/*`, `PatchStatus.tsx`, header | missing asset = placeholder |
@@ -318,7 +345,8 @@ per page without hurting anything.
    word (wider, unambiguous)? Recommendation: icon + word in the table, icon-only once
    `team-home`'s roster-by-role cards exist.
 3. **Logo / wordmark:** does the team get one? A rework without a mark still looks like a template,
-   and a mark is the one asset we cannot borrow from Riot (§6.5).
+   and a mark is the one asset we cannot borrow from Riot (§6.5). If yes, decide now whether it has
+   to survive a palette switch (`theme-presets.md` §9.2).
 4. **Own art vs. Riot art:** if Riot's asset paths turn out to be unstable, do we vendor the five
    position glyphs and ten tier emblems as small local SVGs (licence note required) or accept
    placeholders when they move?
