@@ -1,6 +1,8 @@
 # Idea — reactive UI (edits show up for everyone at once)
 
-**Status:** idea, nothing implemented.
+**Status:** in progress — Tier 0's first item landed 2026-11-26 (`refetchOnWindowFocus` on, in
+`apps/web/src/lib/query/client.ts` with a unit test); the rest of Tier 0 and all of Tier 1 are still
+open.
 **Answer up front:** not a break, and the cheap version is genuinely cheap — but only if it is built
 as *"a push that says 'refetch'"* and never as *"state sync over the wire"*. The schema does not
 change at all. The one recurring cost is per-route discipline (§6), and there is a structural way to
@@ -57,10 +59,15 @@ That table is the honest scope: **one page + one list**. Everything else is a po
 
 Every item here works today, needs no server change, and costs minutes:
 
-- **Turn `refetchOnWindowFocus` back on** (`apps/web/src/main.tsx:17` sets it to `false`). This one
-  flag covers the most common real situation: I was in Discord/the draft tool, I come back, my data is
-  from 20 minutes ago. It is the cheapest "reactive" there is.
-- **Refetch on reconnect** (`online` event) and on `visibilitychange` → `visible`.
+- ✅ **Turn `refetchOnWindowFocus` back on** — **done 2026-11-26.** It was `false` in `main.tsx`; the
+defaults now live in `apps/web/src/lib/query/client.ts` (`createQueryClient()`), so they are a plain
+  module a unit test can assert (`test/lib/query/client.test.ts` pins both this flag and `retry: 1`)
+  instead of a literal buried in the entry point. This one flag covers the most common real situation:
+  I was in Discord/the draft tool, I come back, my data is from 20 minutes ago. It is the cheapest
+  "reactive" there is.
+- **Refetch on reconnect** (`online` event) and on `visibilitychange` → `visible`. Still open, and
+  the next cheapest slice: focus covers "I came back to the tab", it does not cover a laptop that
+  slept or a phone that changed networks while the page stayed focused.
 - **Optimistic updates** for the mutations that feel laggy (record a result, toggle a topic, set
   availability) — write the cache, roll back on error. Also `invalidateQueries` on success, which is
   already happening in a few places.
