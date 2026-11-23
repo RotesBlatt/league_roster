@@ -26,8 +26,3 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number]
 
 export const USER_ROLES = ['captain', 'member'] as const
 export type UserRole = (typeof USER_ROLES)[number]
-
-/** Small helper so the UI and API agree on what "this player can edit the roster" means. */
-export function canManageTeam(user: { role: UserRole; status: MemberStatus } | null): boolean {
-  return user?.status === 'active' && user.role === 'captain'
-}

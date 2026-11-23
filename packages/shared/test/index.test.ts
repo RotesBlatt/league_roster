@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  canManageTeam,
   DISPLAY_NAME_MAX,
   isValidBirthday,
   MEMBER_STATUSES,
@@ -10,28 +9,6 @@ import {
   TIERS,
   USER_ROLES,
 } from '../src/index.ts'
-
-describe('canManageTeam', () => {
-  test('only an active captain may manage the team', () => {
-    expect(canManageTeam({ role: 'captain', status: 'active' })).toBe(true)
-  })
-
-  test('a disabled captain cannot manage the team', () => {
-    expect(canManageTeam({ role: 'captain', status: 'disabled' })).toBe(false)
-  })
-
-  test('a disabled captain cannot manage the team', () => {
-    expect(canManageTeam({ role: 'captain', status: 'disabled' })).toBe(false)
-  })
-
-  test('a regular member cannot manage the team', () => {
-    expect(canManageTeam({ role: 'member', status: 'active' })).toBe(false)
-  })
-
-  test('no user at all cannot manage the team', () => {
-    expect(canManageTeam(null)).toBe(false)
-  })
-})
 
 describe('role constants', () => {
   test('every role has a label', () => {
