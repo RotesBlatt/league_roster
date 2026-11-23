@@ -1,0 +1,8 @@
+ALTER TABLE "membership" ADD CONSTRAINT "membership_role_check" CHECK ("membership"."role" in ('captain', 'member'));--> statement-breakpoint
+ALTER TABLE "membership" ADD CONSTRAINT "membership_status_check" CHECK ("membership"."status" in ('active', 'disabled'));--> statement-breakpoint
+ALTER TABLE "profile" ADD CONSTRAINT "profile_preferredRole_check" CHECK ("profile"."preferredRole" in ('TOP', 'JGL', 'MID', 'ADC', 'SUP'));--> statement-breakpoint
+ALTER TABLE "riot_account" ADD CONSTRAINT "riot_account_soloTier_check" CHECK ("riot_account"."soloTier" in ('IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'));--> statement-breakpoint
+ALTER TABLE "riot_account" ADD CONSTRAINT "riot_account_soloDivision_check" CHECK ("riot_account"."soloDivision" in ('I', 'II', 'III', 'IV'));--> statement-breakpoint
+ALTER TABLE "riot_account" ADD CONSTRAINT "riot_account_flexTier_check" CHECK ("riot_account"."flexTier" in ('IRON', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'EMERALD', 'DIAMOND', 'MASTER', 'GRANDMASTER', 'CHALLENGER'));--> statement-breakpoint
+ALTER TABLE "riot_account" ADD CONSTRAINT "riot_account_flexDivision_check" CHECK ("riot_account"."flexDivision" in ('I', 'II', 'III', 'IV'));--> statement-breakpoint
+ALTER TABLE "roster_entry" ADD CONSTRAINT "roster_entry_roleOverride_check" CHECK ("roster_entry"."roleOverride" in ('TOP', 'JGL', 'MID', 'ADC', 'SUP'));

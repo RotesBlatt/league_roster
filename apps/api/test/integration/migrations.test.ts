@@ -45,6 +45,23 @@ const SEED_OVERRIDES: Record<string, unknown> = {
   'availability.endMinute': 720,
   'availability_template.startMinute': 540,
   'availability_template.endMinute': 720,
+  // the enum CHECKs of 0015 (quick-wins.md D1): the generic 'seed' literal is not a member of any
+  // of these vocabularies, so a row seeded before the migration would fail it. Any legal value
+  // will do — these are fixtures, not policy — and the "row seeder itself" test below is what
+  // fails the day one of them stops being legal.
+  // and this one is not a CHECK at all: migration 0006 *lifts* `player.role` into
+  // `profile.preferredRole` and `roster_entry.roleOverride`, so a seeded player is how the bad
+  // value reached those columns in the first place. Without this the backfill writes 'seed' and
+  // 0015 then refuses the row it inherited.
+  'player.role': 'MID',
+  'membership.role': 'member',
+  'membership.status': 'active',
+  'profile.preferredRole': 'MID',
+  'roster_entry.roleOverride': 'MID',
+  'riot_account.soloTier': 'GOLD',
+  'riot_account.soloDivision': 'I',
+  'riot_account.flexTier': 'GOLD',
+  'riot_account.flexDivision': 'I',
 }
 
 /**

@@ -1,6 +1,7 @@
 import { DIVISIONS, MEMBER_STATUSES, ROLES, TIERS, USER_ROLES } from '@lol/shared'
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -14,6 +15,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
+import { sqlStringList } from './enum-list.ts'
 
 /**
  * Postgres schema.
@@ -23,6 +25,19 @@ import {
 
 const createdAt = timestamp('createdAt', { withTimezone: true, mode: 'date' })
 const updatedAt = timestamp('updatedAt', { withTimezone: true, mode: 'date' })
+
+/**
+ * `CHECK (col IN (…))` whose value list is generated from the shared array (quick-wins.md D1).
+ *
+ * The alternative — typing the values out here — is the duplication trap B2 already bit us with:
+ * it is right on the day it is written and drifts silently afterwards. With this, adding a role is
+ * one edit in `@lol/shared` plus `bun run db:generate`.
+ *
+ * `sql.raw` because a migration is DDL: there is no statement to bind a parameter to, so the
+ * quoted list has to be part of the SQL text.
+ */
+const enumCheck = (name: string, column: AnyPgColumn, values: readonly string[]) =>
+  check(name, sql`${column} in ${sql.raw(sqlStringList(values))}`)
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -93,24 +108,29 @@ export const verification = pgTable(
  * No row at all means "never set up"; the profile is then judged complete by
  * `missingProfileFields` in @lol/shared, never by a stored flag.
  */
-export const profile = pgTable('profile', {
-  id: text('id').primaryKey(),
-  userId: text('userId')
-    .notNull()
-    .unique()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  displayName: text('displayName').notNull(),
-  /** Position preference (TOP…SUP), not the permission — that is `membership.role`. */
-  preferredRole: text('preferredRole', { enum: ROLES }).notNull(),
-  /**
-   * `YYYY-MM-DD`: a birthday is a wall-clock date, so it must not become an instant.
-   * **Nullable on purpose** — it is personal data, and someone who declines to share it must
-   * not be nagged or forced to invent a date. A null birthday is not "incomplete"; it is a person
-   * who chose not to say, and the birthday list simply skips them.
-   */
-  birthday: date('birthday', { mode: 'string' }),
-  updatedAt: updatedAt.notNull(),
-})
+export const profile = pgTable(
+  'profile',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId')
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    displayName: text('displayName').notNull(),
+    /** Position preference (TOP…SUP), not the permission — that is `membership.role`. */
+    preferredRole: text('preferredRole', { enum: ROLES }).notNull(),
+    /**
+     * `YYYY-MM-DD`: a birthday is a wall-clock date, so it must not become an instant.
+     * **Nullable on purpose** — it is personal data, and someone who declines to share it must
+     * not be nagged or forced to invent a date. A null birthday is not "incomplete"; it is a person
+     * who chose not to say, and the birthday list simply skips them.
+     */
+    birthday: date('birthday', { mode: 'string' }),
+    updatedAt: updatedAt.notNull(),
+  },
+  // the position is one of five; a raw SQL write must not be able to invent a sixth
+  (table) => [enumCheck('profile_preferredRole_check', table.preferredRole, ROLES)],
+)
 
 /**
  * A League account the player owns. Several per person, **at most one main**.
@@ -159,6 +179,12 @@ export const riotAccounts = pgTable(
     // the label is unique per person; the same label may exist for two people until one proves it
     unique('riot_account_userId_riot_id_idx').on(table.userId, table.gameName, table.tagLine),
     uniqueIndex('riot_account_one_main_idx').on(table.userId).where(sql`${table.isMain}`),
+    // the snapshot's vocabulary is Riot's, but the columns are plain text: without these, a typo in
+    // a mapping is stored and only shows up as a missing rank badge
+    enumCheck('riot_account_soloTier_check', table.soloTier, TIERS),
+    enumCheck('riot_account_soloDivision_check', table.soloDivision, DIVISIONS),
+    enumCheck('riot_account_flexTier_check', table.flexTier, TIERS),
+    enumCheck('riot_account_flexDivision_check', table.flexDivision, DIVISIONS),
   ],
 )
 
@@ -207,6 +233,7 @@ export const rosterEntries = pgTable(
       foreignColumns: [memberships.teamId, memberships.userId],
       name: 'roster_entry_membership_fk',
     }).onDelete('cascade'),
+    enumCheck('roster_entry_roleOverride_check', table.roleOverride, ROLES),
   ],
 )
 
@@ -255,7 +282,13 @@ export const memberships = pgTable(
     joinedAt: timestamp('joinedAt', { withTimezone: true, mode: 'date' }).notNull(),
     updatedAt: updatedAt.notNull(),
   },
-  (table) => [unique('membership_teamId_userId_idx').on(table.teamId, table.userId)],
+  (table) => [
+    unique('membership_teamId_userId_idx').on(table.teamId, table.userId),
+    // the two columns the whole permission model reads: Elysia validates them on the way in, the
+    // assignability of `role: 'captain '` in the other direction is what this catches
+    enumCheck('membership_role_check', table.role, USER_ROLES),
+    enumCheck('membership_status_check', table.status, MEMBER_STATUSES),
+  ],
 )
 
 /**
