@@ -6,10 +6,15 @@
  * crosses the wire is these two names, the same way `Role` and `Tier` name a stored value.
  */
 
-/** One entry of the dump's `version.json` `history[]`: the patch and when it landed. */
+/**
+ * One entry of the dump's `version.json` `history[]`: the patch and when it landed.
+ *
+ * `timestamp` is the only field retention may order by (§5, trap #2); `lastUpdate` is display sugar
+ * and is `null` when the dump omitted it — a missing label is not a reason to forget a patch exists.
+ */
 export type PatchHistoryEntry = {
   version: string
-  lastUpdate: string
+  lastUpdate: string | null
   timestamp: number
 }
 
