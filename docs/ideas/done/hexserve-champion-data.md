@@ -1,10 +1,16 @@
 # Idea — champion & patch data from our own dump (Hexserve)
 
-**Status:** in progress (2026-11-25). Live: the `champion` + `champion_patch` cache tables, the
-Hexserve client, the lazy refresh with its transaction and prune, `GET /api/champions`, the SPA's
-`useChampions` lookup with `ChampionIcon`/`ChampionLabel`, and the header patch chip. Still missing:
-a page that renders a champion (that is `champion-pools.md` / `match-history.md`, the actual
-consumers), `de_DE`, and the icon mirroring question (§9.1).
+**Status:** done (2026-11-25) — landed in the champion-cache sequence: `feat(api): add champion patch
+retention rules`, `… add hexserve champion dump client`, `… add champion cache tables and migration`,
+`… refresh and prune the champion cache`, `… serve the champion cache at /api/champions`,
+`feat(web): render champions by id with placeholder fallback`, `… show the champion patch and fetch
+date in the header`, and `fix(web): refresh champion data after five minutes`; the base URL became
+`HEXSERVE_BASE_URL` in the same release.
+
+Deliberately outside this idea, and recorded rather than hidden: **no page renders a champion yet** —
+that is `champion-pools.md` / `match-history.md` consuming the endpoint, and building it here would
+have been that feature in disguise; **`de_DE`** (decided: `en_US` only for now); **icons are not
+mirrored** (§9.1 stays open — the SPA talks to CommunityDragon directly).
 **Used by:** `champion-pools.md` (name + icon per pool cell), `match-history.md` (champion names/icons
 in the games list and the stats table, and the `WR-BASIS` numbers next to them).
 **Supersedes:** Data Dragon and hardcoded champion tables in this repo.
@@ -268,3 +274,8 @@ feature that shows a champion (`champion-pools.md` §12 step 2).
   and would still be a guess, since a poll that finds nothing new fetches nothing.
 - **`en_US` is stored today**, in a `locale` column, so another language is a refetch and not a
   schema change.
+- **The base URL is `HEXSERVE_BASE_URL`**, defaulting to the team dump (§9.7). The default lives in
+  the client so a fresh checkout works; a deploy overrides it without a code change.
+- **The SPA keeps a payload for five minutes** (`CHAMPION_STALE_MS`), not for the session as §6
+  first said: a patch is rare, but an overnight tab should not keep yesterday's names, and a
+  non-patch request costs one version check rather than a champion list.
