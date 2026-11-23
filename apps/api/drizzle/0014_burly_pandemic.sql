@@ -1,0 +1,1 @@
+DROP INDEX "invite_code_idx";

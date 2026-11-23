@@ -258,27 +258,28 @@ export const memberships = pgTable(
   (table) => [unique('membership_teamId_userId_idx').on(table.teamId, table.userId)],
 )
 
-/** Shareable invite links. `code` is what goes into /join/<code>. */
-export const invites = pgTable(
-  'invite',
-  {
-    id: text('id').primaryKey(),
-    code: text('code').notNull().unique(),
-    note: text('note'),
-    createdBy: text('createdBy')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    maxUses: integer('maxUses').notNull().default(1),
-    uses: integer('uses').notNull().default(0),
-    teamId: text('teamId')
-      .notNull()
-      .references(() => teams.id, { onDelete: 'cascade' }),
-    expiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'date' }),
-    revokedAt: timestamp('revokedAt', { withTimezone: true, mode: 'date' }),
-    createdAt: createdAt.notNull(),
-  },
-  (table) => [index('invite_code_idx').on(table.code)],
-)
+/**
+ * Shareable invite links. `code` is what goes into /join/<code>.
+ *
+ * `code` is UNIQUE, and in Postgres that *is* a btree index — a second plain index on the same
+ * column would only cost writes (dropped in 0014).
+ */
+export const invites = pgTable('invite', {
+  id: text('id').primaryKey(),
+  code: text('code').notNull().unique(),
+  note: text('note'),
+  createdBy: text('createdBy')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  maxUses: integer('maxUses').notNull().default(1),
+  uses: integer('uses').notNull().default(0),
+  teamId: text('teamId')
+    .notNull()
+    .references(() => teams.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expiresAt', { withTimezone: true, mode: 'date' }),
+  revokedAt: timestamp('revokedAt', { withTimezone: true, mode: 'date' }),
+  createdAt: createdAt.notNull(),
+})
 
 /**
  * One planning week of one team. Kept as a table even though the window is derived (§5): it is the
