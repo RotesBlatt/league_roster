@@ -90,3 +90,41 @@ only drifts when nobody is reading, which is exactly when it matters. The migrat
 3. **D1** — decided (generated `CHECK`s); one migration, tested by the replay harness, with the
    `SEED_OVERRIDES` map extended if a `CHECK` spans columns.
 4. **E\*** — measure, don't guess.
+
+## Where this stopped — 2026-11-26 (handoff)
+
+**Committed, tree clean.** Five patches, each green on `bun run test` + `bun run test:db` +
+`bun run typecheck` at the time it landed:
+
+| Commit | What it did | Item |
+| --- | --- | --- |
+| `37f8144` | `chore(shared): drop dead canManageTeam helper` | A3 |
+| `eabdf89` | `chore(api): drop duplicate invite code index` (`0014_burly_pandemic.sql`) | A1 |
+| `22d120b` | `refactor(api): move member rules into decideMemberChange` | C1 |
+| `3771478` | `docs(ideas): update quick-wins after A1/A3/C1` | — |
+| `fe30a3c` | `feat(web): refetch queries when the window regains focus` | `realtime.md` Tier 0 |
+
+**Pick up here, in this order:**
+
+1. **C2 — the over-strict last-captain rule.** `lib/member-change.ts`, predicate `spendsACaptain`.
+   Today a *disabled* captain being demoted is refused when the team has one active captain, even
+   though that captain is not one of the active ones. Write the failing unit test first, beside the
+   existing cases in `test/unit/member-change.test.ts`: target `{ role: 'captain',
+   status: 'disabled' }`, `body: { role: 'member' }`, `activeCaptainCount: 1` must be **accepted**;
+   then add `target.status === 'active'` to the predicate. One line, one test, one commit
+   (`fix(api): allow demoting a captain who is already disabled`).
+2. **D1 — `CHECK`s generated from the shared enums.** Shape decided above. Note the two costs the
+   decision implies: `db:generate` will emit one `ALTER TABLE … ADD CONSTRAINT` per column (a
+   migration the replay harness covers automatically, no allowlist entry — `migrations-safety` only
+   guards columns and tables), and the row seeder writes `'seed'` into every text column, so any
+   `CHECK` on a column the seeder touches must either accept that literal or land in
+   `SEED_OVERRIDES` (`test/integration/migrations.test.ts`). That map is the tripwire, not a
+   gotcha — its own test fails the day a new `CHECK` needs an entry.
+3. **`realtime.md` Tier 0, the rest of it** — `online`/`visibilitychange` refetch is the next
+   cheapest slice, then optimistic writes for the laggy mutations, then the 15 s poll on the matchday
+   page (which does not exist yet, so it waits for `matchdays`).
+
+**Known-stale doc rows elsewhere** (found while walking the tree, not fixed because they are other
+ideas' docs): `web-architecture.md` still lists `RosterPage`/`AdminPage` as they were before
+`player-profiles` split the roster; `team-home.md` depends on four ideas that have since landed and
+has not been re-read against them.

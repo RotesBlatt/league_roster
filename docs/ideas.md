@@ -35,14 +35,16 @@ folder is a fine reason to create it; empty folders are not.
 
 **Updating the doc is part of implementing it.** The patch that lands behaviour updates its status
 line and its "decided while implementing" section in the same commit — a doc that still says
-"nothing implemented" over shipped code is a bug, not a backlog note. `quick-wins.md` (findings only)
-and `web-architecture.md` (nothing refactored yet) are plain `idea` rows; their status lines say what
-kind of note they are.
+"nothing implemented" over shipped code is a bug, not a backlog note. `web-architecture.md` (nothing
+refactored yet) is the remaining plain `idea` row; `quick-wins.md` is now `in progress` and carries a
+"Where this stopped" handoff section — the place to resume from when a working session ends
+mid-queue.
 
-Order is dependency order, not importance: **4 of the 11 still hang off `multi-team`**, which is why
+Order is dependency order, not importance: **3 of the 10 still hang off `multi-team`**, which is why
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
 profiles are both done, and `availability-planner` — the next thing that was actually buildable —
-is now done as well.
+is now done as well. The front of the queue is now `matchdays` and `team-home`, not another refactor:
+`quick-wins` and `realtime` are the two `in progress` rows.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
@@ -51,10 +53,10 @@ is now done as well.
 | [match-history](ideas/matches/match-history.md) | Hourly pull of every member's Riot games into a games list and champion stats — Riot-visible games only; fixtures and sides come from `matchdays`. | multi-team, player-profiles, hexserve | idea |
 | [champion-pools](ideas/roster/champion-pools.md) | Each player curates main / situational / blind-pick pools in their own order; one team-wide blind-pickable list per role. | player-profiles, hexserve | idea |
 | [discord-digest](ideas/integrations/discord-digest.md) | One weekly Discord post per team via a webhook (no bot): playable window, who hasn't answered, fixtures, roster gaps. Exactly-once sending via a claim row. | team-home, availability-planner, matchdays | idea |
-| [realtime](ideas/frontend/realtime.md) | Edits appearing for everyone at once: Tier 0 (focus refetch, optimistic writes, one poll) vs SSE + an injected bus. Events are refetch hints, never state. | — | idea |
+| [realtime](ideas/frontend/realtime.md) | Edits appearing for everyone at once: Tier 0 (focus refetch, optimistic writes, one poll) vs SSE + an injected bus. Events are refetch hints, never state. **Focus refetch landed 2026-11-26** (`apps/web/src/lib/query/client.ts`); reconnect/visibility, optimistic writes and the poll are still open, and Tier 1 (SSE) is untouched. | — | in progress |
 | [change-visibility](ideas/engineering/change-visibility.md) | What a mutation actually changed: field names and enum before→after in the log, the build version at boot, and — only if accountability is wanted — a transactional `change_log` table. Debugging and audit are separate goals. | logging | idea |
 | [web-architecture](ideas/engineering/web-architecture.md) | Behaviour-preserving refactor: get server state, mutations, derived rules and form state out of `RosterPage`/`AdminPage` into plain modules and hooks. | — | idea |
-| [quick-wins](ideas/engineering/quick-wins.md) | Findings from the module walkthrough, re-verified: the dead helper, the duplicate index and the two member rules are done (A1/A3/C1); what is left is the over-strict last-captain rule (C2) and DB `CHECK`s generated from the shared enums (D1). | — | in progress |
+| [quick-wins](ideas/engineering/quick-wins.md) | Findings from the module walkthrough, re-verified: the dead helper, the duplicate index and the two member rules are done (A1/A3/C1); what is left is the over-strict last-captain rule (C2) and DB `CHECK`s generated from the shared enums (D1). Its "Where this stopped" section is the resume point. | — | in progress |
 | [team-slug-history](ideas/engineering/team-slug-history.md) | A retired team slug keeps answering: a `team_slug_history` row per rename and a 308 on the SPA path, so an old `/t/<slug>/…` link still lands on the team. Deliberately deferred when renaming shipped. | team-rename | idea |
 
 ## Not written up yet

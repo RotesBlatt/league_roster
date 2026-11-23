@@ -1,8 +1,10 @@
 # Idea — reactive UI (edits show up for everyone at once)
 
-**Status:** in progress — Tier 0's first item landed 2026-11-26 (`refetchOnWindowFocus` on, in
-`apps/web/src/lib/query/client.ts` with a unit test); the rest of Tier 0 and all of Tier 1 are still
-open.
+**Status:** in progress — Tier 0's first item landed 2026-11-26 (commit `fe30a3c`):
+`refetchOnWindowFocus` on, in `apps/web/src/lib/query/client.ts` with a unit test. The rest of Tier 0
+(reconnect/visibility refetch, optimistic writes, the matchday poll) and all of Tier 1 are still open;
+the queue and the exact next step are written up in `engineering/quick-wins.md` under "Where this
+stopped".
 **Answer up front:** not a break, and the cheap version is genuinely cheap — but only if it is built
 as *"a push that says 'refetch'"* and never as *"state sync over the wire"*. The schema does not
 change at all. The one recurring cost is per-route discipline (§6), and there is a structural way to
