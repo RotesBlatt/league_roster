@@ -1,4 +1,12 @@
-import type { Division, MemberStatus, PlayWindow, Role, Tier, UserRole } from '@lol/shared'
+import type {
+  ChampionCacheState,
+  Division,
+  MemberStatus,
+  PlayWindow,
+  Role,
+  Tier,
+  UserRole,
+} from '@lol/shared'
 
 export type Me = {
   id: string
@@ -178,6 +186,39 @@ export type MemberDto = {
   /** His accounts, main first — what the captain picks from when adding him to the roster. */
   accounts: { id: string; gameName: string; tagLine: string; isMain: boolean }[]
   teamId: string | null
+}
+
+/**
+ * One champion as the SPA renders it: an id and its label (hexserve-champion-data.md §4, §6).
+ *
+ * Deliberately **not** per patch: the endpoint resolves the newest retained label server-side, so a
+ * client cannot show a different name for the same champion depending on which game it is in.
+ */
+export type ChampionLabelDto = {
+  championId: number
+  name: string
+  slug: string
+  /** CommunityDragon URL, stored as the dump gives it. */
+  iconUrl: string
+  /** Hints only — never a filter, never a warning colour. */
+  positions: string[]
+  roles: string[]
+}
+
+/**
+ * `GET /api/champions` — the champion cache as one payload.
+ *
+ * `state` is computed from what the dump said on this request, so `previous` is honest: we hold
+ * rows, just not the newest patch. `patchPublishedAt` and `fetchedAt` are epoch ms and are what the
+ * shell shows; both survive a dump outage because they are stored with the rows.
+ */
+export type ChampionsDto = {
+  patch: string | null
+  previousPatch: string | null
+  patchPublishedAt: number | null
+  fetchedAt: number | null
+  state: ChampionCacheState
+  champions: ChampionLabelDto[]
 }
 
 export type ApiError = { message: string }

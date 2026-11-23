@@ -2,6 +2,7 @@ import { Elysia } from 'elysia'
 import { type Auth, auth as defaultAuth } from './auth.ts'
 import { type Db, db as defaultDb } from './db/index.ts'
 import { env } from './env.ts'
+import { createHexserveClient, type HexserveClient } from './hexserve/client.ts'
 import { createRequestLog } from './lib/log/http.ts'
 import type { Logger } from './lib/log/logger.ts'
 import { noopLogger } from './lib/log/noop.ts'
@@ -10,6 +11,7 @@ import { forTeam } from './lib/team-db.ts'
 import { createAuthPlugin } from './plugins/auth.ts'
 import { createRiotClient, type RiotClient } from './riot/client.ts'
 import { createThrottle, type Throttle } from './riot/throttle.ts'
+import { createChampionRoutes } from './routes/champions.ts'
 import { createClaimRoutes } from './routes/claim.ts'
 import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
@@ -37,6 +39,11 @@ export type AppOptions = {
   riot?: RiotClient
   /** per-user lookup budget; tests shrink it to one instead of looping eleven times */
   riotThrottle?: Throttle
+  /**
+   * inject the champion dump client. The default points at `HEXSERVE_BASE_URL`; tests answer from
+   * a canned `fetch` so "the dump is down" is a real answer rather than a mock of our own code.
+   */
+  hexserve?: HexserveClient
 }
 
 /**
@@ -57,6 +64,7 @@ export function createApp(options: AppOptions = {}) {
   const authPlugin = createAuthPlugin({ auth, db, requestLogger })
   const riot = options.riot ?? createRiotClient({ apiKey: env.riot.apiKey })
   const riotThrottle = options.riotThrottle ?? createThrottle()
+  const hexserve = options.hexserve ?? createHexserveClient()
 
   return (
     new Elysia()
@@ -141,6 +149,8 @@ export function createApp(options: AppOptions = {}) {
           .use(createRiotAccountRoutes(db, riot, riotThrottle, authPlugin, requestLogger))
           // global: the code identifies the team being joined
           .use(createClaimRoutes(db, authPlugin, requestLogger))
+          // global: champion ids and names are the same for every team
+          .use(createChampionRoutes(db, hexserve, authPlugin, logger))
           // global: creating a team is the act that makes you its captain, so there is
           // no tenant in the path yet
           .use(createTeamRoutes(db, authPlugin))

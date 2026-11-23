@@ -9,6 +9,7 @@ import { type Auth, createAuth } from '../../src/auth.ts'
 import { createDb, type Db } from '../../src/db/index.ts'
 import { account, memberships, session, teams, user } from '../../src/db/schema.ts'
 import { env } from '../../src/env.ts'
+import type { HexserveClient } from '../../src/hexserve/client.ts'
 import type { Logger } from '../../src/lib/log/logger.ts'
 import type { RiotClient } from '../../src/riot/client.ts'
 import type { Throttle } from '../../src/riot/throttle.ts'
@@ -184,6 +185,7 @@ export type TestAppOptions = {
   logger?: Logger
   riot?: RiotClient
   riotThrottle?: Throttle
+  hexserve?: HexserveClient
 }
 
 export function createTestApp(ctx: TestContext, options: TestAppOptions = {}): TestServer {
