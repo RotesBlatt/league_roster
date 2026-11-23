@@ -1,8 +1,8 @@
 # Quick wins — findings from the module walkthrough
 
 **Status:** findings only; the walkthrough is from before `multi-team`, `player-profiles`,
-`riot-api`, `availability-planner` and `hexserve`. **A1, A3 and C1 landed 2026-11-26; the rest were
-re-verified against the tree that day and six of them no longer exist (marked below).**
+`riot-api`, `availability-planner` and `hexserve`. **A1, A3, C1 and C2 landed 2026-11-26; the rest
+were re-verified against the tree that day and six of them no longer exist (marked below).**
 Ordered by risk, cheapest first.
 Rule for every item: per `AGENTS.md`, a behaviour change ships with a test that failed first.
 Pure deletions need no new test — but do run the suite.
@@ -46,7 +46,7 @@ from the array rather than typing the roles out.
 | # | Finding | Where |
 | --- | --- | --- |
 | C1 | ~~**Two business rules live inside the members PATCH handler**~~ **Done 2026-11-26**: `decideMemberChange` in `lib/member-change.ts` decides both rules from `{ actorId, target, body, activeCaptainCount }`, and the route only supplies the facts. Eleven unit tests, no database. The shape it settled on is *purer* than `claimInvite`: the count is passed in rather than queried, because a rule that queries cannot be tested without Postgres. | `lib/member-change.ts` |
-| C2 | **The last-captain rule is one row too strict.** A *disabled* captain being demoted to member is refused when the team has one active captain — but that captain is not among the active ones, so the change cannot take the last one away. Found while extracting C1; kept out of that patch because fixing it is a behaviour change, not an extraction. | `lib/member-change.ts` (`spendsACaptain`) |
+| C2 | ~~**The last-captain rule is one row too strict.**~~ **Done 2026-11-26**: `spendsACaptain` now requires `target.status === 'active'` as well, so demoting a captain who is already disabled is no longer mistaken for a spent captaincy. The count only ever covered *active* captains, which is what made the old predicate wrong: the target was never in the number it was compared against. Found while extracting C1; kept out of that patch because fixing it is a behaviour change, not an extraction. | `lib/member-change.ts` (`spendsACaptain`) |
 
 C1's shape is the one to copy for future rules: pass the facts, return a decision. `claimInvite` takes a
 `Db` because claiming genuinely is one transaction; a *decision* should not be.
@@ -84,16 +84,14 @@ only drifts when nobody is reading, which is exactly when it matters. The migrat
 
 ## Suggested order
 
-1. ~~A1, A2, A3, C1~~ — landed 2026-11-26.
-2. **C2** — next: a failing unit test for the disabled-captain case, then the one-word fix in
-   `spendsACaptain`.
-3. **D1** — decided (generated `CHECK`s); one migration, tested by the replay harness, with the
+1. ~~A1, A2, A3, C1, C2~~ — landed 2026-11-26.
+2. **D1** — next: decided (generated `CHECK`s); one migration, tested by the replay harness, with the
    `SEED_OVERRIDES` map extended if a `CHECK` spans columns.
-4. **E\*** — measure, don't guess.
+3. **E\*** — measure, don't guess.
 
 ## Where this stopped — 2026-11-26 (handoff)
 
-**Committed, tree clean.** Five patches, each green on `bun run test` + `bun run test:db` +
+**Committed, tree clean.** Six patches, each green on `bun run test` + `bun run test:db` +
 `bun run typecheck` at the time it landed:
 
 | Commit | What it did | Item |
@@ -103,24 +101,18 @@ only drifts when nobody is reading, which is exactly when it matters. The migrat
 | `22d120b` | `refactor(api): move member rules into decideMemberChange` | C1 |
 | `3771478` | `docs(ideas): update quick-wins after A1/A3/C1` | — |
 | `fe30a3c` | `feat(web): refetch queries when the window regains focus` | `realtime.md` Tier 0 |
+| `5e42135` | `fix(api): allow demoting a disabled captain` | C2 |
 
 **Pick up here, in this order:**
 
-1. **C2 — the over-strict last-captain rule.** `lib/member-change.ts`, predicate `spendsACaptain`.
-   Today a *disabled* captain being demoted is refused when the team has one active captain, even
-   though that captain is not one of the active ones. Write the failing unit test first, beside the
-   existing cases in `test/unit/member-change.test.ts`: target `{ role: 'captain',
-   status: 'disabled' }`, `body: { role: 'member' }`, `activeCaptainCount: 1` must be **accepted**;
-   then add `target.status === 'active'` to the predicate. One line, one test, one commit
-   (`fix(api): allow demoting a captain who is already disabled`).
-2. **D1 — `CHECK`s generated from the shared enums.** Shape decided above. Note the two costs the
+1. **D1 — `CHECK`s generated from the shared enums.** Shape decided above. Note the two costs the
    decision implies: `db:generate` will emit one `ALTER TABLE … ADD CONSTRAINT` per column (a
    migration the replay harness covers automatically, no allowlist entry — `migrations-safety` only
    guards columns and tables), and the row seeder writes `'seed'` into every text column, so any
    `CHECK` on a column the seeder touches must either accept that literal or land in
    `SEED_OVERRIDES` (`test/integration/migrations.test.ts`). That map is the tripwire, not a
    gotcha — its own test fails the day a new `CHECK` needs an entry.
-3. **`realtime.md` Tier 0, the rest of it** — `online`/`visibilitychange` refetch is the next
+2. **`realtime.md` Tier 0, the rest of it** — `online`/`visibilitychange` refetch is the next
    cheapest slice, then optimistic writes for the laggy mutations, then the 15 s poll on the matchday
    page (which does not exist yet, so it waits for `matchdays`).
 
