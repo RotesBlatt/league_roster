@@ -92,6 +92,13 @@
       "when": 1795371298330,
       "tag": "0012_harsh_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795452426230,
+      "tag": "0013_champion_cache",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -404,6 +405,75 @@ export const availabilityTemplates = pgTable(
   ],
 )
 
+/**
+ * One patch we hold champion labels for (hexserve-champion-data.md §4, §5). Retention keeps two,
+ * so this table normally has two rows — and it is where the patch's own facts live, once:
+ *
+ * - `publishedAt` / `publishedAtTimestamp` are `version.json`'s `lastUpdate` / `timestamp`: when
+ *   the dump published the patch. **`publishedAtTimestamp` is the only ordering key retention may
+ *   use** — `16.9.1` sorts after `16.10.1` as text (§5 trap #2), and a column cannot fall into it.
+ * - `fetchedAt` is when we last pulled this patch's champion list. It belongs here rather than on
+ *   the 173 label rows, which would store one fact 173 times.
+ *
+ * Storing these is what lets a page still say "Patch 16.23.1, published 19.11." while the dump is
+ * unreachable (§7) — the fallback is the rows we already have, not a live read that just failed.
+ */
+export const championPatches = pgTable('champion_patch', {
+  /** The full patch (`16.23.1`) — the directory name, not the icon path's `16.23`. */
+  patch: text('patch').primaryKey(),
+  publishedAt: timestamp('publishedAt', { withTimezone: true, mode: 'date' }).notNull(),
+  publishedAtTimestamp: integer('publishedAtTimestamp').notNull(),
+  fetchedAt: timestamp('fetchedAt', { withTimezone: true, mode: 'date' }).notNull(),
+})
+
+/**
+ * The champion cache itself (hexserve-champion-data.md §4, §5) — the one cache in this design that
+ * earns its table: a fixed snapshot whose invalidation trigger has a name (*a new version in
+ * `version.json`*), so it is never invalidated by time.
+ *
+ * **Two patches at once**, hence the composite primary key: on patch day tonight's games were
+ * played on yesterday's version, and the older rows are the lookup safety net. A single-column key
+ * on `championId` would look correct on an empty database and destroy half the cache on the first
+ * refresh.
+ *
+ * The cascade to `champion_patch` makes pruning one statement — delete the patch, its labels
+ * follow — and makes a label that belongs to no patch impossible rather than merely unlikely.
+ *
+ * Nothing else points here: a match or a pool entry that references a champion id this dump does
+ * not know is accepted and rendered as unknown (§8). **We store ids, we render labels** — no
+ * champion name or icon is ever copied onto the row that references it.
+ *
+ * `iconUrl` is stored as the dump gives it: it points at CommunityDragon and its path segment is
+ * `major.minor` while the directory is the full patch, which must not be derived by string surgery.
+ */
+export const champions = pgTable(
+  'champion',
+  {
+    /** The full patch (`16.23.1`) — the directory name, not the icon path's `16.23`. */
+    patch: text('patch').notNull(),
+    /** The dump's numeric `id`, which is what Riot's match data references (not `key`). */
+    championId: integer('championId').notNull(),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    iconUrl: text('iconUrl').notNull(),
+    /** Hints only, never a filter (§9.5); absent in the dump becomes an empty list. */
+    positions: text('positions').array().notNull().default(sql`'{}'::text[]`),
+    roles: text('roles').array().notNull().default(sql`'{}'::text[]`),
+    /** The locale the names were fetched in — `en_US` today, a column so it is not a schema change later. */
+    locale: text('locale').notNull().default('en_US'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.patch, table.championId] }),
+    // the read resolves one label per id across the retained patches, so it filters on the id
+    index('champion_championId_idx').on(table.championId),
+    foreignKey({
+      columns: [table.patch],
+      foreignColumns: [championPatches.patch],
+      name: 'champion_patch_fk',
+    }).onDelete('cascade'),
+  ],
+)
+
 export type UserRow = typeof user.$inferSelect
 export type ProfileRow = typeof profile.$inferSelect
 export type RosterEntryRow = typeof rosterEntries.$inferSelect
@@ -413,3 +483,5 @@ export type WeekRow = typeof weeks.$inferSelect
 export type AnswerRow = typeof answers.$inferSelect
 export type AvailabilityRow = typeof availability.$inferSelect
 export type AvailabilityTemplateRow = typeof availabilityTemplates.$inferSelect
+export type ChampionRow = typeof champions.$inferSelect
+export type ChampionPatchRow = typeof championPatches.$inferSelect

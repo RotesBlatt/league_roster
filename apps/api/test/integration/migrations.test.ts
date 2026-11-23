@@ -66,6 +66,10 @@ function seedValue(dataType: string): unknown {
       return '00000000-0000-0000-0000-000000000000'
     case 'json':
     case 'jsonb':
+    // An empty array is the same literal for every element type and needs no element cast
+    // (`champion.positions` is where this first bit). A CHECK that spans an array column is
+    // what SEED_OVERRIDES is for, not this.
+    case 'ARRAY':
       return '{}'
     case 'date':
     case 'timestamp with time zone':
