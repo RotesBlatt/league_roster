@@ -44,10 +44,12 @@ Order is dependency order, not importance: **3 of the 10 still hang off `multi-t
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
 profiles are both done, and `availability-planner` — the next thing that was actually buildable —
 is now done as well. The front of the queue is now `matchdays` and `team-home`, not another refactor:
-the only `in progress` row left is `realtime`.
+the only `in progress` row left is `realtime`. `ui-rework` sits at the top as a **foundation** row,
+not a dependency: it ships no behaviour, but everything visual built after it can use its tokens.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
+| [ui-rework](ideas/frontend/ui-rework.md) | Presentation only: League's palette (hextech blue, gold, Noxus red, void purple) as semantic tokens, pills replaced by a `Tag` vocabulary, position icons and ranked emblems instead of words, and one centred `PageContainer` (72rem default) shared by header and pages. No route, query or rule changes. A foundation row — not a dependency, but land it before `team-home` so new blocks aren't styled twice. | — | idea |
 | [team-home](ideas/frontend/team-home.md) | The front page per team: patch, next playable window, next match, roster by role incl. sub and coach, next birthdays, tasks/goals, meeting topics, useful links. Read-only composition of the other features. | multi-team, player-profiles, availability-planner, matchdays, hexserve | idea |
 | [matchdays](ideas/matches/matchdays.md) | Record Liga and scrim matchdays: opponent, BoN, per-game W/L + side + VOD, scouting from a pasted op.gg multisearch URL, Bilanz and head-to-head. Hand entry is the normal path — Riot usually cannot see these games. | multi-team, player-profiles | idea |
 | [match-history](ideas/matches/match-history.md) | Hourly pull of every member's Riot games into a games list and champion stats — Riot-visible games only; fixtures and sides come from `matchdays`. | multi-team, player-profiles, hexserve | idea |
