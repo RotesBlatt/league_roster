@@ -93,6 +93,18 @@ describe('a team keeps at least one active captain', () => {
     expect(decision.ok).toBe(true)
   })
 
+  test('demoting a captain who is already disabled is fine, because they are not the active one', () => {
+    // the count only covers *active* captains, so a disabled target is never in it: taking their
+    // captaincy away cannot reduce the team's active captains at all
+    const decision = decide({
+      target: { ...CAPTAIN, status: 'disabled' },
+      body: { role: 'member' },
+      activeCaptainCount: 1,
+    })
+
+    expect(decision).toEqual({ ok: true, changes: { role: 'member' } })
+  })
+
   test('changing a regular member never asks about captains', () => {
     const decision = decide({
       target: MEMBER,

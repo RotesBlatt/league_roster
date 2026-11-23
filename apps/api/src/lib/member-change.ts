@@ -58,10 +58,13 @@ export function decideMemberChange(input: MemberChangeInput): MemberChangeDecisi
   // nothing to change: no rule can be violated by a no-op, so a last captain may "change" nothing
   if (Object.keys(changes).length === 0) return { ok: true, changes }
 
-  // the target is a captain and the change takes that captaincy away — either by demoting the
-  // role or by disabling the account
+  // the target is an *active* captain and the change takes that captaincy away — either by
+  // demoting the role or by disabling the account. A disabled captain is not part of the count, so
+  // changing them cannot take the team's last active captain
   const spendsACaptain =
-    target.role === 'captain' && (changes.role === 'member' || changes.status === 'disabled')
+    target.role === 'captain' &&
+    target.status === 'active' &&
+    (changes.role === 'member' || changes.status === 'disabled')
 
   if (spendsACaptain && activeCaptainCount <= 1) {
     return {
