@@ -139,16 +139,26 @@ export function useSwitchMainRiotAccount() {
 const CHAMPIONS_KEY = ['champions'] as const
 
 /**
- * Session-cached on purpose: a patch lands every ~2 weeks, so an hour of staleness costs nothing
- * while refetching on every mount would spend a request per navigation for data that cannot have
- * changed. `retry: false` because the component renders placeholders while it has no data — a
- * failing dump must not look like a spinner that never ends.
+ * How long an open tab may keep rendering the champion payload it already has.
+ *
+ * Minutes, not the whole session: a patch lands every ~2 weeks, but someone who leaves the app
+ * open overnight should not keep seeing last patch's names — and a non-patch request is cheap
+ * (one version check, or nothing when the cache is warm), so freshness wins over request count.
+ */
+export const CHAMPION_STALE_MS = 5 * 60_000
+
+/**
+ * The champion cache the whole app shares: the header chip and every champion render read this one
+ * query, so a remount inside `CHAMPION_STALE_MS` costs no request.
+ *
+ * `retry: false` because callers render placeholders while they have no data — a failing dump must
+ * not look like a spinner that never ends.
  */
 export function useChampions() {
   return useQuery({
     queryKey: CHAMPIONS_KEY,
     queryFn: () => unwrap(api.champions.get()),
-    staleTime: 60 * 60_000,
+    staleTime: CHAMPION_STALE_MS,
     retry: false,
   })
 }

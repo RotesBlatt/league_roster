@@ -149,7 +149,9 @@ and why a failed refresh never clears the table.
 
 - `GET /api/champions` → `{ patch, previousPatch, fetchedAt, state, champions: [...] }`, where
   `champions` is **already flattened to one row per id** (§4's rule, resolved server-side so no client
-  can resurrect per-patch labels). Cached by the SPA for the session.
+  can resurrect per-patch labels). The SPA caches it for **five minutes** (`CHAMPION_STALE_MS`): a
+  remount inside that window costs no request, and an open tab picks up a new patch on the next
+  navigation instead of keeping yesterday's names for a whole session.
 - **No `?patch=` parameter.** The two retained versions are an implementation detail; a parameter would
   turn retention into an API contract, and someone would then ask for the archive.
 - **No proxy of the raw dump.** The SPA gets our shaped JSON, not a `champions.json` re-export for
