@@ -1,6 +1,9 @@
 # Quick wins — findings from the module walkthrough
 
-**Status:** findings only, nothing fixed. Ordered by risk, cheapest first.
+**Status:** findings only; the walkthrough is from before `multi-team`, `player-profiles`,
+`riot-api`, `availability-planner` and `hexserve`. **A1, A3 and C1 landed 2026-11-26; the rest were
+re-verified against the tree that day and six of them no longer exist (marked below).**
+Ordered by risk, cheapest first.
 Rule for every item: per `AGENTS.md`, a behaviour change ships with a test that failed first.
 Pure deletions need no new test — but do run the suite.
 
@@ -8,14 +11,15 @@ Pure deletions need no new test — but do run the suite.
 
 | # | Finding | Where | Why it matters |
 | --- | --- | --- | --- |
-| A1 | **`invite_code_idx` is a duplicate index.** `code` already has `CONSTRAINT invite_code_unique UNIQUE("code")`, which *is* a btree index. The extra plain index on the same column costs writes and buys no reads. | `db/schema.ts:113` → drop the line, `db:generate` | One fewer index to maintain forever |
-| A2 | **`docker/backup.sh;C` is a stray empty directory** (Windows artifact, untracked, not in git). | `docker/` | Deletes the "wait, is that a DOS 8.3 name?" moment |
-| A3 | **Four unused exports in `packages/shared`:** `canManageTeam`, `QUEUES`, `TIERS`, `DIVISIONS`. `canManageTeam` is used *only by its own test* — tested dead code, the worst kind, because it looks maintained. `QUEUES` appears nowhere at all. `TIERS`/`DIVISIONS` are for a rank feature that does not exist. | `packages/shared/src/index.ts:18,21,35,39` + `test/index.test.ts` | Removes a false signal: the shared package currently promises four features it doesn't back |
+| A1 | ~~**`invite_code_idx` is a duplicate index.**~~ **Done 2026-11-26**: the third `pgTable` argument is gone from `db/schema.ts` and `0014_burly_pandemic.sql` drops the index; `code` keeps its `UNIQUE`, which is the btree that serves the same lookups. | `db/schema.ts` → `0014` | One fewer index to maintain forever |
+| A2 | ~~**`docker/backup.sh;C` is a stray empty directory**~~ **Gone**: `docker/` holds `backup.sh` and `entrypoint.sh`, nothing else. | `docker/` | — |
+| A3 | ~~**Four unused exports in `packages/shared`:**~~ **Split, then done.** `TIERS`/`DIVISIONS`/`QUEUES` were kept and are now used by `riot.ts` + `mappers.ts` (see the note below). `canManageTeam` was deleted on 2026-11-26 along with its test block — no import survived it. | `packages/shared/src/team.ts` | Removes a false signal: a helper the shared package promised and nobody called |
 
-A3 is the interesting one. It isn't just tidiness — `canManageTeam` encodes "captain + active" as a
+A3 is the interesting one. It isn't just tidiness — `canManageTeam` encoded "captain + active" as a
 *shared* rule while the API actually enforces it in `plugins/auth.ts`. Two sources of truth for the
 same policy, one of them unused. Either delete it, or make the API use it (harder: the API guard
-needs DB reads, the helper takes a plain object). Deleting is honest until something needs it.
+needs DB reads, the helper takes a plain object). Deleting was the honest answer: the guard is the
+enforcement point, and a second copy of the policy is a liability, not a convenience.
 
 **Caveat (added after `player-profiles.md` §4):** the Riot-API idea revives `TIERS`, `DIVISIONS` and
 `QUEUES` for rank display. So split the decision: delete `canManageTeam` (genuinely dead), but keep
@@ -30,32 +34,35 @@ only deletion here.
 
 | # | Finding | Where |
 | --- | --- | --- |
-| B1 | **`DELETE /api/players/:id` returns `{ ok: true }` even when nothing matched**, while `PATCH` and `invites/:id/revoke` correctly 404. Pick one. `revoke` is the better precedent. | `routes/players.ts:96-103` |
-| B2 | **The TOP→SUP order is written twice.** `ROLES` in shared is *already* in domain order; `players.ts` repeats it as a SQL `CASE`. If someone reorders `ROLES`, the UI dropdown and the roster sort disagree silently. | `routes/players.ts:38-40` vs `packages/shared/src/index.ts:1` |
+| B1 | ~~**`DELETE /api/players/:id` returns `{ ok: true }` even when nothing matched**~~ **Already fixed elsewhere**: `DELETE /api/teams/:slug/roster/:id` returns rows from the delete and 404s on none (`routes/roster.ts`), so the `revoke` precedent won. | `routes/roster.ts` |
+| B2 | ~~**The TOP→SUP order is written twice.**~~ **Already fixed elsewhere**: the SQL `CASE` died with the `player` table. `composeRoster` sorts by `ROLES.indexOf(...)` from shared, so the dropdown and the roster read the same array. | `lib/roster.ts` vs `packages/shared/src/team.ts` |
 
-B2 has a real trap: the duplication only breaks when `ROLES` changes, which is exactly when nobody
-re-reads the SQL. A generated CASE from `ROLES`, or a `position` column, kills it.
+B2's trap is gone with the duplication, but the shape to prefer is still the one that landed: **derive
+the order from `ROLES`, never restate it.** If a future query needs SQL ordering, generate the CASE
+from the array rather than typing the roles out.
 
 ## C. Testability debt — small extraction, then a unit test
 
 | # | Finding | Where |
 | --- | --- | --- |
-| C1 | **Two business rules live inside the members PATCH handler**: "you cannot disable your own account" and "there has to be at least one active captain". Both correct, both tested — but only through HTTP, per `AGENTS.md`'s own rule ("a route handler that thinks is a route handler that can't be tested"). | `routes/members.ts:52-66` |
+| C1 | ~~**Two business rules live inside the members PATCH handler**~~ **Done 2026-11-26**: `decideMemberChange` in `lib/member-change.ts` decides both rules from `{ actorId, target, body, activeCaptainCount }`, and the route only supplies the facts. Eleven unit tests, no database. The shape it settled on is *purer* than `claimInvite`: the count is passed in rather than queried, because a rule that queries cannot be tested without Postgres. | `lib/member-change.ts` |
+| C2 | **The last-captain rule is one row too strict.** A *disabled* captain being demoted to member is refused when the team has one active captain — but that captain is not among the active ones, so the change cannot take the last one away. Found while extracting C1; kept out of that patch because fixing it is a behaviour change, not an extraction. | `lib/member-change.ts` (`spendsACaptain`) |
 
-Extract to `decideMemberChange(db, {actor, target, body})` → `{ ok } | { ok: false, status, message }`,
-mirroring `claimInvite`'s shape (which is the established pattern in this codebase). The
-`multi-team.md` change rewrites this handler anyway — do it first, while it's small.
+C1's shape is the one to copy for future rules: pass the facts, return a decision. `claimInvite` takes a
+`Db` because claiming genuinely is one transaction; a *decision* should not be.
 
 ## D. Correctness hardening — needs a decision, not just an edit
 
 | # | Finding | Where |
 | --- | --- | --- |
-| D1 | **Enums are TypeScript-only, the DB won't object.** `role`/`status`/position are plain `text` columns with no `CHECK` (`0000_tough_sauron.sql:63-64`). Nothing at the DB layer rejects `'captain '` or a typo'd status. Only the TS union + Elysia validation stand in the way — and raw SQL/migrations bypass both. | `db/schema.ts:23-24`, `:85` |
-| D2 | **The bootstrap promotion is a read-then-write race.** Two first logins at the same instant on an empty install can both see `count(active) === 0` and both become captain. | `lib/access.ts:55-58` |
+| D1 | **Enums are TypeScript-only, the DB won't object.** `membership.role`/`status`, `profile.preferredRole` and the `riot_account` tier/division/queue columns are plain `text` with no `CHECK`. Nothing at the DB layer rejects `'captain '` or a typo'd status — only the TS union + Elysia validation, which raw SQL and migrations bypass. | `db/schema.ts` (`memberships`, `profile`, `riotAccounts`) |
+| D2 | ~~**The bootstrap promotion is a read-then-write race.**~~ **Gone**: the branch died with `multi-team` (§11.6); there is no `count(active) === 0` left to race on. | — |
 
-D1: a `CHECK` constraint is cheap and makes the DB a real backstop. Cost: a migration + keeping the
-shared enum and the SQL list in sync (or generating the CHECK from `ROLES`). D2: `multi-team.md`
-deletes this branch entirely — so do **not** fix it separately, it's about to disappear.
+**D1 decided 2026-11-26: yes, the DB becomes a backstop, and the `CHECK` is generated from the
+shared enum rather than typed out.** A hand-written SQL list is the same duplication trap as B2 — it
+only drifts when nobody is reading, which is exactly when it matters. The migration is a
+`CHECK (col IN (…))` per column, built from `ROLES`/`MEMBER_STATUSES`/`USER_ROLES`/`TIERS`/
+`DIVISIONS`/`QUEUES`, so adding a role is one edit in `packages/shared` plus `db:generate`.
 
 ## E. Performance — only if it actually bites
 
@@ -64,7 +71,7 @@ deletes this branch entirely — so do **not** fix it separately, it's about to 
 | E1 | ~~No index on `user.status`, `ensureAccess` runs `count(*) where status='active'` per request.~~ **Gone**: the query died with the bootstrap (`multi-team.md` §11.6). | Nothing to do. |
 | E2 | **~2 queries per authenticated request**: `session ⋈ user` (getSession), `select from user` (getMe). | The third one (`select from account`, the allowlist) is gone — §11.6. Collapsing `getMe` into the session lookup is possible but couples you to better-auth's join. Measure first. |
 | E3 | **No `session.cookieCache`**, so `getSession` always hits the DB. | Deliberate: the cache trades instant revocation for the query. Don't "optimise" this without deciding that tradeoff explicitly. |
-| E4 | **`player_role_idx` is probably unused** — nothing filters on `player.role` by equality, and `ORDER BY CASE role …` doesn't use it. | `EXPLAIN` before dropping. Low value either way. |
+| E4 | ~~**`player_role_idx` is probably unused**~~ **Gone**: the `player` table was dropped in `0007`. | Nothing to do. |
 
 ## F. Not quick wins (don't start these thinking otherwise)
 
@@ -77,9 +84,9 @@ deletes this branch entirely — so do **not** fix it separately, it's about to 
 
 ## Suggested order
 
-1. **A1, A2, A3** — deletions, no tests needed, one commit each (`chore: drop duplicate invite index`,
-   `chore: remove unused shared exports`).
-2. **C1** — before any multi-team work touches `members.ts`.
-3. **B1, B2** — small, each with a failing test first.
-4. **D1** — decide whether the DB should enforce enums; then one migration.
-5. **E\*** — measure, don't guess.
+1. ~~A1, A2, A3, C1~~ — landed 2026-11-26.
+2. **C2** — next: a failing unit test for the disabled-captain case, then the one-word fix in
+   `spendsACaptain`.
+3. **D1** — decided (generated `CHECK`s); one migration, tested by the replay harness, with the
+   `SEED_OVERRIDES` map extended if a `CHECK` spans columns.
+4. **E\*** — measure, don't guess.

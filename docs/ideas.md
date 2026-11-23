@@ -54,7 +54,7 @@ is now done as well.
 | [realtime](ideas/frontend/realtime.md) | Edits appearing for everyone at once: Tier 0 (focus refetch, optimistic writes, one poll) vs SSE + an injected bus. Events are refetch hints, never state. | — | idea |
 | [change-visibility](ideas/engineering/change-visibility.md) | What a mutation actually changed: field names and enum before→after in the log, the build version at boot, and — only if accountability is wanted — a transactional `change_log` table. Debugging and audit are separate goals. | logging | idea |
 | [web-architecture](ideas/engineering/web-architecture.md) | Behaviour-preserving refactor: get server state, mutations, derived rules and form state out of `RosterPage`/`AdminPage` into plain modules and hooks. | — | idea |
-| [quick-wins](ideas/engineering/quick-wins.md) | Findings from the module walkthrough: dead exports, a duplicate index, one-line inconsistencies, small extractions — cheapest first, each with its test rule. | — | idea |
+| [quick-wins](ideas/engineering/quick-wins.md) | Findings from the module walkthrough, re-verified: the dead helper, the duplicate index and the two member rules are done (A1/A3/C1); what is left is the over-strict last-captain rule (C2) and DB `CHECK`s generated from the shared enums (D1). | — | in progress |
 | [team-slug-history](ideas/engineering/team-slug-history.md) | A retired team slug keeps answering: a `team_slug_history` row per rename and a 308 on the SPA path, so an old `/t/<slug>/…` link still lands on the team. Deliberately deferred when renaming shipped. | team-rename | idea |
 
 ## Not written up yet
