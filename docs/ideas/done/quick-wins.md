@@ -1,8 +1,11 @@
 # Quick wins — findings from the module walkthrough
 
-**Status:** findings only; the walkthrough is from before `multi-team`, `player-profiles`,
-`riot-api`, `availability-planner` and `hexserve`. **A1, A3, C1 and C2 landed 2026-11-26; the rest
-were re-verified against the tree that day and six of them no longer exist (marked below).**
+**Status:** done — 2026-11-26, commits `37f8144`, `eabdf89`, `22d120b`, `5e42135`, `e88b6f0`. The
+walkthrough itself is older than `multi-team`, `player-profiles`, `riot-api`, `availability-planner`
+and `hexserve`; every finding was re-verified against the current tree, and six of them had already
+ceased to exist (marked below). What landed: A1 (duplicate index), A3 (dead shared helper), C1 (the
+member rules extracted), C2 (the over-strict last-captain rule) and D1 (the enum `CHECK`s). E and F
+are deliberately not work items — see §E and §F.
 Ordered by risk, cheapest first.
 Rule for every item: per `AGENTS.md`, a behaviour change ships with a test that failed first.
 Pure deletions need no new test — but do run the suite.
@@ -62,7 +65,22 @@ C1's shape is the one to copy for future rules: pass the facts, return a decisio
 shared enum rather than typed out.** A hand-written SQL list is the same duplication trap as B2 — it
 only drifts when nobody is reading, which is exactly when it matters. The migration is a
 `CHECK (col IN (…))` per column, built from `ROLES`/`MEMBER_STATUSES`/`USER_ROLES`/`TIERS`/
-`DIVISIONS`/`QUEUES`, so adding a role is one edit in `packages/shared` plus `db:generate`.
+`DIVISIONS`, so adding a role is one edit in `packages/shared` plus `db:generate`.
+
+**Landed 2026-11-26 (`e88b6f0`), on eight columns:** `membership.role`/`status`,
+`profile.preferredRole`, `roster_entry.roleOverride`, `riot_account.soloTier`/`soloDivision`/
+`flexTier`/`flexDivision`. `sqlStringList` in `db/enum-list.ts` turns a shared array into
+`('captain', 'member')` — pure, unit-tested, quote-doubling, and refusing an empty list because
+`in ()` is a syntax error rather than an empty set — and `enumCheck` in `db/schema.ts` wraps it. The
+list only exists as text because a migration is DDL: there is nothing to bind a parameter to.
+
+Two deviations from the note above, both worth knowing:
+
+1. **There is no queue column to constrain.** `QUEUES` orders the two rank badges; nothing stores a
+   queue name. The "tier/division/queue columns" phrasing here was simply wrong, and the constraint
+   set is the eight above.
+2. **`roster_entry.roleOverride` is constrained although this list never named it** — the column is
+   newer than the walkthrough. It is the same trap, so leaving it out would have been an accident.
 
 ## E. Performance — only if it actually bites
 
@@ -84,14 +102,12 @@ only drifts when nobody is reading, which is exactly when it matters. The migrat
 
 ## Suggested order
 
-1. ~~A1, A2, A3, C1, C2~~ — landed 2026-11-26.
-2. **D1** — next: decided (generated `CHECK`s); one migration, tested by the replay harness, with the
-   `SEED_OVERRIDES` map extended if a `CHECK` spans columns.
-3. **E\*** — measure, don't guess.
+1. ~~A1, A2, A3, C1, C2, D1~~ — landed 2026-11-26, in that order.
+2. **E\*** — not a task: measure, don't guess. Nothing was measured, because nothing bit.
 
-## Where this stopped — 2026-11-26 (handoff)
+## Where this ended — 2026-11-26
 
-**Committed, tree clean.** Six patches, each green on `bun run test` + `bun run test:db` +
+**Committed, tree clean.** Seven patches, each green on `bun run test` + `bun run test:db` +
 `bun run typecheck` at the time it landed:
 
 | Commit | What it did | Item |
@@ -102,19 +118,20 @@ only drifts when nobody is reading, which is exactly when it matters. The migrat
 | `3771478` | `docs(ideas): update quick-wins after A1/A3/C1` | — |
 | `fe30a3c` | `feat(web): refetch queries when the window regains focus` | `realtime.md` Tier 0 |
 | `5e42135` | `fix(api): allow demoting a disabled captain` | C2 |
+| `e88b6f0` | `feat(api): generate enum CHECKs from shared arrays` | D1 |
 
-**Pick up here, in this order:**
+**The one D1 cost worth carrying forward** — the row seeder in `test/integration/migrations.test.ts`
+writes `'seed'` into every writable column, so every `CHECK` on a seeded column needs a
+`SEED_OVERRIDES` entry, and the map is a tripwire rather than a gotcha: the "row seeder itself" test
+fails the day a new `CHECK` needs one. The first run failed exactly as predicted, twice, and the
+second failure was the interesting one: nine entries were not enough, because **migration `0006`
+lifts `player.role`** into `profile.preferredRole` and `roster_entry.roleOverride`. The missing entry
+was `'player.role'`, not another enum column — so a future `CHECK` on a column `0006` backfills needs
+the *source* override, not the target one.
 
-1. **D1 — `CHECK`s generated from the shared enums.** Shape decided above. Note the two costs the
-   decision implies: `db:generate` will emit one `ALTER TABLE … ADD CONSTRAINT` per column (a
-   migration the replay harness covers automatically, no allowlist entry — `migrations-safety` only
-   guards columns and tables), and the row seeder writes `'seed'` into every text column, so any
-   `CHECK` on a column the seeder touches must either accept that literal or land in
-   `SEED_OVERRIDES` (`test/integration/migrations.test.ts`). That map is the tripwire, not a
-   gotcha — its own test fails the day a new `CHECK` needs an entry.
-2. **`realtime.md` Tier 0, the rest of it** — `online`/`visibilitychange` refetch is the next
-   cheapest slice, then optimistic writes for the laggy mutations, then the 15 s poll on the matchday
-   page (which does not exist yet, so it waits for `matchdays`).
+**Nothing here is left to pick up.** What remains of the queue lives in its own doc:
+`../frontend/realtime.md` §3 for the rest of Tier 0, `../matches/matchdays.md` before the poll on the
+matchday page can exist.
 
 **Known-stale doc rows elsewhere** (found while walking the tree, not fixed because they are other
 ideas' docs): `web-architecture.md` still lists `RosterPage`/`AdminPage` as they were before

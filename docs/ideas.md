@@ -36,15 +36,15 @@ folder is a fine reason to create it; empty folders are not.
 **Updating the doc is part of implementing it.** The patch that lands behaviour updates its status
 line and its "decided while implementing" section in the same commit — a doc that still says
 "nothing implemented" over shipped code is a bug, not a backlog note. `web-architecture.md` (nothing
-refactored yet) is the remaining plain `idea` row; `quick-wins.md` is now `in progress` and carries a
-"Where this stopped" handoff section — the place to resume from when a working session ends
-mid-queue.
+refactored yet) is one of the plain `idea` rows; `realtime.md` is the only `in progress` one, and the
+`quick-wins` queue that was the other is finished — its handoff section has become the closing note
+in `done/quick-wins.md`.
 
 Order is dependency order, not importance: **3 of the 10 still hang off `multi-team`**, which is why
 it sat at the top — and why closing it (see **Done**) unblocked the front of the queue: tenancy and
 profiles are both done, and `availability-planner` — the next thing that was actually buildable —
 is now done as well. The front of the queue is now `matchdays` and `team-home`, not another refactor:
-`quick-wins` and `realtime` are the two `in progress` rows.
+the only `in progress` row left is `realtime`.
 
 | Idea | What it is | Depends on | Status |
 | --- | --- | --- | --- |
@@ -56,7 +56,6 @@ is now done as well. The front of the queue is now `matchdays` and `team-home`, 
 | [realtime](ideas/frontend/realtime.md) | Edits appearing for everyone at once: Tier 0 (focus refetch, optimistic writes, one poll) vs SSE + an injected bus. Events are refetch hints, never state. **Focus refetch landed 2026-11-26** (`apps/web/src/lib/query/client.ts`); reconnect/visibility, optimistic writes and the poll are still open, and Tier 1 (SSE) is untouched. | — | in progress |
 | [change-visibility](ideas/engineering/change-visibility.md) | What a mutation actually changed: field names and enum before→after in the log, the build version at boot, and — only if accountability is wanted — a transactional `change_log` table. Debugging and audit are separate goals. | logging | idea |
 | [web-architecture](ideas/engineering/web-architecture.md) | Behaviour-preserving refactor: get server state, mutations, derived rules and form state out of `RosterPage`/`AdminPage` into plain modules and hooks. | — | idea |
-| [quick-wins](ideas/engineering/quick-wins.md) | Findings from the module walkthrough, re-verified: the dead helper, the duplicate index and both member-rule findings are done (A1/A3/C1/C2); what is left is DB `CHECK`s generated from the shared enums (D1). Its "Where this stopped" section is the resume point. | — | in progress |
 | [team-slug-history](ideas/engineering/team-slug-history.md) | A retired team slug keeps answering: a `team_slug_history` row per rename and a 308 on the SPA path, so an old `/t/<slug>/…` link still lands on the team. Deliberately deferred when renaming shipped. | team-rename | idea |
 
 ## Not written up yet
@@ -72,6 +71,7 @@ its README) and its row moves here, in the commit that finishes it.
 
 | Idea | What it did | Landed |
 | --- | --- | --- |
+| [quick-wins](ideas/done/quick-wins.md) | The module-walkthrough debt queue, worked in risk order: the duplicate `invite_code_idx` dropped, the dead `canManageTeam` deleted, the two member rules extracted into a pure `decideMemberChange`, the last-captain rule narrowed to *active* captains (a disabled captain's demotion no longer counts as spending one), and the enum columns made real DB backstops — 8 generated `CHECK`s whose value lists come from the shared arrays, so the TS union and Postgres cannot disagree. A1/A3/C1/C2/D1; six of the original findings had already died with earlier ideas, and E/F are deliberately not work items. | 2026-11-26 |
 | [hexserve-champion-data](ideas/done/hexserve-champion-data.md) | Champion labels come from our own per-patch dump instead of Data Dragon: a two-patch `champion` cache with the patch's own facts in `champion_patch`, a lazy transactional refresh (version comparison, never a TTL; advisory-locked; pruned by the dump's timestamp, not by version strings), `GET /api/champions` flattened server-side to one label per id, `useChampions` + `ChampionIcon`/`ChampionLabel` rendering unknown ids as placeholders, `HEXSERVE_BASE_URL` config, and a header chip showing the patch and the day it was published. Icons still come from CommunityDragon, and no page renders a champion yet — that is `champion-pools`/`match-history`. | 2026-11-25 |
 | [availability-planner](ideas/done/availability-planner.md) | Everyone paints when they can play on a 30-minute grid, starting from their regular slots and autosaved; the team sees one merged provisional summary of playable times and who would be missing, in wall clock (30-minute cells, `1440` = midnight), over a two-week window that is derived from the team's clock and never stored. Captains skip/reset, unlock a finished week for seven days, and mark a week "no practice"; history is a read of any Monday and lists every week back to the first one with data. | 2026-11-25 |
 | [riot-api](ideas/done/riot-api.md) | The only module that speaks Riot: an injected client over two host families, types generated from a pinned spec, and a snapshot (level, icon, both ranks) written on save by re-resolving server-side. Adding an account **is** the check — no separate endpoint — and since `puuid` is required, an account Riot cannot resolve is refused and the rows that never resolved were deleted. | 2026-11-21 |

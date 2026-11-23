@@ -3,8 +3,8 @@
 **Status:** in progress — Tier 0's first item landed 2026-11-26 (commit `fe30a3c`):
 `refetchOnWindowFocus` on, in `apps/web/src/lib/query/client.ts` with a unit test. The rest of Tier 0
 (reconnect/visibility refetch, optimistic writes, the matchday poll) and all of Tier 1 are still open;
-the queue and the exact next step are written up in `engineering/quick-wins.md` under "Where this
-stopped".
+the remaining Tier 0 items are the list in §3 below (the `quick-wins` queue that carried this one is
+now in `../done/quick-wins.md`).
 **Answer up front:** not a break, and the cheap version is genuinely cheap — but only if it is built
 as *"a push that says 'refetch'"* and never as *"state sync over the wire"*. The schema does not
 change at all. The one recurring cost is per-route discipline (§6), and there is a structural way to
