@@ -129,6 +129,30 @@ export function useSwitchMainRiotAccount() {
   })
 }
 
+/**
+ * The champion cache: ids, names, icons and which patch they came from (hexserve-champion-data.md
+ * §6). Global — one payload for the whole app, not per team.
+ *
+ * The key is not exported: nothing invalidates it by hand. The patch changes on the dump's clock,
+ * so the `staleTime` below is the only refresh trigger there should be.
+ */
+const CHAMPIONS_KEY = ['champions'] as const
+
+/**
+ * Session-cached on purpose: a patch lands every ~2 weeks, so an hour of staleness costs nothing
+ * while refetching on every mount would spend a request per navigation for data that cannot have
+ * changed. `retry: false` because the component renders placeholders while it has no data — a
+ * failing dump must not look like a spinner that never ends.
+ */
+export function useChampions() {
+  return useQuery({
+    queryKey: CHAMPIONS_KEY,
+    queryFn: () => unwrap(api.champions.get()),
+    staleTime: 60 * 60_000,
+    retry: false,
+  })
+}
+
 export const ROSTER_KEY = ['roster'] as const
 
 /**

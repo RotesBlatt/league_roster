@@ -15,6 +15,8 @@ export type Result = { data: unknown; error: unknown; status: number }
 export const apiState: {
   /** GET /api/me */
   me: Result
+  /** GET /api/champions — the champion cache (ids, names, icons, patch state) */
+  champions: Result
   /** GET /api/teams/:slug/invites */
   inviteList: Result
   /** GET /api/teams/:slug/members */
@@ -84,11 +86,29 @@ export const apiState: {
   sentRoster: unknown
   sentRosterPatch: unknown
   /** how often each GET was called, so cache behaviour is observable */
-  calls: { profileGet: number; riotAccountsGet: number; rosterGet: number; plannerGet: number }
+  calls: {
+    profileGet: number
+    riotAccountsGet: number
+    rosterGet: number
+    plannerGet: number
+    championsGet: number
+  }
   /** a never-resolving GET, for testing loaders without a real slow network */
   pending: { me: boolean }
 } = {
   me: { data: null, error: null, status: 200 },
+  champions: {
+    data: {
+      patch: null,
+      previousPatch: null,
+      patchPublishedAt: null,
+      fetchedAt: null,
+      state: 'empty',
+      champions: [],
+    },
+    error: null,
+    status: 200,
+  },
   inviteList: { data: [], error: null, status: 200 },
   memberList: { data: [], error: null, status: 200 },
   teamList: { data: [], error: null, status: 200 },
@@ -127,12 +147,24 @@ export const apiState: {
   sentAccountId: undefined,
   sentRoster: undefined,
   sentRosterPatch: undefined,
-  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0 },
+  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0, championsGet: 0 },
   pending: { me: false },
 }
 
 export function resetApiState() {
   apiState.me = { data: null, error: null, status: 200 }
+  apiState.champions = {
+    data: {
+      patch: null,
+      previousPatch: null,
+      patchPublishedAt: null,
+      fetchedAt: null,
+      state: 'empty',
+      champions: [],
+    },
+    error: null,
+    status: 200,
+  }
   apiState.inviteList = { data: [], error: null, status: 200 }
   apiState.memberList = { data: [], error: null, status: 200 }
   apiState.teamList = { data: [], error: null, status: 200 }
@@ -171,7 +203,13 @@ export function resetApiState() {
   apiState.sentAccountId = undefined
   apiState.sentRoster = undefined
   apiState.sentRosterPatch = undefined
-  apiState.calls = { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0 }
+  apiState.calls = {
+    profileGet: 0,
+    riotAccountsGet: 0,
+    rosterGet: 0,
+    plannerGet: 0,
+    championsGet: 0,
+  }
   apiState.pending = { me: false }
 }
 
@@ -221,6 +259,13 @@ export function installApiMock() {
             },
           },
         ),
+      },
+      // global reference data: no path params, so plain verbs on the collection
+      champions: {
+        get: () => {
+          apiState.calls.championsGet += 1
+          return Promise.resolve(apiState.champions)
+        },
       },
       // Eden's `teams` is callable (it takes the path params) *and* carries the collection
       // verbs, so the mock has to be both, or one surface silently stops working
