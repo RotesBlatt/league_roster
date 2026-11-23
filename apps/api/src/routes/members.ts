@@ -5,11 +5,10 @@ import { memberships, riotAccounts, rosterEntries, user } from '../db/schema.ts'
 import type { MemberDto } from '../db/schema.types.ts'
 import type { Logger } from '../lib/log/logger.ts'
 import { noopLogger } from '../lib/log/noop.ts'
+import { decideMemberChange } from '../lib/member-change.ts'
 import type { TeamScope } from '../lib/team-db.ts'
 import { memberStatusSchema, teamParams, userRoleSchema } from '../lib/validate.ts'
 import type { AuthPlugin } from '../plugins/auth.ts'
-
-type MemberPatch = { role?: 'captain' | 'member'; status?: 'active' | 'disabled' }
 
 /** The joined row this route maps: membership fields plus the identity they belong to. */
 type MemberRow = {
@@ -124,37 +123,34 @@ export function createMemberRoutes(
         // Only an existing member of this team can be changed. A stranger, a member of
         // another team and a deleted account are all the same 404 (§5) — and the scoped
         // lookup is what makes the other team's member invisible rather than merely refused.
+        //
+        // The *rules* are not here: `decideMemberChange` owns them, and these two reads supply the
+        // facts it decides on (a count is a fact about the team, not a decision).
         const [target] = await teamDb.selectFrom(memberships, eq(memberships.userId, id))
         if (!target) {
           reject('not_found')
           return status(404, { message: 'Member not found' })
         }
 
-        // self-check first: it is the more useful message for the acting captain
-        if (target.userId === me.id && body.status === 'disabled') {
-          reject('self_disable')
-          return status(409, { message: 'You cannot disable your own account' })
+        // the *team* must keep one active captain, not this particular user
+        const activeCaptains = await teamDb.selectFrom(
+          memberships,
+          and(eq(memberships.role, 'captain'), eq(memberships.status, 'active')),
+        )
+
+        const decision = decideMemberChange({
+          actorId: me.id,
+          target,
+          body,
+          activeCaptainCount: activeCaptains.length,
+        })
+        if (!decision.ok) {
+          reject(decision.reason)
+          return status(decision.status, { message: decision.message })
         }
 
-        const changes: MemberPatch = {
-          ...(body.role !== undefined && { role: body.role }),
-          ...(body.status !== undefined && { status: body.status }),
-        }
+        const changes = decision.changes
         if (Object.keys(changes).length === 0) return { ok: true }
-
-        const demotingCaptain =
-          target.role === 'captain' && (body.role === 'member' || body.status === 'disabled')
-        if (demotingCaptain) {
-          // the *team* must keep one active captain, not this particular user
-          const activeCaptains = await teamDb.selectFrom(
-            memberships,
-            and(eq(memberships.role, 'captain'), eq(memberships.status, 'active')),
-          )
-          if (activeCaptains.length <= 1) {
-            reject('last_captain')
-            return status(409, { message: 'There has to be at least one active captain' })
-          }
-        }
 
         const [updated] = await teamDb.update(
           memberships,
