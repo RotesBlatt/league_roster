@@ -120,6 +120,16 @@ what makes the tests possible.
 commit. Read the register before proposing a feature — the doc already records
 what was decided and what is still open.
 
+## Bugs
+
+`docs/bugs.md` is the bug queue: one row per known bug plus a section with
+repro / actual / expected, observations kept separate from suspected causes.
+**Record only when asked** — not every bug noticed belongs here. **Record in one
+patch, fix in the next**: the fix patch writes the failing regression test first
+and then **deletes the entry**, because the test is the durable record. The file
+is permanent and stays when the table is empty; ids (`B1`, `B2`, …) are never
+reused.
+
 ## Commands
 
 | command                              | meaning                                                  |
