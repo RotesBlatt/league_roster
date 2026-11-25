@@ -43,6 +43,12 @@ export const apiState: {
   riotAccountList: Result
   /** POST /api/me/riot-accounts */
   riotAccountAdd: Result
+  /** GET /api/teams/:slug/pools */
+  poolsList: Result
+  /** PUT /api/pools */
+  poolSave: Result
+  /** the body handed to PUT /api/pools, for assertions */
+  sentPool: unknown
   /** GET /api/teams/:slug/planner */
   planner: Result
   /** PUT /api/teams/:slug/planner/:startsOn */
@@ -90,6 +96,7 @@ export const apiState: {
     profileGet: number
     riotAccountsGet: number
     rosterGet: number
+    poolsGet: number
     plannerGet: number
     championsGet: number
   }
@@ -124,6 +131,9 @@ export const apiState: {
   riotAccountAdd: { data: null, error: null, status: 200 },
   riotAccountRemove: { data: { ok: true }, error: null, status: 200 },
   riotAccountSwitch: { data: null, error: null, status: 200 },
+  poolsList: { data: { people: [] }, error: null, status: 200 },
+  poolSave: { data: { version: 1 }, error: null, status: 200 },
+  sentPool: undefined,
   planner: { data: null, error: null, status: 200 },
   plannerSave: { data: { ok: true }, error: null, status: 200 },
   plannerTemplate: { data: { days: [] }, error: null, status: 200 },
@@ -147,7 +157,14 @@ export const apiState: {
   sentAccountId: undefined,
   sentRoster: undefined,
   sentRosterPatch: undefined,
-  calls: { profileGet: 0, riotAccountsGet: 0, rosterGet: 0, plannerGet: 0, championsGet: 0 },
+  calls: {
+    profileGet: 0,
+    riotAccountsGet: 0,
+    rosterGet: 0,
+    poolsGet: 0,
+    plannerGet: 0,
+    championsGet: 0,
+  },
   pending: { me: false },
 }
 
@@ -180,6 +197,9 @@ export function resetApiState() {
   apiState.riotAccountAdd = { data: null, error: null, status: 200 }
   apiState.riotAccountRemove = { data: { ok: true }, error: null, status: 200 }
   apiState.riotAccountSwitch = { data: null, error: null, status: 200 }
+  apiState.poolsList = { data: { people: [] }, error: null, status: 200 }
+  apiState.poolSave = { data: { version: 1 }, error: null, status: 200 }
+  apiState.sentPool = undefined
   apiState.planner = { data: null, error: null, status: 200 }
   apiState.plannerSave = { data: { ok: true }, error: null, status: 200 }
   apiState.plannerTemplate = { data: { days: [] }, error: null, status: 200 }
@@ -207,6 +227,7 @@ export function resetApiState() {
     profileGet: 0,
     riotAccountsGet: 0,
     rosterGet: 0,
+    poolsGet: 0,
     plannerGet: 0,
     championsGet: 0,
   }
@@ -260,6 +281,13 @@ export function installApiMock() {
           },
         ),
       },
+      // global: a pool belongs to the person, so the write names no team
+      pools: {
+        put: (body: unknown) => {
+          apiState.sentPool = body
+          return Promise.resolve(apiState.poolSave)
+        },
+      },
       // global reference data: no path params, so plain verbs on the collection
       champions: {
         get: () => {
@@ -300,6 +328,12 @@ export function installApiMock() {
             },
           ),
           members: { get: () => Promise.resolve(apiState.memberList) },
+          pools: {
+            get: () => {
+              apiState.calls.poolsGet += 1
+              return Promise.resolve(apiState.poolsList)
+            },
+          },
           // callable for :startsOn, verbs on the collection — same shape as `roster`
           planner: Object.assign(
             (params: { startsOn: string }) => ({

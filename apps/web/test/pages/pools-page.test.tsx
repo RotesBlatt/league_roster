@@ -1,0 +1,161 @@
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
+import type { Me, PoolPersonDto } from '@lol/api/schema-types'
+import { MantineProvider } from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
+
+/**
+ * The pool page's write half (champion-pools.md §7, §8). What is worth a DOM here — and could not
+ * be proven by the pure `pool-edit` / `pool-save` tests — is the **wiring**:
+ *
+ * - only *my* column gets handles, decided by the shared `canEditPool`;
+ * - a menu move changes the draft, and Save sends the whole pool with the version this page read;
+ * - a stale `409` drops the draft so the stored pool is shown, instead of overwriting it.
+ */
+installApiMock()
+
+const { PoolsPage } = await import('../../src/pages/PoolsPage.tsx')
+
+const me: Me = {
+  id: 'u1',
+  name: 'Me',
+  email: 'me@test.local',
+  image: null,
+  teamId: 't1',
+  teamSlug: 'alpha',
+  role: 'member',
+  status: 'active',
+}
+
+const person = (overrides: Partial<PoolPersonDto> = {}): PoolPersonDto => ({
+  userId: 'u1',
+  displayName: 'Me',
+  role: 'TOP',
+  isActive: true,
+  version: 3,
+  // a saved pool always has a header, so it always has an age (only `mate` never saved)
+  updatedAt: Date.now() - 3 * 86_400_000,
+  lists: { main: [1, 2], situational: [], blind: [] },
+  ...overrides,
+})
+
+const mine = person()
+const mate = person({
+  userId: 'u2',
+  displayName: 'Mate',
+  role: 'MID',
+  version: 0,
+  updatedAt: null,
+  lists: { main: [], situational: [], blind: [] },
+})
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <MantineProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/t/alpha/pools']}>
+          <Routes>
+            <Route path="/t/:slug/pools" element={<PoolsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </MantineProvider>,
+  )
+}
+
+/**
+ * Notifications are spied, not mocked at module level, and never mounted: a real Mantine
+ * notification keeps its `autoClose` timer alive, which made the 409 test wait ~9s for nothing.
+ * The spy is also the better assertion — "what did the page tell the user" is the behaviour.
+ */
+let notify: ReturnType<typeof spyOn<typeof notifications, 'show'>>
+
+beforeEach(() => {
+  resetApiState()
+  apiState.me = { data: me, error: null, status: 200 }
+  apiState.poolsList = { data: { people: [mine, mate] }, error: null, status: 200 }
+  // `show` returns the notification id; nothing reads it here, but the signature is the signature
+  notify = spyOn(notifications, 'show').mockImplementation(() => 'test-notification')
+})
+
+describe('read', () => {
+  test('one column per person, three bands each, and the never-saved column says so', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Me')).toBeTruthy()
+    expect(screen.getByText('Mate')).toBeTruthy()
+    // three band headings per column, two columns; the capitals are CSS (`tt`), not the text
+    expect(screen.getAllByText('Main')).toHaveLength(2)
+    expect(screen.getAllByText('Situational')).toHaveLength(2)
+    expect(screen.getAllByText('Blind-pickable')).toHaveLength(2)
+    // the age line distinguishes "never saved" from "saved a while ago"
+    expect(screen.getByText('no pool yet')).toBeTruthy()
+    // one of two columns is filled
+    expect(screen.getByText('1 of 2 filled their pool')).toBeTruthy()
+  })
+})
+
+describe('editing your own column', () => {
+  test('only my column has handles — the others are reads', async () => {
+    renderPage()
+
+    // two add buttons per editable band (Main, Situational, Blind) = 3, exactly once
+    expect(await screen.findAllByLabelText(/^Add a champion to/)).toHaveLength(3)
+    // and the chips of the other column are not menu targets
+    expect(screen.getAllByLabelText('Edit champion')).toHaveLength(2)
+  })
+
+  test('a menu move becomes one whole-pool write with the version that was read', async () => {
+    renderPage()
+
+    fireEvent.click((await screen.findAllByLabelText('Edit champion'))[0]!)
+    fireEvent.click(await screen.findByText('Move down'))
+
+    expect(screen.getByText('unsaved changes')).toBeTruthy()
+    fireEvent.click(screen.getByText('Save pool'))
+
+    await waitFor(() =>
+      expect(apiState.sentPool).toEqual({
+        version: 3,
+        lists: { main: [2, 1], situational: [], blind: [] },
+      }),
+    )
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ message: 'Pool saved' }))
+  })
+
+  test('a stale version drops the draft instead of overwriting', async () => {
+    apiState.poolSave = {
+      data: null,
+      error: { value: { reason: 'stale', version: 9 } },
+      status: 409,
+    }
+
+    renderPage()
+
+    fireEvent.click((await screen.findAllByLabelText('Edit champion'))[0]!)
+    fireEvent.click(await screen.findByText('Move down'))
+    const readsBefore = apiState.calls.poolsGet
+    fireEvent.click(screen.getByText('Save pool'))
+
+    // "showing the latest version" has to be true: the stored pool is read again, not just assumed
+    await waitFor(() => expect(apiState.calls.poolsGet).toBeGreaterThan(readsBefore))
+
+    // the user is told whose version won, rather than being left to notice a silent revert
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          color: 'yellow',
+          message: expect.stringMatching(/another tab/i),
+        }),
+      ),
+    )
+
+    // and the draft is gone, so the edit bar is gone and the chips are back in the stored order
+    expect(screen.queryByText('unsaved changes')).toBeNull()
+    expect(screen.getAllByLabelText('Edit champion')[0]?.textContent).toContain('#1')
+  })
+})
