@@ -27,7 +27,9 @@ export function PoolsPage() {
   const now = Date.now()
 
   return (
-    <Stack gap="md">
+    // centred and bounded: five columns read well at ~72rem, and a 27" screen should not stretch
+    // each one until the chips drift apart. The page owns the width, not the shell.
+    <Stack gap="md" maw="72rem" mx="auto" w="100%">
       <Group justify="space-between" align="baseline">
         <Title order={2}>Champion pools</Title>
         {completion.text ? (
