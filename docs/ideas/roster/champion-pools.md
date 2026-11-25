@@ -220,6 +220,15 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   (`pointerWithin`, with `closestCenter` only as the keyboard fallback): with `closestCenter` the band
   container often won over the chip under the cursor, which made a drop append instead of landing at
   the index and left the drag with no feedback at all.
+- **Throwing a champion away is a drop, not a menu item.** While something is being dragged, a
+  dashed strip appears **under the grid**, as wide as the grid and `sticky bottom` so a tall pool
+  keeps it reachable; dropping a chip on it removes that champion from the band **it was grabbed
+  in** — dragging the blind copy of a main-pool champion discards only the blind copy (§6). It sits
+  in the page flow rather than a fixed viewport corner: a bin at the screen edge is a long drag on a
+  wide page and belongs to no table in particular. This is why the `DndContext` sits on the page instead of inside the column: a
+  droppable outside the column is unreachable from a chip that belongs to another context. The
+  decision (trash wins, else the landing target, else nothing — and **no version bump** for a drop
+  that moved nothing) is `applyDrop` in `lib/pools/drag.ts`, unit-tested.
 - **Actions are a right-click at the pointer, and they close themselves.** The chip is both the drag
   surface and the menu target: left button drags (dnd-kit holds the pointer), **right button** opens
   the actions **at the `contextmenu` event's coordinates**, clamped to the viewport. The panel closes

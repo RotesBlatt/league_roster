@@ -1,0 +1,31 @@
+/**
+ * The trash bin (champion-pools.md §7): a strip under the grid, not a fixed corner.
+ *
+ * `sticky` rather than `fixed` on purpose — it belongs to the page flow, so it is exactly as wide as
+ * the table you drag from and it cannot drift to a screen edge the grid does not reach.
+ */
+
+.zone {
+  position: sticky;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border: 2px dashed var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-dimmed);
+  /* above the columns while dragging, below the chip actions panel (500) */
+  z-index: 400;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.zone[data-over="true"] {
+  border-color: var(--mantine-color-red-6);
+  background: var(--mantine-color-red-light);
+  color: var(--mantine-color-red-6);
+}

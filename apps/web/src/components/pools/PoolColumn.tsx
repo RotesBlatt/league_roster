@@ -1,19 +1,5 @@
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  pointerWithin,
-  useDroppable,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  rectSortingStrategy,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
+import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PoolPersonDto } from '@lol/api/schema-types'
 import {
@@ -28,13 +14,7 @@ import { useRef, useState } from 'react'
 import { useChampions } from '../../api/hooks.ts'
 import { championLabelFor, unknownChampionName } from '../../lib/champions/labels.ts'
 import { chipActions } from '../../lib/pools/chip-actions.ts'
-import {
-  bandDragId,
-  championDragId,
-  type DragTarget,
-  dragMove,
-  parseDragId,
-} from '../../lib/pools/drag.ts'
+import { bandDragId, championDragId, type DragTarget } from '../../lib/pools/drag.ts'
 import { poolAgeText } from '../../lib/pools/pool-view.ts'
 import { ChampionIcon } from '../champions/ChampionIcon.tsx'
 import { ChampionPicker } from './ChampionPicker.tsx'
@@ -261,6 +241,7 @@ export function PoolColumn({
   lists,
   onChange,
   onPick,
+  dropTarget,
 }: {
   person: PoolPersonDto
   isMine: boolean
@@ -271,26 +252,18 @@ export function PoolColumn({
   /** Both present = this column is editable. The page decides via `canEditPool`. */
   onChange?: (lists: PoolLists) => void
   onPick?: (kind: PoolKind, championId: number) => void
+  /** Where the chip being dragged would land. Comes from the page, which owns the one DndContext. */
+  dropTarget?: DragTarget | null
 }) {
   const age = poolAgeText(person.updatedAt, now)
   const shown = lists ?? person.lists
-
-  // pointer drag needs a few pixels of intent, so a plain click stays a click;
-  // the keyboard sensor gives the same move through space/arrow keys on a focused chip
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  )
-
-  // what the drag is over right now, so the target can show where the champion lands
-  const [dropTarget, setDropTarget] = useState<DragTarget | null>(null)
 
   const bands = POOL_KINDS.map((kind) => (
     <PoolBand
       key={kind}
       kind={kind}
       lists={shown}
-      dropTarget={dropTarget}
+      dropTarget={dropTarget ?? null}
       {...(onChange ? { onChange } : {})}
       {...(onPick ? { onPick: (championId: number) => onPick(kind, championId) } : {})}
     />
@@ -316,33 +289,7 @@ export function PoolColumn({
           ) : null}
         </Group>
 
-        {onChange ? (
-          <DndContext
-            sensors={sensors}
-            // pointer first: the chip *under the cursor* is where it lands, and the band behind it
-            // only wins in the gaps and at the end (an empty band has nothing else to hit).
-            // `closestCenter` is the fallback for keyboard dragging, which has no pointer at all.
-            collisionDetection={(args) => {
-              const underPointer = pointerWithin(args)
-              return underPointer.length > 0 ? underPointer : closestCenter(args)
-            }}
-            onDragOver={(event) =>
-              setDropTarget(parseDragId(event.over ? String(event.over.id) : null))
-            }
-            onDragCancel={() => setDropTarget(null)}
-            onDragEnd={(event) => {
-              // clear first: the indicator must be gone when the chips move under it
-              setDropTarget(null)
-              onChange(
-                dragMove(shown, String(event.active.id), event.over ? String(event.over.id) : null),
-              )
-            }}
-          >
-            {bands}
-          </DndContext>
-        ) : (
-          bands
-        )}
+        {bands}
 
         <Text size="xs" c="dimmed">
           {age ?? 'no pool yet'}

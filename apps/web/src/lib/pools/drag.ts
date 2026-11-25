@@ -1,5 +1,5 @@
 import type { PoolKind, PoolLists } from '@lol/shared'
-import { moveAcrossAt } from './pool-edit.ts'
+import { moveAcrossAt, removeChampion } from './pool-edit.ts'
 
 /**
  * The drag gesture's translation layer (champion-pools.md §7): a dropped DOM id in, the next pool
@@ -22,6 +22,28 @@ export function championDragId(kind: PoolKind, championId: number): string {
 
 export function bandDragId(kind: PoolKind): string {
   return `band:${kind}`
+}
+
+/**
+ * The trash bin's droppable id. A fixed id rather than a per-column one: there is one bin, and it is
+ * outside every column — which is why it cannot be discovered from the chip's own band.
+ */
+export const TRASH_ID = 'trash'
+
+/**
+ * Throwing a champion away: the **band in the id** decides which copy goes. A champion may sit in
+ * `main` and in `blind` (§6), and the whole point of dragging the blind chip to the bin is to keep
+ * the pool entry — so a bare champion id would delete both.
+ *
+ * A band id, an id that is not ours, or a champion that is not in that band: unchanged, and the
+ * write is not attempted.
+ */
+export function dropTrash(lists: PoolLists, activeId: string | number | null): PoolLists {
+  const active = parseDragId(activeId)
+  if (!active || active.championId === null) return copy(lists)
+  if (!lists[active.kind].includes(active.championId)) return copy(lists)
+
+  return removeChampion(lists, active.kind, active.championId)
 }
 
 /** A drop target: a champion in a band, or the band itself (`championId: null`). */
@@ -69,4 +91,20 @@ export function dragMove(
     over.championId === null ? lists[over.kind].length : lists[over.kind].indexOf(over.championId)
 
   return moveAcrossAt(lists, active.kind, active.championId, over.kind, index)
+}
+
+/**
+ * The whole `onDragEnd` decision in one place: the trash wins, otherwise the chip/band target says
+ * where it lands. `null` (dropped outside any target) changes nothing — and must not bump the
+ * version, which is why it returns a copy rather than letting the caller invent one.
+ */
+export function applyDrop(
+  lists: PoolLists,
+  activeId: string | number | null,
+  overId: string | number | null,
+): PoolLists {
+  if (overId === null) return copy(lists)
+  return String(overId) === TRASH_ID
+    ? dropTrash(lists, activeId)
+    : dragMove(lists, activeId, overId)
 }

@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { bandDragId, championDragId, dragMove, parseDragId } from '../../../src/lib/pools/drag.ts'
+import {
+  applyDrop,
+  bandDragId,
+  championDragId,
+  dragMove,
+  dropTrash,
+  parseDragId,
+  TRASH_ID,
+} from '../../../src/lib/pools/drag.ts'
 
 /**
  * Dragging a pool entry (champion-pools.md §7).
@@ -80,5 +88,71 @@ describe('dragMove', () => {
     const lists = { ...empty, main: [1, 2] }
     dragMove(lists, championDragId('main', 1), bandDragId('situational'))
     expect(lists).toEqual({ main: [1, 2], situational: [], blind: [] })
+  })
+})
+
+describe('dropTrash', () => {
+  test('the trash is a target with an id of its own, so a drop can be told apart', () => {
+    expect(TRASH_ID).toBe('trash')
+  })
+
+  test('throwing a champion away removes it from the band it was grabbed in', () => {
+    const lists = { ...empty, main: [1, 2, 3] }
+    expect(dropTrash(lists, championDragId('main', 2))).toEqual({
+      main: [1, 3],
+      situational: [],
+      blind: [],
+    })
+  })
+
+  test('the band in the id decides, so a blind copy can go without touching the pool', () => {
+    // the same champion sits in main and in blind: dragging the blind chip discards only that copy
+    const lists = { main: [7], situational: [], blind: [7] }
+    expect(dropTrash(lists, championDragId('blind', 7))).toEqual({
+      main: [7],
+      situational: [],
+      blind: [],
+    })
+  })
+
+  test('a band id, or anything not ours, is not a champion to throw away', () => {
+    const lists = { ...empty, main: [1] }
+    expect(dropTrash(lists, bandDragId('main'))).toEqual(lists)
+    expect(dropTrash(lists, 'chip:extra:1')).toEqual(lists)
+    expect(dropTrash(lists, null)).toEqual(lists)
+  })
+
+  test('throwing away a champion that is not there changes nothing', () => {
+    const lists = { ...empty, main: [1] }
+    expect(dropTrash(lists, championDragId('main', 9))).toEqual(lists)
+  })
+
+  test('the input is never mutated', () => {
+    const lists = { ...empty, main: [1, 2] }
+    dropTrash(lists, championDragId('main', 1))
+    expect(lists.main).toEqual([1, 2])
+  })
+})
+
+describe('applyDrop', () => {
+  test('the trash wins over everything else', () => {
+    const lists = { ...empty, main: [1, 2] }
+    expect(applyDrop(lists, championDragId('main', 1), TRASH_ID)).toEqual({
+      main: [2],
+      situational: [],
+      blind: [],
+    })
+  })
+
+  test('anything else is a landing spot', () => {
+    const lists = { ...empty, main: [1, 2] }
+    expect(applyDrop(lists, championDragId('main', 1), championDragId('main', 2)).main).toEqual([
+      2, 1,
+    ])
+  })
+
+  test('dropped outside every target: unchanged, so nothing is written', () => {
+    const lists = { ...empty, main: [1] }
+    expect(applyDrop(lists, championDragId('main', 1), null)).toEqual(lists)
   })
 })
