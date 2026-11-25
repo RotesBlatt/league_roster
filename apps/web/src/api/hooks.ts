@@ -1,5 +1,5 @@
 import type { Me, ProfileDto } from '@lol/api/schema-types'
-import type { Role } from '@lol/shared'
+import type { PoolLists, Role } from '@lol/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { DayIntervals } from '../lib/planner/availability-grid.ts'
 import type { AccountBody, ProfileBody } from '../lib/profile/profile-form.ts'
@@ -177,6 +177,24 @@ export function usePools(slug: string) {
     queryKey: [...POOLS_KEY, slug],
     queryFn: () => unwrap(api.teams({ slug }).pools.get()),
     enabled: slug.length > 0,
+  })
+}
+
+/**
+ * `PUT /api/pools` — always the whole pool, never one entry (champion-pools.md §5).
+ *
+ * Every pool cache is invalidated, not just this team's: the pool belongs to the person, so the
+ * same write has to show up for every team they are in — and the server decides the order, so a
+ * locally patched row would only disagree with the next read.
+ *
+ * A stale `version` rejects with `ApiError` and `status === 409`; showing that to the user is the
+ * page's job, because only the page knows which column is open.
+ */
+export function useSavePool() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { version: number; lists: PoolLists }) => unwrap(api.pools.put(input)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: POOLS_KEY }),
   })
 }
 
