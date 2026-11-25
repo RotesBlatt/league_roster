@@ -74,6 +74,13 @@ function renderPage() {
  */
 let notify: ReturnType<typeof spyOn<typeof notifications, 'show'>>
 
+/** The chips carry `aria-roledescription="sortable"` only in the editable column. */
+const sortableChips = () =>
+  Array.from(document.querySelectorAll('[aria-roledescription="sortable"]'))
+
+/** The actions are a context menu on the chip now — no corner button to click. */
+const openChipMenu = (index = 0) => fireEvent.contextMenu(sortableChips()[index]!)
+
 beforeEach(() => {
   resetApiState()
   apiState.me = { data: me, error: null, status: 200 }
@@ -138,8 +145,8 @@ describe('editing your own column', () => {
 
     // two add buttons per editable band (Main, Situational, Blind) = 3, exactly once
     expect(await screen.findAllByLabelText(/^Add a champion to/)).toHaveLength(3)
-    // and the chips of the other column are not menu targets
-    expect(screen.getAllByLabelText('Edit champion')).toHaveLength(2)
+    // and only my two chips are sortable; the other column's are plain reads
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
   })
 
   test('the + opens a one-column popover list that searches, and the pick lands in the draft', async () => {
@@ -184,10 +191,39 @@ describe('editing your own column', () => {
     )
   })
 
+  test('the chip actions open at the pointer and close when it leaves', async () => {
+    renderPage()
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
+
+    fireEvent.contextMenu(sortableChips()[0]!, { clientX: 120, clientY: 80 })
+
+    // the panel is placed from the event's own coordinates — the bug was that it rendered at the
+    // page's top-left because it had no measurable anchor
+    const menu = await screen.findByRole('menu')
+    expect(menu.style.left).toBe('120px')
+    expect(menu.style.top).toBe('80px')
+
+    // and it leaves when the pointer does, without needing a click somewhere else
+    fireEvent.mouseLeave(menu)
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  test('Escape also closes the chip actions', async () => {
+    renderPage()
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
+
+    fireEvent.contextMenu(sortableChips()[0]!)
+    expect(await screen.findByRole('menu')).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
   test('a menu move becomes one whole-pool write with the version that was read', async () => {
     renderPage()
 
-    fireEvent.click((await screen.findAllByLabelText('Edit champion'))[0]!)
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
+    openChipMenu()
     fireEvent.click(await screen.findByText('Move down'))
 
     expect(screen.getByText('unsaved changes')).toBeTruthy()
@@ -211,7 +247,8 @@ describe('editing your own column', () => {
 
     renderPage()
 
-    fireEvent.click((await screen.findAllByLabelText('Edit champion'))[0]!)
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
+    openChipMenu()
     fireEvent.click(await screen.findByText('Move down'))
     const readsBefore = apiState.calls.poolsGet
     fireEvent.click(screen.getByText('Save pool'))

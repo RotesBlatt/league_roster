@@ -220,12 +220,18 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   (`pointerWithin`, with `closestCenter` only as the keyboard fallback): with `closestCenter` the band
   container often won over the chip under the cursor, which made a drop append instead of landing at
   the index and left the drag with no feedback at all.
-- **The actions trigger is invisible until you need it.** The dots exist because the chip itself is
-  the drag handle: a pointer-down that starts a drag and a click that opens a menu cannot share one
-  surface reliably, so the menu sits on a separate small target. It fades in on `:hover`/
-  `:focus-within` and is always visible on touch (`@media (hover: none)`), where hover cannot reveal
-  it. If the team prefers no dots at all, right-click on the chip is the alternative — with the
-  caveat that a swallowed post-drag click has to be handled explicitly.
+- **Actions are a right-click at the pointer, and they close themselves.** The chip is both the drag
+  surface and the menu target: left button drags (dnd-kit holds the pointer), **right button** opens
+  the actions **at the `contextmenu` event's coordinates**, clamped to the viewport. The panel closes
+  when the pointer leaves it, on Escape, on a pointerdown anywhere else, and on scroll/resize — the
+  four things a person does next. Keyboard: **Shift+F10** opens the same actions anchored to the
+  chip's box; Enter/Space belong to dnd-kit's keyboard drag.
+- **Not a `Menu`.** Two bugs came from anchoring a Mantine `Menu` to the chip: it rendered at the
+  page's top-left (the anchor was a component that could not forward its ref, so there was no rect
+  to measure) and it stayed open until something else closed it. The panel is a portal with fixed
+  coordinates from the event; the corner-dots button before it was a workaround for the same
+  click/drag conflict and made the chip look like it had a badge. The action list itself lives in
+  `lib/pools/chip-actions.ts` (pure, tested), so the panel only renders and applies.
 - **Reordering is drag *and* keyboard**, both producing one ordered array for one `PUT`. Drag uses
   `@dnd-kit/core` + `@dnd-kit/sortable` (the one dependency this feature added): chips are sortable
   nodes, each band is also a droppable so an empty band can receive a champion, and the pointer

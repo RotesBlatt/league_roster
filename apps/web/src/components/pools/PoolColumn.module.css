@@ -1,10 +1,9 @@
 /**
  * The pool column's interactive bits (champion-pools.md §7): drag affordances and the chip menu.
  *
- * In CSS rather than inline because two of the three depend on state the component cannot express
- * — `:hover`/`:focus-within` for the corner menu, and the pointer being over a drop target — and
- * because the drop feedback has to be *seen* while the pointer is elsewhere (on the chip being
- * dragged), which no style prop can do.
+ * In CSS rather than inline because two of the three depend on state the component cannot express —
+ * the pointer being over a drop target, and `:focus-visible` — and because the drop feedback has to
+ * be *seen* while the pointer is elsewhere (on the chip being dragged), which no style prop can do.
  */
 
 .chip {
@@ -46,22 +45,11 @@
 }
 
 /**
- * The actions trigger. It is invisible until the chip is hovered, focused or being dragged: the
- * dots are the answer to "how do I reorder without a mouse", not decoration.
+ * The chip is the whole surface: left button drags (dnd-kit), right button opens the actions. There
+ * is no separate trigger element any more, so nothing has to be revealed on hover.
  */
-.menuTrigger {
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.chip:hover .menuTrigger,
-.chip:focus-within .menuTrigger {
-  opacity: 1;
-}
-
-/* touch has no hover: show the trigger on the devices that cannot reveal it otherwise */
-@media (hover: none) {
-  .menuTrigger {
-    opacity: 1;
-  }
+.chip:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-sm);
 }

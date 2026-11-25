@@ -23,18 +23,11 @@ import {
   type PoolLists,
   ROLE_LABELS,
 } from '@lol/shared'
-import { ActionIcon, Badge, Box, Group, Menu, Paper, Stack, Text } from '@mantine/core'
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconDots,
-  IconEye,
-  IconTransfer,
-  IconTrash,
-} from '@tabler/icons-react'
-import { useState } from 'react'
+import { Badge, Box, Group, Paper, Stack, Text } from '@mantine/core'
+import { useRef, useState } from 'react'
 import { useChampions } from '../../api/hooks.ts'
 import { championLabelFor, unknownChampionName } from '../../lib/champions/labels.ts'
+import { chipActions } from '../../lib/pools/chip-actions.ts'
 import {
   bandDragId,
   championDragId,
@@ -42,10 +35,10 @@ import {
   dragMove,
   parseDragId,
 } from '../../lib/pools/drag.ts'
-import { moveAcross, moveWithin, removeChampion } from '../../lib/pools/pool-edit.ts'
 import { poolAgeText } from '../../lib/pools/pool-view.ts'
 import { ChampionIcon } from '../champions/ChampionIcon.tsx'
 import { ChampionPicker } from './ChampionPicker.tsx'
+import { ChipActions } from './ChipActions.tsx'
 import styles from './PoolColumn.module.css'
 
 /**
@@ -55,9 +48,9 @@ import styles from './PoolColumn.module.css'
  * and a twelve-champion pool look different, and neither shows dead slots.
  *
  * Two modes, one layout: read-only for everybody else, and the same column for its owner with a `+`
- * per band, a corner menu per chip, and **drag to reorder** (pointer *and* keyboard, via dnd-kit's
- * sortable sensors). What a drop *means* is decided in `lib/pools/drag.ts`, not here: this file only
- * reports which id was dragged onto which.
+ * per band, right-click actions per chip, and **drag to reorder** (pointer and keyboard). What a
+ * drop or an action *means* is decided in `lib/pools` — this file only reports what was grabbed and
+ * where it went.
  */
 
 /**
@@ -85,91 +78,16 @@ function ChampionChip({ championId, size = CHIP_ICON }: { championId: number; si
   )
 }
 
-/** The per-chip menu. The rules come from `pool-edit.ts`, never from here. */
-function ChipMenu({
-  championId,
-  kind,
-  index,
-  lists,
-  onChange,
-}: {
-  championId: number
-  kind: PoolKind
-  index: number
-  lists: PoolLists
-  onChange: (lists: PoolLists) => void
-}) {
-  const count = lists[kind].length
-  // main <-> situational is a real move; blind is a second opinion about the same champion (§6)
-  const otherSection: PoolKind | null =
-    kind === 'main' ? 'situational' : kind === 'situational' ? 'main' : null
-
-  return (
-    <Menu withinPortal position="bottom-start" shadow="md">
-      <Menu.Target>
-        {/* a corner button, so the whole icon stays the drag handle */}
-        <ActionIcon
-          pos="absolute"
-          top={-4}
-          right={-4}
-          size={14}
-          radius="xl"
-          variant="filled"
-          color="dark"
-          className={styles.menuTrigger}
-          aria-label="Edit champion"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <IconDots size={10} />
-        </ActionIcon>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Item
-          leftSection={<IconArrowUp size={14} />}
-          disabled={index === 0}
-          onClick={() => onChange(moveWithin(lists, kind, index, index - 1))}
-        >
-          Move up
-        </Menu.Item>
-        <Menu.Item
-          leftSection={<IconArrowDown size={14} />}
-          disabled={index === count - 1}
-          onClick={() => onChange(moveWithin(lists, kind, index, index + 1))}
-        >
-          Move down
-        </Menu.Item>
-
-        {otherSection ? (
-          <Menu.Item
-            leftSection={<IconTransfer size={14} />}
-            onClick={() => onChange(moveAcross(lists, kind, championId, otherSection))}
-          >
-            Move to {POOL_KIND_LABELS[otherSection]}
-          </Menu.Item>
-        ) : null}
-
-        {kind !== 'blind' && !lists.blind.includes(championId) ? (
-          <Menu.Item
-            leftSection={<IconEye size={14} />}
-            onClick={() => onChange(moveAcross(lists, kind, championId, 'blind'))}
-          >
-            Also blind-pickable
-          </Menu.Item>
-        ) : null}
-
-        <Menu.Item
-          color="red"
-          leftSection={<IconTrash size={14} />}
-          onClick={() => onChange(removeChampion(lists, kind, championId))}
-        >
-          Remove
-        </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
-  )
-}
-
-/** A chip that can be dragged and that carries its own menu. */
+/**
+ * A chip that can be dragged, and whose actions open **at the pointer** on right click.
+ *
+ * No trigger element: left button drags (dnd-kit holds the pointer), right button opens the panel.
+ * The two gestures cannot fight because they are different buttons, and because the panel is not a
+ * `Menu` — it never toggles itself on click, so a click that survives a drag cannot open it.
+ *
+ * Keyboard: **Shift+F10** (the platform context-menu convention) opens the same actions anchored to
+ * the chip's own box; Enter/Space stay dnd-kit's keyboard drag.
+ */
 function SortableChip({
   championId,
   kind,
@@ -189,13 +107,18 @@ function SortableChip({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: championDragId(kind, championId),
   })
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const node = useRef<HTMLDivElement | null>(null)
 
   // a line *before* this chip: the dragged champion lands at this index, pushing this one right
   const isLandingHere = dropTarget?.kind === kind && dropTarget.championId === championId
 
   return (
     <Box
-      ref={setNodeRef}
+      ref={(element) => {
+        setNodeRef(element)
+        node.current = element
+      }}
       pos="relative"
       className={[
         styles.chip,
@@ -207,15 +130,29 @@ function SortableChip({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setMenuAt({ x: event.clientX, y: event.clientY })
+      }}
+      onKeyDown={(event) => {
+        if (event.shiftKey && event.key === 'F10') {
+          event.preventDefault()
+          const box = node.current?.getBoundingClientRect()
+          setMenuAt({ x: box?.left ?? 0, y: (box?.bottom ?? 0) + 4 })
+          return
+        }
+        // every other key still belongs to dnd-kit's keyboard sensor
+        listeners?.onKeyDown?.(event)
+      }}
     >
-      <ChipMenu
-        championId={championId}
-        kind={kind}
-        index={index}
-        lists={lists}
-        onChange={onChange}
-      />
       <ChampionChip championId={championId} />
+
+      <ChipActions
+        at={menuAt}
+        actions={chipActions(lists, kind, championId, index)}
+        onClose={() => setMenuAt(null)}
+        onApply={(action) => onChange(action.apply())}
+      />
     </Box>
   )
 }
@@ -338,7 +275,7 @@ export function PoolColumn({
   const age = poolAgeText(person.updatedAt, now)
   const shown = lists ?? person.lists
 
-  // pointer drag needs a few pixels of intent, or the corner menu can never be clicked;
+  // pointer drag needs a few pixels of intent, so a plain click stays a click;
   // the keyboard sensor gives the same move through space/arrow keys on a focused chip
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),

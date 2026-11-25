@@ -1,0 +1,38 @@
+/**
+ * The chip action panel (champion-pools.md §7). Only the *dynamic* coordinates are inline in the
+ * component; everything that is style lives here, including the stacking context, because a portal
+ * at the end of `<body>` has to out-rank the app shell's header.
+ */
+
+.panel {
+  z-index: 500;
+}
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-sm);
+  color: var(--mantine-color-text);
+  /* the panel closes on mouseleave, so the item must not add its own hit area beyond it */
+  text-align: left;
+}
+
+.action:hover:not(:disabled) {
+  background: var(--mantine-color-default-hover);
+}
+
+.action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.action[data-danger="true"] {
+  color: var(--mantine-color-red-6);
+}
+
+.icon {
+  display: flex;
+}
