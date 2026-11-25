@@ -99,6 +99,39 @@ describe('read', () => {
   })
 })
 
+describe('how a champion is drawn', () => {
+  test('a band is icon-only: the name is the label and the tooltip, never body text', async () => {
+    apiState.champions = {
+      data: {
+        patch: '16.23.1',
+        previousPatch: null,
+        patchPublishedAt: null,
+        fetchedAt: null,
+        state: 'current',
+        champions: [
+          {
+            championId: 1,
+            name: 'Annie',
+            slug: 'annie',
+            iconUrl: 'https://cdn/1.png',
+            positions: [],
+            roles: [],
+          },
+        ],
+      },
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    // the icon carries the name for hover and assistive tech…
+    expect((await screen.findAllByTitle('Annie')).length).toBeGreaterThan(0)
+    // …but it is not printed next to it: the chip is the icon
+    expect(screen.queryByText('Annie')).toBeNull()
+  })
+})
+
 describe('editing your own column', () => {
   test('only my column has handles — the others are reads', async () => {
     renderPage()

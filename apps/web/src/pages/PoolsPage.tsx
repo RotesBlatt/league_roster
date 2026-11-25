@@ -84,9 +84,9 @@ export function PoolsPage() {
   }
 
   return (
-    // centred and bounded: five columns read well at ~72rem, and a 27" screen should not stretch
-    // each one until the chips drift apart. The page owns the width, not the shell.
-    <Stack gap="md" maw="72rem" mx="auto" w="100%">
+    // centred and bounded. 90rem is what makes the four-chips-per-row layout real: five columns at
+    // 72rem leave ~190px of content, where the fourth 56px chip wraps. The page owns the width.
+    <Stack gap="md" maw="90rem" mx="auto" w="100%">
       <Group justify="space-between" align="baseline">
         <Title order={2}>Champion pools</Title>
         {completion.text ? (

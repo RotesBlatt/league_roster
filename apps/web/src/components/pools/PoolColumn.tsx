@@ -6,7 +6,7 @@ import {
   type PoolLists,
   ROLE_LABELS,
 } from '@lol/shared'
-import { ActionIcon, Badge, Group, Menu, Paper, Stack, Text } from '@mantine/core'
+import { Badge, Group, Menu, Paper, Stack, Text, UnstyledButton } from '@mantine/core'
 import { IconArrowDown, IconArrowUp, IconEye, IconTransfer, IconTrash } from '@tabler/icons-react'
 import { useChampions } from '../../api/hooks.ts'
 import { championLabelFor, unknownChampionName } from '../../lib/champions/labels.ts'
@@ -28,17 +28,30 @@ import { ChampionPicker } from './ChampionPicker.tsx'
  * Every entry is a real menu item, so the keyboard reaches it without a drag library.
  */
 
-/** Icon plus name, sized to sit in a wrapping strip. */
-function ChampionChip({ championId }: { championId: number }) {
+/**
+ * A champion in a band: the **icon only**, large enough to recognise.
+ *
+ * The name is gone on purpose — the icon is the champion here, and the name doubled the width of
+ * every chip while the column is a strip, not a table. The name survives as `title`/`aria-label`,
+ * so hovering and screen readers still get it.
+ *
+ * Size is the whole point: at 24px a chip was a colour, and the clipping bug (an `ActionIcon` fixed
+ * at 30px wrapping icon+name) made it a sliver. **56px with a 4px gap puts four icons on one row** of
+ * the five-column page (4 × 56 + 3 × 4 = 236px inside ~246px of column at the page's 90rem width).
+ * That width is part of the decision, not a coincidence: at the old 72rem the column held ~190px and
+ * the fourth chip wrapped, turning a pool into a ladder again.
+ */
+const CHIP_ICON = 56
+
+function ChampionChip({ championId, size = CHIP_ICON }: { championId: number; size?: number }) {
   const { data } = useChampions()
   const label = championLabelFor(data?.champions, championId)
+  const name = label?.name ?? unknownChampionName(championId)
 
   return (
-    <Group gap={4} wrap="nowrap" title={label?.name ?? unknownChampionName(championId)}>
-      {/* big enough to recognise: this page is read at a glance during champ select */}
-      <ChampionIcon championId={championId} size={24} />
-      <Text size="xs">{label?.name ?? unknownChampionName(championId)}</Text>
-    </Group>
+    <span title={name} aria-label={name} role="img">
+      <ChampionIcon championId={championId} size={size} />
+    </span>
   )
 }
 
@@ -64,9 +77,10 @@ function EditableChip({
   return (
     <Menu withinPortal position="bottom-start" shadow="md">
       <Menu.Target>
-        <ActionIcon variant="subtle" size="sm" aria-label="Edit champion">
+        {/* an UnstyledButton, not an ActionIcon: the latter is a fixed square and clipped the chip */}
+        <UnstyledButton aria-label="Edit champion" p={0}>
           <ChampionChip championId={championId} />
-        </ActionIcon>
+        </UnstyledButton>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item
@@ -143,7 +157,7 @@ function PoolBand({
         ) : null}
       </Group>
 
-      <Group gap={6}>
+      <Group gap={4}>
         {championIds.length === 0 && !onChange ? (
           <Text size="xs" c="dimmed">
             —

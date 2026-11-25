@@ -84,20 +84,25 @@ export function ChampionPicker({
             </Text>
           ) : null}
 
-          <ScrollArea.Autosize mah={320} type="auto">
+          <ScrollArea.Autosize mah={360} type="auto">
             <Stack gap={2}>
               {results.map((champion: ChampionLabelDto) => {
                 const taken = already.includes(champion.championId)
                 return (
+                  // `h="auto"` is the fix for the clipped icon: a size preset pins the height
                   <Button
                     key={champion.championId}
                     variant="subtle"
-                    size="sm"
-                    justify="flex-start"
                     color="gray"
-                    leftSection={<ChampionIcon championId={champion.championId} size={32} />}
+                    size="sm"
+                    h="auto"
+                    py={4}
+                    px={4}
+                    fullWidth
+                    justify="flex-start"
                     disabled={taken}
-                    title={taken ? 'Already in this list' : undefined}
+                    title={taken ? 'Already in this list' : champion.name}
+                    leftSection={<ChampionIcon championId={champion.championId} size={48} />}
                     onClick={() => {
                       onPick(champion.championId)
                       change(false)

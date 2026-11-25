@@ -197,16 +197,21 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   that is the pool saying something — it is not a reason to paginate.
 - **One column is yours**: only that column grows drag handles and an `+` chip; the other four are
   plain reads (§8). The affordance matches the guard before any request is sent.
-- **Cells**: icon + name from the champion cache (`GET /api/champions`, already shipped). Unknown ids
-  render as the placeholder `ChampionLabel`/`ChampionIcon` do. Chips carry a **24px** icon: this
-  page is read at a glance during champ select, and a smaller icon is a colour, not a champion.
-- **Adding is a popover, never a modal.** The `+` at the end of a band opens a one-column,
-  scrolling list anchored next to it, with a search field on top and a **32px** icon per row. It
-  opens on **every** champion, not a page of them: a truncated initial list reads as "the rest are
-  missing", and the search field exists to narrow the list, not to reveal it. A
-  modal takes the page away and covers the pool being edited — exactly what §7 says not to do — and
-  three columns of small icons were the reason the champion was hard to recognise in the first
-  place. Options already in that list are shown disabled, not hidden.
+- **Cells**: **icon only**, from the champion cache (`GET /api/champions`, already shipped) — the name
+  is the chip's `title`/`aria-label`, never text next to it. Unknown ids still render as the
+  placeholder `ChampionLabel`/`ChampionIcon` do. Chips are **56px with a 4px gap**, which puts four
+  on one row of the five-column page — and that only holds because the page is **90rem** wide: at
+  72rem a column has ~190px of content and the fourth chip wraps. Width and icon size are one
+  decision, not two. At 24px a chip was a colour, and the name beside it doubled every chip's width
+  in a strip that should be scanned by picture. The first attempt wrapped icon + name in an
+  `ActionIcon` (a fixed square) and clipped the icon to a sliver — wrap content in an
+  `UnstyledButton`, never in a fixed-size button.
+- **Adding is a popover, never a modal.** The `+` at the end of a band opens a one-column, scrolling
+  list anchored next to it, with a search field on top and a **48px** icon per row (the picker keeps
+  its names: a list of 170 bare icons is not searchable). It opens on **every** champion, not a page
+  of them: a truncated initial list reads as "the rest are missing", and the search field exists to
+  narrow the list, not to reveal it. A modal takes the page away and covers the pool being edited —
+  exactly what §7 says not to do. Options already in that list are shown disabled, not hidden.
 - **This page is the best smoke test for that cache**: it is nothing but names and icons, so a
   regression in the dump integration is visible at a glance instead of buried in a stats table.
 - **Reordering**: drag-and-drop for the pointer, **up/down buttons for the keyboard**. Both produce
