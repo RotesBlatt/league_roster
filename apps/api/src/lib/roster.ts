@@ -51,6 +51,18 @@ export type RosterSources = {
 const roleOrder = (role: Role | null): number =>
   role === null ? ROLES.length : ROLES.indexOf(role)
 
+/**
+ * Display order for every roster-shaped list: TOP → SUP, then name.
+ *
+ * Exported because the pool page shows the same people in the same order (champion-pools.md §7) —
+ * two lists of the roster that disagreed about who comes first would send a scrim conversation to
+ * the wrong column. Callers add their own deterministic tiebreak.
+ */
+export const compareRosterOrder = (
+  a: { role: Role | null; displayName: string },
+  b: { role: Role | null; displayName: string },
+): number => roleOrder(a.role) - roleOrder(b.role) || a.displayName.localeCompare(b.displayName)
+
 export function composeRoster(sources: RosterSources): RosterEntryDto[] {
   const profiles = new Map(sources.profiles.map((row) => [row.userId, row]))
   const users = new Map(sources.users.map((row) => [row.id, row]))
@@ -95,12 +107,7 @@ export function composeRoster(sources: RosterSources): RosterEntryDto[] {
           : null,
       }
     })
-    .sort(
-      (a, b) =>
-        roleOrder(a.role) - roleOrder(b.role) ||
-        a.displayName.localeCompare(b.displayName) ||
-        a.id.localeCompare(b.id),
-    )
+    .sort((a, b) => compareRosterOrder(a, b) || a.id.localeCompare(b.id))
 }
 
 /** What a captain may change on an entry. `undefined` = "not mentioned", which is not "clear it". */

@@ -3,6 +3,7 @@ import type {
   Division,
   MemberStatus,
   PlayWindow,
+  PoolLists,
   Role,
   Tier,
   UserRole,
@@ -219,6 +220,35 @@ export type ChampionsDto = {
   fetchedAt: number | null
   state: ChampionCacheState
   champions: ChampionLabelDto[]
+}
+
+/**
+ * One person's column on the pool page (champion-pools.md §7) — their three ordered lists.
+ *
+ * `version` is `0` and `updatedAt` is `null` for a player who never saved, so the page can show
+ * "noch kein Pool" and the first write can send the version straight back without a special case.
+ * `updatedAt` is epoch ms; a pool that was cleared still carries both, because "I emptied it on
+ * Tuesday" is information and `max(entry.updatedAt)` would have forgotten it.
+ */
+export type PoolPersonDto = {
+  userId: string
+  displayName: string
+  role: Role | null
+  isActive: boolean
+  version: number
+  updatedAt: number | null
+  /** Ids only; names and icons are a lookup in the champion cache. */
+  lists: PoolLists
+}
+
+/**
+ * `GET /api/teams/:slug/pools` — the whole team's pools, in roster order.
+ *
+ * Every roster entry appears, empty or not: reading "who can blind what" must not become "who
+ * bothered to fill a pool", and the captain's chase-list line depends on the holes being visible.
+ */
+export type PoolsDto = {
+  people: PoolPersonDto[]
 }
 
 export type ApiError = { message: string }

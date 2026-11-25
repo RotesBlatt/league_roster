@@ -17,6 +17,7 @@ import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlannerRoutes } from './routes/planner.ts'
+import { createPoolRoutes } from './routes/pools.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
 import { createRosterRoutes } from './routes/roster.ts'
@@ -165,6 +166,8 @@ export function createApp(options: AppOptions = {}) {
               .use(createRosterRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               // the week planner: reads are derived, writes are personal and week-scoped
               .use(createPlannerRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
+              // champion pools: everyone reads the roster's columns, only the owner writes
+              .use(createPoolRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
               .use(
                 createMemberRoutes(db, (scoped) => forTeam(db, scoped), authPlugin, requestLogger),
