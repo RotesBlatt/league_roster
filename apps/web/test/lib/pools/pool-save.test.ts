@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ApiError } from '../../../src/api/result.ts'
-import { isDirty, saveFailure } from '../../../src/lib/pools/pool-save.ts'
+import { saveFailure } from '../../../src/lib/pools/pool-save.ts'
 
 /**
  * What the page decides around a save (champion-pools.md §5).
@@ -9,26 +9,6 @@ import { isDirty, saveFailure } from '../../../src/lib/pools/pool-save.ts'
  * and lost" and "somebody saved from another tab, here is the current version". That decision is a
  * pure function so it cannot rot inside a component, and so the wording is testable.
  */
-
-const lists = (main: number[] = []) => ({ main, situational: [], blind: [] })
-
-describe('isDirty', () => {
-  test('no draft means nothing to save', () => {
-    expect(isDirty(null, lists([1]))).toBe(false)
-  })
-
-  test('an identical draft is not dirty', () => {
-    expect(isDirty(lists([1, 2]), lists([1, 2]))).toBe(false)
-  })
-
-  test('order alone makes it dirty — the order is the information', () => {
-    expect(isDirty(lists([2, 1]), lists([1, 2]))).toBe(true)
-  })
-
-  test('a move between kinds is dirty even with the same champions', () => {
-    expect(isDirty({ main: [], situational: [1], blind: [] }, lists([1]))).toBe(true)
-  })
-})
 
 describe('saveFailure', () => {
   test('a stale version reloads instead of retrying, and says so without blaming the user', () => {

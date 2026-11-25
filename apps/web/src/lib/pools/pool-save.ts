@@ -1,30 +1,13 @@
-import type { PoolLists } from '@lol/shared'
 import { ApiError, messageOf } from '../../api/result.ts'
 
 /**
- * The page's decisions around saving a pool (champion-pools.md §5).
+ * What to tell the user when an **autosaved** pool write is refused (champion-pools.md §5).
  *
- * Kept out of the component for the reason the whole feature exists: a stale write must never look
- * like a successful one. "Somebody saved from another tab — here is the current version" is a
+ * Kept out of the component for the reason the whole feature exists: a failed write must never look
+ * like a successful one. "Somebody changed this in another tab — showing the latest version" is a
  * different sentence from "saving failed", and it is the one that decides whether the draft is
- * discarded (reload) or kept so the user can try again.
+ * dropped (reload) or kept so the user can retry by changing something.
  */
-
-const sameList = (a: number[], b: number[]) =>
-  a.length === b.length && a.every((id, index) => id === b[index])
-
-/**
- * Is there anything to send? `null` means "not editing". Order counts, and so does a champion that
- * moved between kinds — both are exactly the changes this endpoint exists for.
- */
-export function isDirty(draft: PoolLists | null, saved: PoolLists): boolean {
-  if (draft === null) return false
-  return (
-    !sameList(draft.main, saved.main) ||
-    !sameList(draft.situational, saved.situational) ||
-    !sameList(draft.blind, saved.blind)
-  )
-}
 
 export type SaveFailure = {
   message: string

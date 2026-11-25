@@ -182,7 +182,7 @@ describe('editing your own column', () => {
     })
     fireEvent.click(await screen.findByText('Ahri'))
 
-    fireEvent.click(screen.getByText('Save pool'))
+    // autosave: no Save button, the pick is written as it is made
     await waitFor(() =>
       expect(apiState.sentPool).toEqual({
         version: 3,
@@ -219,15 +219,12 @@ describe('editing your own column', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   })
 
-  test('a menu move becomes one whole-pool write with the version that was read', async () => {
+  test('a menu move is written immediately, with the version that was read', async () => {
     renderPage()
 
     await waitFor(() => expect(sortableChips()).toHaveLength(2))
     openChipMenu()
     fireEvent.click(await screen.findByText('Move down'))
-
-    expect(screen.getByText('unsaved changes')).toBeTruthy()
-    fireEvent.click(screen.getByText('Save pool'))
 
     await waitFor(() =>
       expect(apiState.sentPool).toEqual({
@@ -235,7 +232,6 @@ describe('editing your own column', () => {
         lists: { main: [2, 1], situational: [], blind: [] },
       }),
     )
-    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ message: 'Pool saved' }))
   })
 
   test('a stale version drops the draft instead of overwriting', async () => {
@@ -248,10 +244,10 @@ describe('editing your own column', () => {
     renderPage()
 
     await waitFor(() => expect(sortableChips()).toHaveLength(2))
-    openChipMenu()
-    fireEvent.click(await screen.findByText('Move down'))
     const readsBefore = apiState.calls.poolsGet
-    fireEvent.click(screen.getByText('Save pool'))
+    openChipMenu()
+    // the move autosaves, so the 409 arrives without anyone pressing anything
+    fireEvent.click(await screen.findByText('Move down'))
 
     // "showing the latest version" has to be true: the stored pool is read again, not just assumed
     await waitFor(() => expect(apiState.calls.poolsGet).toBeGreaterThan(readsBefore))
@@ -266,8 +262,7 @@ describe('editing your own column', () => {
       ),
     )
 
-    // and the draft is gone, so the edit bar is gone and the chips are back in the stored order
-    expect(screen.queryByText('unsaved changes')).toBeNull()
+    // and the draft is gone, so the chips are back in the stored order
     // the chip's accessible name is the champion (`role="img"`); the first two must be the stored
     // order again. `getAllByTitle` would double-count: the placeholder icon carries a title too.
     const order = screen

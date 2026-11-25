@@ -1,40 +1,30 @@
 import type { PoolPersonDto } from '@lol/api/schema-types'
 import { canEditPool, type PoolKind, type PoolLists } from '@lol/shared'
 import { notifications } from '@mantine/notifications'
-import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { POOLS_KEY, useSavePool } from '../../api/hooks.ts'
 import { addChampion } from './pool-edit.ts'
-import { isDirty, saveFailure } from './pool-save.ts'
+import { saveFailure } from './pool-save.ts'
+import { createSaveQueue, type SaveQueue } from './save-queue.ts'
 
 /**
- * The draft/save state of **one** editable pool column (champion-pools.md §5, §7).
+ * The editable state of **one** pool column (champion-pools.md §5, §7) — and its autosave.
  *
- * It lives here rather than in `PoolsPage` because it is four decisions, and a page that owns them
- * also owns every branch of them:
- *
- * - **who may edit** — the shared `canEditPool`, the same rule the API enforces;
- * - **what a draft is** — local edits until one `Save pool` sends the whole pool with the version
- *   this page read;
- * - **when a draft dies** — a new server version (ours or somebody else's) makes it stale;
- * - **what a refusal means** — `409` drops the draft *and* refetches so "showing the latest version"
- *   is true; other failures keep it so the user can retry.
- *
- * Behaviour lives in the pure `pool-edit` / `pool-save` modules; this is the wiring that holds them.
+ * There is no Save button: every gesture is a complete statement about the pool, so it is written
+ * immediately. The ordering guarantees (one request at a time, coalesced follow-ups, the version the
+ * previous write returned) live in `save-queue.ts`, which is unit-tested; this hook only wires that
+ * queue to React Query and decides *when the local draft is replaced by the server's pool*.
  */
 export type PoolEditor = {
   /** Owner and loaded: the column may grow handles. */
   editing: boolean
   /** What the column renders: the draft, else what the server said, else `null` while loading. */
   shown: PoolLists | null
-  /** A draft exists at all — the difference between "not editing" and "editing, nothing changed". */
-  hasDraft: boolean
-  dirty: boolean
+  /** A write is in flight — the page says "saving…" instead of pretending it is instant. */
   saving: boolean
   onChange: (lists: PoolLists) => void
   onPick: (kind: PoolKind, championId: number) => void
-  onSave: () => void
-  onDiscard: () => void
 }
 
 export function usePoolEditor(
@@ -45,57 +35,62 @@ export function usePoolEditor(
   const queryClient = useQueryClient()
 
   const [draft, setDraft] = useState<PoolLists | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  /**
+   * The queue outlives renders, so its callbacks read the newest render's services through this ref
+   * rather than capturing the first one. `setSaving` is stable and can be handed over directly.
+   */
+  const services = useRef<{ save: typeof save; queryClient: QueryClient }>({ save, queryClient })
+  services.current = { save, queryClient }
+
+  const queue = useRef<SaveQueue | null>(null)
+  if (queue.current === null) {
+    queue.current = createSaveQueue({
+      version: 0,
+      send: (input) => services.current.save.mutateAsync(input),
+      onSavingChange: setSaving,
+      onFailure: (error) => {
+        const failure = saveFailure(error)
+        notifications.show({ message: failure.message, color: failure.color })
+        // "showing the latest version" has to be true: the cache still holds the version we read
+        if (failure.reload) {
+          void services.current.queryClient.invalidateQueries({ queryKey: POOLS_KEY })
+        }
+        // a refusal means the local draft is a lie either way — somebody else wrote first, or a
+        // rule the page should have caught. Drop it and let the read show what is stored.
+        setDraft(null)
+      },
+    })
+  }
 
   const editing = mine !== null && canEditPool(viewer, mine.userId)
   const shown = draft ?? mine?.lists ?? null
-  const dirty = mine !== null && isDirty(draft, mine.lists)
-  const version = mine?.version ?? null
+  const serverVersion = mine?.version ?? null
 
-  // a new server version — our save, or somebody else's — makes the draft stale by definition
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `version` is the trigger, not a read
+  // the server's version is the floor for the next write (the queue ignores it mid-flight)
   useEffect(() => {
-    setDraft(null)
-  }, [version])
+    if (serverVersion !== null) queue.current?.setVersion(serverVersion)
+  }, [serverVersion])
 
-  const onSave = () => {
-    if (!mine || !draft) return
+  // a read while nothing is being written is the truth: adopt it. While a write is in flight the
+  // draft is newer than the cache and must not be replaced by what that write is about to change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the version is the trigger, not a read
+  useEffect(() => {
+    if (queue.current?.idle()) setDraft(null)
+  }, [serverVersion])
 
-    save.mutate(
-      { version: mine.version, lists: draft },
-      {
-        onSuccess: () => {
-          setDraft(null)
-          notifications.show({ message: 'Pool saved', color: 'green' })
-        },
-        onError: (error) => {
-          const failure = saveFailure(error)
-          if (failure.reload) {
-            // the stored pool won: drop the draft *and* refetch, because the cache still holds the
-            // version we read — dropping alone would show the stale read as "the latest version"
-            setDraft(null)
-            void queryClient.invalidateQueries({ queryKey: POOLS_KEY })
-          }
-          notifications.show({ message: failure.message, color: failure.color })
-        },
-      },
-    )
+  const onChange = (lists: PoolLists) => {
+    // optimistic: the chips move now, the write follows. A failure drops the draft above.
+    setDraft(lists)
+    queue.current?.push(lists)
   }
 
   /** The `+` in a band opens its own popover; this only records the pick in the draft. */
   const onPick = (kind: PoolKind, championId: number) => {
     if (!shown) return
-    setDraft(addChampion(shown, kind, championId))
+    onChange(addChampion(shown, kind, championId))
   }
 
-  return {
-    editing,
-    shown,
-    hasDraft: draft !== null,
-    dirty,
-    saving: save.isPending,
-    onChange: setDraft,
-    onPick,
-    onSave,
-    onDiscard: () => setDraft(null),
-  }
+  return { editing, shown, saving, onChange, onPick }
 }

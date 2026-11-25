@@ -145,6 +145,21 @@ else's pool" is structural rather than a check a handler could forget. That also
   otherwise silently overwrite a rearrangement. A failed write the user cannot see is the worst
   failure mode for this feature: nothing errors, the pool just reverts.
 
+### Autosave — there is no Save button
+
+Every gesture is a complete statement about the pool (add, remove, reorder, throw away), so the page
+writes it **immediately**. The one thing that must not happen is two writes racing each other: a
+reorder sent at version 7 is still in flight while the next gesture is made, and two parallel `PUT`s
+would turn the second into a `409` against our own first write.
+
+So the client keeps **one queued payload** (`usePoolEditor`): while a request is running, newer edits
+*replace* the queue instead of stacking (nobody wants the intermediate states), and the next request
+is sent with the version the previous one returned. A `409` therefore means what it always meant —
+*somebody else* wrote first — and it drops the draft and refetches. The header says "saving…" while a
+write is in flight and nothing else; a success needs no toast, because the pool on screen **is** the
+confirmation. There is no draft-versus-saved distinction left to explain, and no way to leave the
+page with unsaved work.
+
 ### The unique-constraint trap
 
 `UNIQUE (ownerId, kind, position)` plus naive row-by-row `UPDATE … SET position = …` hits a transient

@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { PoolPersonDto } from '@lol/api/schema-types'
-import { Button, Group, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import { Group, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useMe, usePools } from '../api/hooks.ts'
@@ -75,11 +75,19 @@ export function PoolsPage() {
     <Stack gap="md" maw="90rem" mx="auto" w="100%">
       <Group justify="space-between" align="baseline">
         <Title order={2}>Champion pools</Title>
-        {completion.text ? (
-          <Text size="sm" c="dimmed">
-            {completion.text}
-          </Text>
-        ) : null}
+        <Group gap="sm">
+          {/* autosave: the only thing left to say is that a write is in flight */}
+          {editor.saving ? (
+            <Text size="sm" c="dimmed">
+              saving…
+            </Text>
+          ) : null}
+          {completion.text ? (
+            <Text size="sm" c="dimmed">
+              {completion.text}
+            </Text>
+          ) : null}
+        </Group>
       </Group>
 
       {pools.isPending ? <Loader size="sm" /> : null}
@@ -144,25 +152,6 @@ export function PoolsPage() {
 
           <TrashZone visible={dragging && editor.editing} />
         </DndContext>
-      ) : null}
-
-      {editor.editing && editor.hasDraft ? (
-        <Group justify="flex-end" gap="xs">
-          <Text size="xs" c="dimmed">
-            unsaved changes
-          </Text>
-          <Button variant="default" size="xs" onClick={editor.onDiscard} disabled={!editor.dirty}>
-            Discard
-          </Button>
-          <Button
-            size="xs"
-            onClick={editor.onSave}
-            loading={editor.saving}
-            disabled={!editor.dirty}
-          >
-            Save pool
-          </Button>
-        </Group>
       ) : null}
     </Stack>
   )
