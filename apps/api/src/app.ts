@@ -17,7 +17,7 @@ import { createInviteRoutes } from './routes/invites.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlannerRoutes } from './routes/planner.ts'
-import { createPoolRoutes } from './routes/pools.ts'
+import { createMyPoolRoutes, createPoolRoutes } from './routes/pools.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
 import { createRosterRoutes } from './routes/roster.ts'
@@ -146,6 +146,8 @@ export function createApp(options: AppOptions = {}) {
           .use(createMeRoutes(authPlugin))
           // global: a person's own profile exists before (and without) any team
           .use(createProfileRoutes(db, authPlugin, requestLogger))
+          // global: a pool belongs to the person, so the write names no team and no owner
+          .use(createMyPoolRoutes(db, authPlugin))
           // global: the accounts belong to the person, not to a team
           .use(createRiotAccountRoutes(db, riot, riotThrottle, authPlugin, requestLogger))
           // global: the code identifies the team being joined

@@ -128,14 +128,19 @@ three alphabetically says nothing. So:
 
 ```text
 PUT /api/pools  { version, lists: { main: [championId…], situational: […], blind: […] } }
-→ 200 { version }        |  409 { reason: 'stale' | 'conflict' }
+→ 200 { version }        |  409 { reason: 'stale', version }   |  422 { details: […] }
 ```
+
+The body names **no owner**: the person comes from the session, so "nobody may write somebody
+else's pool" is structural rather than a check a handler could forget. That also removed the 409
+`conflict` reason — the only way to lose a race here is a stale version.
 
 - **Reorder, add, remove and cross-kind moves become one operation.** Drag-and-drop already produces
   "the list after the move"; sending per-item PATCHes invents a sequence of intermediate states that
   nobody wants and that can half-fail.
-- It is **atomic in one transaction**: dedupe → validate → delete-then-insert (or upsert with a
-  deferred unique constraint) → bump `version`.
+- It is **atomic in one transaction**: validate → bump `version` under an optimistic `WHERE` →
+  delete-then-insert. A duplicate is *rejected*, never silently deduped: a client that sent it has a
+  bug, and dropping one of the two would hide it.
 - **`version`/`updatedAt` is not optional.** Two tabs, or a phone left open from yesterday, will
   otherwise silently overwrite a rearrangement. A failed write the user cannot see is the worst
   failure mode for this feature: nothing errors, the pool just reverts.
@@ -214,12 +219,12 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
 | Action | Guard |
 | --- | --- |
 | read every pool of the team's roster | `member` |
-| write your own three lists | `member` + `ownerId === me` |
-| write someone else's | **nobody** — not the captain either |
+| write your own three lists | `member` (or even team-less: the pool is personal) |
+| write someone else's | **structurally impossible** — `PUT /api/pools` has no owner in the path or the body |
 
-The ownership check is a rule, so it is a plain function, not an `if` in a handler:
-`canEditPool(me, ownerId)` in `packages/shared`, unit-tested — same shape as `canEditAvailability` and
-`claimInvite`.
+Because the write cannot name another owner, the guard is the address. `canEditPool(me, ownerId)`
+lives in `packages/shared` anyway, unit-tested, because the **page** has to answer "may I edit this
+column?" before the 403 would — same shape as `canEditAvailability` and `claimInvite`.
 
 **Note the deliberate asymmetry** with `player-profiles.md`: the captain owns the roster (note, active,
 team role), the player owns their profile *and* their pool. A captain who "fixes" a teammate's pool has
@@ -272,7 +277,7 @@ changed a statement of intent, which is not a typo to be corrected.
 | --- | --- |
 | unit (`packages/shared`) | `canEditPool` (own / other / captain-of-other); `moveEntry(list, from, to)` incl. same-index and out-of-range; `validatePoolWrite` (duplicate within a kind → rejected, duplicate across kinds → allowed, main↔situational conflict → rejected, cap 15 exceeded, unknown championId rejected only for non-integers); `partitionByPool` for the stats basis |
 | unit (`apps/api`) | the read model: pools assembled per roster row in `ROLES` order, subs last; a player with no rows is present as empty with `version: 0`; `updatedAt` survives a clear |
-| integration | own write 200, someone else's 403, anonymous 401; a reorder in both directions does **not** hit the deferred unique constraint (§5); a stale `version` → 409 and **nothing is written**; a `PUT` with an empty list clears that kind and only that kind; a cross-kind move leaves one row |
+| integration | own write 200, anonymous 401, a forged `ownerId` in the body writes the caller's pool and never the victim's; a reorder in both directions does **not** hit the deferred unique constraint (§5); a stale `version` → 409 and **nothing is written**; a `PUT` with an empty list clears that kind and only that kind; a cross-kind move leaves one row |
 | web | drag reorder persists and survives a reload; keyboard up/down does the same thing; other columns render without drag handles; the three bands stay labelled and in order; a band wraps rather than overflowing its column; empty state and the completion line; unknown champion renders as a placeholder, not a crash |
 
 The end-to-end test worth writing first: **two players, one pool each, one of them reorders and the

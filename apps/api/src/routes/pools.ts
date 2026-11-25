@@ -1,5 +1,6 @@
-import { inArray } from 'drizzle-orm'
-import { Elysia } from 'elysia'
+import { POOL_KINDS, validatePoolWrite } from '@lol/shared'
+import { eq, inArray, sql } from 'drizzle-orm'
+import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
 import { poolEntries, pools, profile, rosterEntries, user } from '../db/schema.ts'
 import type { PoolsDto } from '../db/schema.types.ts'
@@ -69,3 +70,92 @@ export function createPoolRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlugi
 }
 
 export type PoolRoutes = ReturnType<typeof createPoolRoutes>
+
+/** The whole pool, every write: a partial list would invent intermediate states (§5). */
+const writeBody = t.Object({
+  /** Optimistic concurrency: the version the client last read. `0` = never saved. */
+  version: t.Integer({ minimum: 0 }),
+  lists: t.Object({
+    main: t.Array(t.Integer()),
+    situational: t.Array(t.Integer()),
+    blind: t.Array(t.Integer()),
+  }),
+})
+
+/**
+ * `PUT /api/pools` — write **your own** pool. Global, not team-scoped, like the profile: the pool
+ * belongs to a person, and a player in two teams has one pool (§3).
+ *
+ * **The address is the guard.** There is deliberately no variant that names another owner, so
+ * "nobody may write someone else's pool" (§8) is structural rather than a check that can be
+ * forgotten. The shared `canEditPool` is the same rule expressed for the page, which has to decide
+ * *which column* grows handles without asking the server.
+ *
+ * The version check and the bump are one atomic upsert: a stale tab gets `409` from the database's
+ * own answer instead of racing a read-then-write. Nothing is deleted until the header has moved, so
+ * a rejected write leaves the stored pool exactly as it was.
+ */
+export function createMyPoolRoutes(db: Db, authPlugin: AuthPlugin) {
+  return new Elysia().use(authPlugin).put(
+    '/pools',
+    async ({ body, me, status }) => {
+      // the rules live in `@lol/shared` so the page and the API cannot disagree about the cap,
+      // the duplicates, or main↔situational
+      const problems = validatePoolWrite(body.lists)
+      if (problems.length > 0) {
+        return status(422, {
+          message: 'Invalid pool',
+          details: problems.map((problem) => ({
+            path: problem.field,
+            message: problem.message,
+          })),
+        })
+      }
+
+      const now = new Date()
+      const rows = POOL_KINDS.flatMap((kind) =>
+        body.lists[kind].map((championId, position) => ({
+          id: crypto.randomUUID(),
+          ownerId: me.id,
+          kind,
+          championId,
+          position,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      )
+
+      return db.transaction(async (tx) => {
+        const [header] = await tx
+          .insert(pools)
+          .values({ ownerId: me.id, version: 1, updatedAt: now })
+          .onConflictDoUpdate({
+            target: pools.ownerId,
+            set: { version: sql`${pools.version} + 1`, updatedAt: now },
+            // the optimistic check, in the same statement: mismatched version -> no row returned
+            setWhere: eq(pools.version, body.version),
+          })
+          .returning({ version: pools.version })
+
+        if (!header) {
+          const [current] = await tx
+            .select({ version: pools.version })
+            .from(pools)
+            .where(eq(pools.ownerId, me.id))
+            .limit(1)
+
+          return status(409, { reason: 'stale' as const, version: current?.version ?? 0 })
+        }
+
+        // delete-then-insert: one statement per table, so no intermediate position can collide
+        await tx.delete(poolEntries).where(eq(poolEntries.ownerId, me.id))
+        if (rows.length > 0) await tx.insert(poolEntries).values(rows)
+
+        return { version: header.version }
+      })
+    },
+    { auth: true, body: writeBody },
+  )
+}
+
+export type MyPoolRoutes = ReturnType<typeof createMyPoolRoutes>
