@@ -6,7 +6,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router'
 import { POOLS_KEY, useMe, usePools, useSavePool } from '../api/hooks.ts'
-import { ChampionPicker } from '../components/pools/ChampionPicker.tsx'
 import { PoolColumn } from '../components/pools/PoolColumn.tsx'
 import { addChampion } from '../lib/pools/pool-edit.ts'
 import { isDirty, saveFailure } from '../lib/pools/pool-save.ts'
@@ -36,7 +35,6 @@ export function PoolsPage() {
   const queryClient = useQueryClient()
 
   const [draft, setDraft] = useState<PoolLists | null>(null)
-  const [picking, setPicking] = useState<PoolKind | null>(null)
 
   const people = pools.data?.people ?? []
   const completion = poolCompletion(people)
@@ -79,10 +77,10 @@ export function PoolsPage() {
     )
   }
 
-  const onPick = (championId: number) => {
-    if (!picking || !shown) return
-    setDraft(addChampion(shown, picking, championId))
-    setPicking(null)
+  /** The `+` in a band opens its own popover; this only records the pick in the draft. */
+  const onPick = (kind: PoolKind, championId: number) => {
+    if (!shown) return
+    setDraft(addChampion(shown, kind, championId))
   }
 
   return (
@@ -125,7 +123,7 @@ export function PoolsPage() {
                 person={person}
                 isMine={isMine}
                 now={now}
-                {...(editing ? { lists: shown, onChange: setDraft, onAdd: setPicking } : {})}
+                {...(editing ? { lists: shown, onChange: setDraft, onPick } : {})}
               />
             )
           })}
@@ -145,14 +143,6 @@ export function PoolsPage() {
           </Button>
         </Group>
       ) : null}
-
-      <ChampionPicker
-        opened={picking !== null}
-        kind={picking}
-        already={picking && shown ? shown[picking] : []}
-        onPick={onPick}
-        onClose={() => setPicking(null)}
-      />
     </Stack>
   )
 }

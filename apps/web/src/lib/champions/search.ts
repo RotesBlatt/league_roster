@@ -25,13 +25,17 @@ export function normalizeChampionQuery(value: string): string {
 
 /**
  * Champions matching `query`, best first: a prefix match on the name outranks a match in the
- * middle, then alphabetical. An empty query returns the cache by name (bounded by `limit`) so the
- * picker shows something to click instead of a blank box.
+ * middle, then alphabetical.
+ *
+ * An empty query returns the **whole cache** by name — not the first N. A picker that opens on
+ * forty of the ~170 champions looks like the rest are missing, and "where is my champion" is
+ * exactly the question the search field is meant to answer. The list scrolls; it does not truncate.
+ * `limit` exists for callers that do want a bound (and for the test).
  */
 export function searchChampions(
   champions: readonly ChampionLabelDto[] | undefined,
   query: string,
-  limit = 40,
+  limit = Number.POSITIVE_INFINITY,
 ): ChampionLabelDto[] {
   const all = champions ?? []
   const needle = normalizeChampionQuery(query)

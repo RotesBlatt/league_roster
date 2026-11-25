@@ -81,7 +81,15 @@ describe('searchChampions', () => {
     )
   })
 
-  test('the limit is honoured', () => {
+  test('the initial list is the whole cache, not the first page of it', () => {
+    // the picker opens on every champion: a truncated list reads as "the others are missing"
+    const many = Array.from({ length: 50 }, (_, index) =>
+      champion(index + 1, `Champion ${index + 1}`, `champion${index + 1}`),
+    )
+    expect(searchChampions(many, '')).toHaveLength(50)
+  })
+
+  test('an explicit limit is still honoured, for callers that want one', () => {
     expect(searchChampions(ALL, '', 3)).toHaveLength(3)
   })
 })

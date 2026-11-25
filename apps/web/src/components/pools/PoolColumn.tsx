@@ -7,19 +7,13 @@ import {
   ROLE_LABELS,
 } from '@lol/shared'
 import { ActionIcon, Badge, Group, Menu, Paper, Stack, Text } from '@mantine/core'
-import {
-  IconArrowDown,
-  IconArrowUp,
-  IconEye,
-  IconPlus,
-  IconTransfer,
-  IconTrash,
-} from '@tabler/icons-react'
+import { IconArrowDown, IconArrowUp, IconEye, IconTransfer, IconTrash } from '@tabler/icons-react'
 import { useChampions } from '../../api/hooks.ts'
 import { championLabelFor, unknownChampionName } from '../../lib/champions/labels.ts'
 import { moveAcross, moveWithin, removeChampion } from '../../lib/pools/pool-edit.ts'
 import { poolAgeText } from '../../lib/pools/pool-view.ts'
 import { ChampionIcon } from '../champions/ChampionIcon.tsx'
+import { ChampionPicker } from './ChampionPicker.tsx'
 
 /**
  * One person's column on the pool page (champion-pools.md §7): header, then the three bands.
@@ -41,7 +35,8 @@ function ChampionChip({ championId }: { championId: number }) {
 
   return (
     <Group gap={4} wrap="nowrap" title={label?.name ?? unknownChampionName(championId)}>
-      <ChampionIcon championId={championId} size={18} />
+      {/* big enough to recognise: this page is read at a glance during champ select */}
+      <ChampionIcon championId={championId} size={24} />
       <Text size="xs">{label?.name ?? unknownChampionName(championId)}</Text>
     </Group>
   )
@@ -124,13 +119,14 @@ function PoolBand({
   kind,
   lists,
   onChange,
-  onAdd,
+  onPick,
 }: {
   kind: PoolKind
   lists: PoolLists
   /** Absent means read-only. */
   onChange?: (lists: PoolLists) => void
-  onAdd?: (kind: PoolKind) => void
+  /** Absent means read-only too: the `+` and its popover belong to the editor. */
+  onPick?: (championId: number) => void
 }) {
   const championIds = lists[kind]
 
@@ -169,16 +165,7 @@ function PoolBand({
           ),
         )}
 
-        {onAdd ? (
-          <ActionIcon
-            variant="light"
-            size="sm"
-            aria-label={`Add a champion to ${POOL_KIND_LABELS[kind]}`}
-            onClick={() => onAdd(kind)}
-          >
-            <IconPlus size={12} />
-          </ActionIcon>
-        ) : null}
+        {onPick ? <ChampionPicker kind={kind} already={championIds} onPick={onPick} /> : null}
       </Group>
     </Stack>
   )
@@ -190,7 +177,7 @@ export function PoolColumn({
   now,
   lists,
   onChange,
-  onAdd,
+  onPick,
 }: {
   person: PoolPersonDto
   isMine: boolean
@@ -200,7 +187,7 @@ export function PoolColumn({
   lists?: PoolLists
   /** Both present = this column is editable. The page decides via `canEditPool`. */
   onChange?: (lists: PoolLists) => void
-  onAdd?: (kind: PoolKind) => void
+  onPick?: (kind: PoolKind, championId: number) => void
 }) {
   const age = poolAgeText(person.updatedAt, now)
   const shown = lists ?? person.lists
@@ -231,7 +218,7 @@ export function PoolColumn({
             kind={kind}
             lists={shown}
             {...(onChange ? { onChange } : {})}
-            {...(onAdd ? { onAdd } : {})}
+            {...(onPick ? { onPick: (championId: number) => onPick(kind, championId) } : {})}
           />
         ))}
 

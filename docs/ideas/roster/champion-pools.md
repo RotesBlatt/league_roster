@@ -198,7 +198,15 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
 - **One column is yours**: only that column grows drag handles and an `+` chip; the other four are
   plain reads (§8). The affordance matches the guard before any request is sent.
 - **Cells**: icon + name from the champion cache (`GET /api/champions`, already shipped). Unknown ids
-  render as the placeholder `ChampionLabel`/`ChampionIcon` do.
+  render as the placeholder `ChampionLabel`/`ChampionIcon` do. Chips carry a **24px** icon: this
+  page is read at a glance during champ select, and a smaller icon is a colour, not a champion.
+- **Adding is a popover, never a modal.** The `+` at the end of a band opens a one-column,
+  scrolling list anchored next to it, with a search field on top and a **32px** icon per row. It
+  opens on **every** champion, not a page of them: a truncated initial list reads as "the rest are
+  missing", and the search field exists to narrow the list, not to reveal it. A
+  modal takes the page away and covers the pool being edited — exactly what §7 says not to do — and
+  three columns of small icons were the reason the champion was hard to recognise in the first
+  place. Options already in that list are shown disabled, not hidden.
 - **This page is the best smoke test for that cache**: it is nothing but names and icons, so a
   regression in the dump integration is visible at a glance instead of buried in a stats table.
 - **Reordering**: drag-and-drop for the pointer, **up/down buttons for the keyboard**. Both produce

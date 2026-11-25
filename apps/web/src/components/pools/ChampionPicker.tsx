@@ -1,92 +1,116 @@
 import type { ChampionLabelDto } from '@lol/api/schema-types'
 import { POOL_KIND_LABELS, type PoolKind } from '@lol/shared'
-import { Button, Modal, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
+import { ActionIcon, Button, Popover, ScrollArea, Stack, Text, TextInput } from '@mantine/core'
+import { IconPlus } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useChampions } from '../../api/hooks.ts'
 import { searchChampions } from '../../lib/champions/search.ts'
 import { ChampionIcon } from '../champions/ChampionIcon.tsx'
 
 /**
- * The "add a champion" picker (champion-pools.md §7).
+ * The "add a champion" picker (champion-pools.md §7) — a **popover list**, not a modal.
  *
- * A modal because it is the one place the page needs focus: a column is a strip of chips, and a
- * dropdown over five narrow columns would cover the pool it is editing. Searching is delegated to
- * `searchChampions`, so punctuation in `Kai'Sa` is not the user's problem.
+ * A modal took the page away and covered the pool it was editing, which is wrong for a control that
+ * adds one champion to one band. This sits next to the `+` that opened it, scrolls instead of
+ * paging, and is **one column**: the width a list needs, so the icons can be big enough to recognise
+ * — a 20px icon in a three-column grid is a colour, not a champion.
  *
- * The cache is fetched by id only — the modal never stores a name, and an unknown champion id is
- * simply not offered rather than rendered wrong (the cache is the only source of labels).
+ * The search is delegated to `searchChampions`, so punctuation in `Kai'Sa` is not the user's
+ * problem. Labels come from the cache by id; nothing here stores a name.
  */
 export function ChampionPicker({
-  opened,
   kind,
   already,
   onPick,
-  onClose,
 }: {
-  opened: boolean
-  /** Which list the champion is going into — the title says so, the page does the rest. */
-  kind: PoolKind | null
-  /** Ids already in the target list: shown but not clickable, so the cap is never hit by accident. */
+  /** The band this `+` belongs to — the title says so, the page does the rest. */
+  kind: PoolKind
+  /** Ids already in that list: shown but not clickable, so the cap is never hit by accident. */
   already: readonly number[]
   onPick: (championId: number) => void
-  onClose: () => void
 }) {
   const { data } = useChampions()
+  const [opened, setOpened] = useState(false)
   const [query, setQuery] = useState('')
-  const results = searchChampions(data?.champions, query, 60)
+  // the whole cache on open: a truncated initial list reads as "the other champions are missing"
+  const results = searchChampions(data?.champions, query)
 
-  const close = () => {
-    setQuery('')
-    onClose()
+  const change = (next: boolean) => {
+    setOpened(next)
+    // a closed popover must not remember yesterday's search
+    if (!next) setQuery('')
   }
 
   return (
-    <Modal
+    <Popover
       opened={opened}
-      onClose={close}
-      size="lg"
-      title={kind ? `Add to ${POOL_KIND_LABELS[kind]}` : 'Add champion'}
+      onChange={change}
+      position="bottom-start"
+      withinPortal
+      shadow="md"
+      width={260}
+      trapFocus
     >
-      <Stack gap="sm">
-        <TextInput
-          autoFocus
-          placeholder="Search a champion…"
-          value={query}
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
+      <Popover.Target>
+        <ActionIcon
+          variant="light"
+          size="sm"
+          aria-label={`Add a champion to ${POOL_KIND_LABELS[kind]}`}
+          onClick={() => change(!opened)}
+        >
+          <IconPlus size={12} />
+        </ActionIcon>
+      </Popover.Target>
 
-        {data === undefined ? (
-          <Text size="sm" c="dimmed">
-            Loading champions…
-          </Text>
-        ) : null}
+      <Popover.Dropdown p="xs">
+        <Stack gap="xs">
+          <TextInput
+            size="xs"
+            placeholder="Search a champion…"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            data-autofocus
+          />
 
-        {data !== undefined && results.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            No champion matches “{query}”.
-          </Text>
-        ) : null}
+          {data === undefined ? (
+            <Text size="xs" c="dimmed">
+              Loading champions…
+            </Text>
+          ) : null}
 
-        <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
-          {results.map((champion: ChampionLabelDto) => {
-            const taken = already.includes(champion.championId)
-            return (
-              <Button
-                key={champion.championId}
-                variant="subtle"
-                size="xs"
-                justify="flex-start"
-                leftSection={<ChampionIcon championId={champion.championId} size={20} />}
-                disabled={taken}
-                title={taken ? 'Already in this list' : undefined}
-                onClick={() => onPick(champion.championId)}
-              >
-                {champion.name}
-              </Button>
-            )
-          })}
-        </SimpleGrid>
-      </Stack>
-    </Modal>
+          {data !== undefined && results.length === 0 ? (
+            <Text size="xs" c="dimmed">
+              No champion matches “{query}”.
+            </Text>
+          ) : null}
+
+          <ScrollArea.Autosize mah={320} type="auto">
+            <Stack gap={2}>
+              {results.map((champion: ChampionLabelDto) => {
+                const taken = already.includes(champion.championId)
+                return (
+                  <Button
+                    key={champion.championId}
+                    variant="subtle"
+                    size="sm"
+                    justify="flex-start"
+                    color="gray"
+                    leftSection={<ChampionIcon championId={champion.championId} size={32} />}
+                    disabled={taken}
+                    title={taken ? 'Already in this list' : undefined}
+                    onClick={() => {
+                      onPick(champion.championId)
+                      change(false)
+                    }}
+                  >
+                    {champion.name}
+                  </Button>
+                )
+              })}
+            </Stack>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   )
 }

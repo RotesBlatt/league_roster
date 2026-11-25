@@ -109,6 +109,48 @@ describe('editing your own column', () => {
     expect(screen.getAllByLabelText('Edit champion')).toHaveLength(2)
   })
 
+  test('the + opens a one-column popover list that searches, and the pick lands in the draft', async () => {
+    apiState.champions = {
+      data: {
+        patch: '16.23.1',
+        previousPatch: null,
+        patchPublishedAt: null,
+        fetchedAt: null,
+        state: 'current',
+        champions: [
+          {
+            championId: 103,
+            name: 'Ahri',
+            slug: 'ahri',
+            iconUrl: 'https://cdn/103.png',
+            positions: [],
+            roles: [],
+          },
+        ],
+      },
+      error: null,
+      status: 200,
+    }
+
+    renderPage()
+
+    fireEvent.click((await screen.findAllByLabelText('Add a champion to Main'))[0]!)
+    // a single column list with a search field, not a modal covering the page
+    expect(await screen.findByPlaceholderText('Search a champion…')).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('Search a champion…'), {
+      target: { value: 'ahri' },
+    })
+    fireEvent.click(await screen.findByText('Ahri'))
+
+    fireEvent.click(screen.getByText('Save pool'))
+    await waitFor(() =>
+      expect(apiState.sentPool).toEqual({
+        version: 3,
+        lists: { main: [1, 2, 103], situational: [], blind: [] },
+      }),
+    )
+  })
+
   test('a menu move becomes one whole-pool write with the version that was read', async () => {
     renderPage()
 
