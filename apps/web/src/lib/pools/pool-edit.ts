@@ -79,3 +79,24 @@ export function moveAcross(
   if (!isPoolSection(to)) return addChampion(lists, to, championId)
   return addChampion(removeChampion(lists, from, championId), to, championId)
 }
+
+/**
+ * `moveAcross`, but landing at `index` instead of at the end — what a drop **on a chip** means.
+ *
+ * Same asymmetry as the menu (§6): entering a pool section relocates the champion, entering `blind`
+ * adds a second opinion and leaves the pool section alone. An out-of-range index puts it last rather
+ * than dropping the champion (`moveWithin` is a no-op out of range, so the append survives).
+ */
+export function moveAcrossAt(
+  lists: PoolLists,
+  from: PoolKind,
+  championId: number,
+  to: PoolKind,
+  index: number,
+): PoolLists {
+  if (from === to) return moveWithin(lists, to, lists[to].indexOf(championId), index)
+
+  const moved = moveAcross(lists, from, championId, to)
+  const landed = moved[to].indexOf(championId)
+  return moveWithin(moved, to, landed, index)
+}

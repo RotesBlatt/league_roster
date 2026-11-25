@@ -231,6 +231,12 @@ describe('editing your own column', () => {
 
     // and the draft is gone, so the edit bar is gone and the chips are back in the stored order
     expect(screen.queryByText('unsaved changes')).toBeNull()
-    expect(screen.getAllByLabelText('Edit champion')[0]?.textContent).toContain('#1')
+    // the chip's accessible name is the champion (`role="img"`); the first two must be the stored
+    // order again. `getAllByTitle` would double-count: the placeholder icon carries a title too.
+    const order = screen
+      .getAllByRole('img', { name: /^Champion #/ })
+      .slice(0, 2)
+      .map((chip) => chip.getAttribute('aria-label'))
+    expect(order).toEqual(['Champion #1', 'Champion #2'])
   })
 })

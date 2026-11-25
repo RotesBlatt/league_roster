@@ -214,11 +214,30 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   exactly what §7 says not to do. Options already in that list are shown disabled, not hidden.
 - **This page is the best smoke test for that cache**: it is nothing but names and icons, so a
   regression in the dump integration is visible at a glance instead of buried in a stats table.
-- **Reordering**: drag-and-drop for the pointer, **up/down buttons for the keyboard**. Both produce
-  the same ordered array and call the same `PUT`; drag-only would make the feature unusable for anyone
-  without a mouse, and the accent-key path is cheap.
+- **The drop target is shown, not guessed.** While dragging, the chip under the pointer grows a line
+  on its left edge — the champion lands *there*, pushing it right — and a band with no chips gets a
+  dashed outline. The dragged chip drops to 35% opacity. Collision is **pointer-first**
+  (`pointerWithin`, with `closestCenter` only as the keyboard fallback): with `closestCenter` the band
+  container often won over the chip under the cursor, which made a drop append instead of landing at
+  the index and left the drag with no feedback at all.
+- **The actions trigger is invisible until you need it.** The dots exist because the chip itself is
+  the drag handle: a pointer-down that starts a drag and a click that opens a menu cannot share one
+  surface reliably, so the menu sits on a separate small target. It fades in on `:hover`/
+  `:focus-within` and is always visible on touch (`@media (hover: none)`), where hover cannot reveal
+  it. If the team prefers no dots at all, right-click on the chip is the alternative — with the
+  caveat that a swallowed post-drag click has to be handled explicitly.
+- **Reordering is drag *and* keyboard**, both producing one ordered array for one `PUT`. Drag uses
+  `@dnd-kit/core` + `@dnd-kit/sortable` (the one dependency this feature added): chips are sortable
+  nodes, each band is also a droppable so an empty band can receive a champion, and the pointer
+  sensor needs 6px of movement so the chip's corner menu stays clickable. The keyboard path is the
+  chip menu's move up/down — a real menu item, not a hover affordance — so the page is usable
+  without a mouse; dnd-kit's keyboard sensor covers the same ground during a drag.
+- **A drag id carries its band** (`chip:<kind>:<championId>`, `band:<kind>`). A champion may sit in
+  `main` *and* `blind` (§6), so a bare champion id would let a drag of the blind copy move the pool
+  copy. What a drop *means* lives in `lib/pools/drag.ts` (pure, tested): on a chip → land at that
+  position, on a band → append, on itself or on nothing → unchanged (and no version bump).
 - **Cross-kind drag** (main → situational) is supported, because it is the same gesture the user
-  already makes; the payload just changes the `kind`.
+  already makes; into `blind` it *adds* a second opinion instead of moving, exactly like the menu.
 - **"Stand: aktualisiert vor 3 Tagen"** per column, from the `pool` header. A pool is an opinion;
   when it was last touched is part of reading it correctly.
 - **Empty is a state, not an error**: a player with no pool shows "noch kein Pool" and a completion

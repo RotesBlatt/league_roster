@@ -1,0 +1,67 @@
+/**
+ * The pool column's interactive bits (champion-pools.md §7): drag affordances and the chip menu.
+ *
+ * In CSS rather than inline because two of the three depend on state the component cannot express
+ * — `:hover`/`:focus-within` for the corner menu, and the pointer being over a drop target — and
+ * because the drop feedback has to be *seen* while the pointer is elsewhere (on the chip being
+ * dragged), which no style prop can do.
+ */
+
+.chip {
+  position: relative;
+  cursor: grab;
+  /* a drag must not scroll the page on touch, and must not select the icon */
+  touch-action: none;
+  user-select: none;
+}
+
+.chip:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.35;
+}
+
+/**
+ * The insertion marker: **a line where the champion will land**, before the chip it was dropped on.
+ * Without it a drag is a guess — the chip under the pointer is not where the champion goes.
+ */
+.dropBefore::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--mantine-primary-color-filled);
+}
+
+/** A band with no chips has no chip to point at, so the band itself is the target. */
+.bandOver {
+  outline: 2px dashed var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+/**
+ * The actions trigger. It is invisible until the chip is hovered, focused or being dragged: the
+ * dots are the answer to "how do I reorder without a mouse", not decoration.
+ */
+.menuTrigger {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.chip:hover .menuTrigger,
+.chip:focus-within .menuTrigger {
+  opacity: 1;
+}
+
+/* touch has no hover: show the trigger on the devices that cannot reveal it otherwise */
+@media (hover: none) {
+  .menuTrigger {
+    opacity: 1;
+  }
+}
