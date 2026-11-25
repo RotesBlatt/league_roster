@@ -62,6 +62,9 @@ const SEED_OVERRIDES: Record<string, unknown> = {
   'riot_account.soloDivision': 'I',
   'riot_account.flexTier': 'GOLD',
   'riot_account.flexDivision': 'I',
+  // pool_entry.kind, added by 0016 (champion-pools.md): same reason as the 0015 vocabularies — the
+  // generic 'seed' literal is not one of the three kinds.
+  'pool_entry.kind': 'main',
 }
 
 /**

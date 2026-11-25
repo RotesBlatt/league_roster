@@ -1,4 +1,4 @@
-import { DIVISIONS, MEMBER_STATUSES, ROLES, TIERS, USER_ROLES } from '@lol/shared'
+import { DIVISIONS, MEMBER_STATUSES, POOL_KINDS, ROLES, TIERS, USER_ROLES } from '@lol/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -440,6 +440,76 @@ export const availabilityTemplates = pgTable(
 )
 
 /**
+ * A player's champion pool — the header row (champion-pools.md §4, §5).
+ *
+ * It exists for `version` and `updatedAt`: both are facts about the *whole* pool, not about one list
+ * or one entry, and "updated 3 days ago" would otherwise be `max(entry.updatedAt)` — which lies
+ * after a clear (an empty pool would look never touched). A player who never saved has no row and
+ * reads as `version: 0` with three empty lists.
+ *
+ * `ownerId` is the **person**, not a roster row and not a team (§3): leaving a team must not delete
+ * a decade of opinions, and one player in two teams has one pool. The cascade is on `user`, so a
+ * deleted account takes its pool with it.
+ */
+export const pools = pgTable('pool', {
+  /** `user.id` — the pool is about the player, and a profile is 1:1 with a user today. */
+  ownerId: text('ownerId')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /**
+   * Optimistic concurrency (§5). Bumped by every successful `PUT`, never by a read: two tabs, or a
+   * phone left open from yesterday, must get a 409 instead of silently overwriting a reorder.
+   */
+  version: integer('version').notNull().default(0),
+  updatedAt: updatedAt.notNull(),
+})
+
+/**
+ * One champion of one list. Three kinds (`main` / `situational` / `blind`) in **one table**, because
+ * all three *are* the same thing: an ordered set of champion ids owned by exactly one person — same
+ * guard, same drag component, same endpoint. Only the label and the caps differ.
+ *
+ * `position` is dense `0..n-1` and is rewritten on every write; the order *is* the information
+ * ("Sion, Ornn, Tahm Kench" says Sion is my first answer). The whole list is deleted and re-inserted
+ * in one transaction, so no intermediate state with a duplicate position can reach the constraint.
+ *
+ * **`championId` is an opaque integer with deliberately no foreign key** to `champion` (§10.8): a
+ * champion that patches away must not delete somebody's intent, and the label is a lookup in the
+ * cache, never a copy on this row.
+ */
+export const poolEntries = pgTable(
+  'pool_entry',
+  {
+    id: text('id').primaryKey(),
+    ownerId: text('ownerId')
+      .notNull()
+      .references(() => pools.ownerId, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: POOL_KINDS }).notNull(),
+    championId: integer('championId').notNull(),
+    position: integer('position').notNull(),
+    createdAt: createdAt.notNull(),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [
+    // once per list; the same champion may still be in `blind` and in a pool section (§6)
+    unique('pool_entry_owner_kind_champion_idx').on(table.ownerId, table.kind, table.championId),
+    /**
+     * Dense positions, one row each. **`DEFERRABLE INITIALLY DEFERRED` in the migration** — drizzle
+     * cannot express that, so 0016 is hand-edited; this declaration is what keeps the constraint
+     * visible in the schema. The write path deletes and re-inserts inside one transaction, so even a
+     * plain constraint would hold; the deferred one is the second line of defence, and the
+     * reorder-in-both-directions test is what keeps this comment honest.
+     */
+    unique('pool_entry_owner_kind_position_idx').on(table.ownerId, table.kind, table.position),
+    index('pool_entry_ownerId_idx').on(table.ownerId),
+    enumCheck('pool_entry_kind_check', table.kind, POOL_KINDS),
+    // the cap (15) is a rule in `@lol/shared`, not a database fact: it is a sanity bound that may
+    // change, and a CHECK would turn that into a migration plus a data fix
+    check('pool_entry_position_check', sql`${table.position} >= 0`),
+  ],
+)
+
+/**
  * One patch we hold champion labels for (hexserve-champion-data.md §4, §5). Retention keeps two,
  * so this table normally has two rows — and it is where the patch's own facts live, once:
  *
@@ -517,5 +587,7 @@ export type WeekRow = typeof weeks.$inferSelect
 export type AnswerRow = typeof answers.$inferSelect
 export type AvailabilityRow = typeof availability.$inferSelect
 export type AvailabilityTemplateRow = typeof availabilityTemplates.$inferSelect
+export type PoolRow = typeof pools.$inferSelect
+export type PoolEntryRow = typeof poolEntries.$inferSelect
 export type ChampionRow = typeof champions.$inferSelect
 export type ChampionPatchRow = typeof championPatches.$inferSelect
