@@ -39,58 +39,7 @@ Severity is about the person, not the code: **blocker** = a normal flow cannot b
 
 | Id | Sev | Area | Bug | Found |
 | --- | --- | --- | --- | --- |
-| [B1](#b1) | blocker | web / auth | A signed-out visitor to `/` sees "Could not load your profile" instead of the login page | 2026-11-23 |
 | [B2](#b2) | major | web / team | A rename leaves the shell on the old slug: the switcher prints the raw old slug, and the URL does not move to the new one | 2026-11-23 |
-
----
-
-## B1
-
-| | |
-| --- | --- |
-| Bug | A signed-out visitor to `/` sees "Could not load your profile" instead of the login page |
-| Sev | blocker — the first thing a new or logged-out person sees is an error |
-| Area | `apps/web/src/components/RequireCompleteProfile.tsx` |
-| Found | 2026-11-23 |
-
-**Repro.** Sign out (or use a private window), open `/`.
-
-**Actual.** A centred card: *"Could not load your profile"* / *"not signed in"*. Nothing is clickable
-— no login button, no redirect. The address bar stays on `/`.
-
-**Expected.** Redirect to `/login` (the same thing `RequireMember`, `WelcomePage` and `JoinPage`
-already do for the same 401), preserving the intended destination if that is wanted later.
-
-**Cause — confirmed by reading, not yet by a test.** The gate checks the *profile* failure before it
-checks the *session* failure:
-
-```ts
-if (profile.isError || accounts.isError) {   // ← runs first
-  … <Title>Could not load your profile</Title>
-}
-if (me.isError) {
-  if (isUnauthorized(me.error)) return <Navigate to="/login" replace />   // ← never reached
-  …
-}
-```
-
-Signed out, all three queries fail with 401; `profile` loses the race to the more specific question,
-"is this even a signed-in person?". `RequireMember`'s correct 401 handling is unreachable because it
-nests *inside* this gate.
-
-**Not a one-route bug.** Every route inside the gate goes through this component, so `/`,
-`/t/:slug/roster`, `/t/:slug/planner`, `/t/:slug/admin`, `/t/:slug/profile`, `/new-team` all show the
-card. `/login`, `/join/:code` and `/welcome` are outside the gate and handle their own 401s already —
-so the surface is exactly "everything the gate wraps".
-
-**Fix sketch.** Ask the session question first: if `me.isError` and `isUnauthorized(me.error)`, go to
-`/login`; *then* treat a profile/account failure as the error card (and, ideally, also treat an
-`isUnauthorized` on either of those as "signed out", since a session can expire between the queries).
-The distinction to keep: a 500 is an error card, a 401 is a redirect.
-
-**Test that has to change.** `apps/web/test/components/app-profile-route.test.tsx` currently pins the
-error card for a failing profile read; the regression test is the *signed-out* render of the gate
-asserting a redirect to `/login`, and the existing test stays for a non-401 failure.
 
 ---
 

@@ -115,4 +115,37 @@ describe('RequireCompleteProfile', () => {
 
     expect(await screen.findByText('login screen')).toBeDefined()
   })
+
+  /**
+   * Signed out, *every* read 401s — the profile and account queries are not special. The gate
+   * used to answer the profile question first and show "Could not load your profile", which
+   * left a logged-out visitor on a dead card with nothing to click.
+   */
+  test('a signed-out visitor sees the login screen even when every read 401s', async () => {
+    const notSignedIn = { value: { message: 'Not signed in' } }
+    apiState.me = { data: null, error: notSignedIn, status: 401 }
+    apiState.profile = { data: null, error: notSignedIn, status: 401 }
+    apiState.riotAccountList = { data: null, error: notSignedIn, status: 401 }
+
+    renderApp()
+
+    expect(await screen.findByText('login screen')).toBeDefined()
+    expect(screen.queryByText('Could not load your profile')).toBeNull()
+  })
+
+  /**
+   * The session can expire between the reads, so `me` may still answer from cache while the
+   * profile read is already 401. That is a logout, not a broken profile.
+   */
+  test('a 401 on the profile read alone is still a signed-out visitor', async () => {
+    apiState.profile = {
+      data: null,
+      error: { value: { message: 'Not signed in' } },
+      status: 401,
+    }
+
+    renderApp()
+
+    expect(await screen.findByText('login screen')).toBeDefined()
+  })
 })

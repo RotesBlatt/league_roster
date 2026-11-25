@@ -26,22 +26,8 @@ export function RequireCompleteProfile() {
     )
   }
 
-  // a failed profile or account read is not "incomplete": redirecting to setup would hide the
-  // actual problem and loop the user through a form that cannot save
-  if (profile.isError || accounts.isError) {
-    const failure = profile.isError ? profile.error : accounts.error
-    return (
-      <Center h="100vh">
-        <Card maw={420}>
-          <Title order={3}>Could not load your profile</Title>
-          <Text c="dimmed" mt="xs">
-            {failure?.message ?? 'Request failed'}
-          </Text>
-        </Card>
-      </Center>
-    )
-  }
-
+  // the session question comes first: signed out, *all three* reads fail, and the profile's
+  // failure would otherwise win the race and show a dead "could not load your profile" card
   if (me.isError) {
     if (isUnauthorized(me.error)) return <Navigate to="/login" replace />
     return (
@@ -50,6 +36,30 @@ export function RequireCompleteProfile() {
           <Title order={3}>Something broke</Title>
           <Text c="dimmed" mt="xs">
             {me.error.message}
+          </Text>
+        </Card>
+      </Center>
+    )
+  }
+
+  // a session can expire between the three reads: a 401 here is "signed out", not "broken"
+  if (
+    (profile.isError && isUnauthorized(profile.error)) ||
+    (accounts.isError && isUnauthorized(accounts.error))
+  ) {
+    return <Navigate to="/login" replace />
+  }
+
+  // every other failed read is an error card, not "incomplete": redirecting to setup would hide
+  // the actual problem and loop the user through a form that cannot save
+  if (profile.isError || accounts.isError) {
+    const failure = profile.isError ? profile.error : accounts.error
+    return (
+      <Center h="100vh">
+        <Card maw={420}>
+          <Title order={3}>Could not load your profile</Title>
+          <Text c="dimmed" mt="xs">
+            {failure?.message ?? 'Request failed'}
           </Text>
         </Card>
       </Center>
