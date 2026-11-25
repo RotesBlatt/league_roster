@@ -9,14 +9,15 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import type { PoolPersonDto } from '@lol/api/schema-types'
 import { Group, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useMe, usePools } from '../api/hooks.ts'
+import { EmptyPoolColumn } from '../components/pools/EmptyPoolColumn.tsx'
 import { PoolColumn } from '../components/pools/PoolColumn.tsx'
 import { TrashZone } from '../components/pools/TrashZone.tsx'
 import { applyDrop, type DragTarget, parseDragId } from '../lib/pools/drag.ts'
+import { poolColumns } from '../lib/pools/pool-columns.ts'
 import { poolCompletion } from '../lib/pools/pool-view.ts'
 import { usePoolEditor } from '../lib/pools/use-pool-editor.ts'
 
@@ -98,61 +99,60 @@ export function PoolsPage() {
         </Text>
       ) : null}
 
-      {!pools.isPending && !pools.isError && people.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          Nobody is on the roster yet, so there is no pool to show.
-        </Text>
-      ) : null}
+      {/* always five role slots: an empty column says "nobody here", a missing one changes the
+          shape of the page as people join (and the layout is the answer to "who plays what") */}
+      <DndContext
+        sensors={sensors}
+        // pointer first: the chip *under the cursor* is where it lands, and the band behind it
+        // only wins in the gaps and at the end (an empty band has nothing else to hit).
+        // `closestCenter` is the fallback for keyboard dragging, which has no pointer at all.
+        collisionDetection={(args) => {
+          const underPointer = pointerWithin(args)
+          return underPointer.length > 0 ? underPointer : closestCenter(args)
+        }}
+        onDragStart={() => setDragging(true)}
+        onDragOver={(event) =>
+          setDropTarget(parseDragId(event.over ? String(event.over.id) : null))
+        }
+        onDragCancel={() => {
+          setDragging(false)
+          setDropTarget(null)
+        }}
+        onDragEnd={onDragEnd}
+      >
+        <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing="sm" verticalSpacing="sm">
+          {poolColumns(people).map(({ role, person }) => {
+            if (person === null) {
+              // a role with nobody on it: a place in the layout, not a person
+              return <EmptyPoolColumn key={`empty-${role ?? 'none'}`} role={role} />
+            }
 
-      {people.length > 0 ? (
-        <DndContext
-          sensors={sensors}
-          // pointer first: the chip *under the cursor* is where it lands, and the band behind it
-          // only wins in the gaps and at the end (an empty band has nothing else to hit).
-          // `closestCenter` is the fallback for keyboard dragging, which has no pointer at all.
-          collisionDetection={(args) => {
-            const underPointer = pointerWithin(args)
-            return underPointer.length > 0 ? underPointer : closestCenter(args)
-          }}
-          onDragStart={() => setDragging(true)}
-          onDragOver={(event) =>
-            setDropTarget(parseDragId(event.over ? String(event.over.id) : null))
-          }
-          onDragCancel={() => {
-            setDragging(false)
-            setDropTarget(null)
-          }}
-          onDragEnd={onDragEnd}
-        >
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 5 }} spacing="sm" verticalSpacing="sm">
-            {people.map((person: PoolPersonDto) => {
-              const isMine = person.userId === me.data?.id
-              // the draft belongs to the editable column only; every other column is a read
-              const draftLists = editor.shown
-              const editableHere = isMine && editor.editing && draftLists !== null
+            const isMine = person.userId === me.data?.id
+            // the draft belongs to the editable column only; every other column is a read
+            const draftLists = editor.shown
+            const editableHere = isMine && editor.editing && draftLists !== null
 
-              return (
-                <PoolColumn
-                  key={person.userId}
-                  person={person}
-                  isMine={isMine}
-                  now={now}
-                  {...(editableHere && draftLists !== null
-                    ? {
-                        lists: draftLists,
-                        onChange: editor.onChange,
-                        onPick: editor.onPick,
-                        dropTarget,
-                      }
-                    : {})}
-                />
-              )
-            })}
-          </SimpleGrid>
+            return (
+              <PoolColumn
+                key={person.userId}
+                person={person}
+                isMine={isMine}
+                now={now}
+                {...(editableHere && draftLists !== null
+                  ? {
+                      lists: draftLists,
+                      onChange: editor.onChange,
+                      onPick: editor.onPick,
+                      dropTarget,
+                    }
+                  : {})}
+              />
+            )
+          })}
+        </SimpleGrid>
 
-          <TrashZone visible={dragging && editor.editing} />
-        </DndContext>
-      ) : null}
+        <TrashZone visible={dragging && editor.editing} />
+      </DndContext>
     </Stack>
   )
 }

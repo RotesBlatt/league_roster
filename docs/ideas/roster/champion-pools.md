@@ -193,6 +193,10 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   *person*, and its header is `role · name` — so in the normal case the page reads as the five roles
   left to right (`TOP · Jan`, `JUNGLE · Ben`, …), and two people on the same role simply get two
   adjacent columns instead of fighting over one cell.
+- **The five role slots are always drawn.** A role with nobody on it is an empty dashed column saying
+  "no player yet" — not a missing column. A grid whose width changes as people join and leave makes
+  the reader count to find out which role is gone, and a pool page *is* a picture of five positions.
+  Extra people (a second mid, a substitute) still get their own column next to their role.
 - **The set of columns is the roster *plus* any member who already has a pool.** A captain creates
   roster rows, but a pool belongs to the person and can be saved before that row exists; hiding it
   would mean "your work does not count until the captain gets round to you". Such a column takes the

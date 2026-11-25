@@ -1,0 +1,12 @@
+/**
+ * An unoccupied role slot (champion-pools.md §7). Dashed and colourless on purpose: it is a place
+ * in the layout, not a person, and it must not compete with a real column for attention.
+ */
+
+.empty {
+  border-style: dashed;
+  border-color: var(--mantine-color-default-border);
+  background: transparent;
+  /* roughly the height of a real column's header, so the five slots line up */
+  min-height: 6rem;
+}

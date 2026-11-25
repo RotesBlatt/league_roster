@@ -140,6 +140,14 @@ describe('how a champion is drawn', () => {
 })
 
 describe('editing your own column', () => {
+  test('the five role slots are always drawn, empty ones included', async () => {
+    renderPage()
+
+    // mine is TOP, the mate is MID, so JGL / ADC / SUP have nobody: three empty slots, not a
+    // three-column page that shrinks and grows as people join
+    await waitFor(() => expect(screen.getAllByText('no player yet')).toHaveLength(3))
+  })
+
   test('only my column has handles — the others are reads', async () => {
     renderPage()
 
