@@ -1,7 +1,10 @@
 # Idea — champion pools (what a player *wants* to play)
 
-**Status:** idea, nothing implemented. Model revised 2026-11-25: **three side-neutral lists per
-player** (`main`, `situational`, `blind`), the blue/red blind split and the team-wide block dropped.
+**Status:** done 2026-11-25 — shipped end to end: `pool` + `pool_entry` (migration 0016), the shared
+rules, `GET /api/teams/:slug/pools`, `PUT /api/pools`, and the pool page with drag, right-click
+actions, the trash bin and autosave. Commits `241f8d3` … `61a64c1` (`feat(shared)`, `feat(api)`,
+`feat(web)`). Model revised 2026-11-25: **three side-neutral lists per player** (`main`,
+`situational`, `blind`), the blue/red blind split and the team-wide block dropped.
 **Depends on:** `player-profiles.md` (whose pool it is — a person, not a roster row) and
 `hexserve-champion-data.md` (the champion name and icon shown in every cell — our own per-patch dump,
 not a table of ours; that slice is **done**).
@@ -206,8 +209,9 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
 - **Three bands per column, stacked**: `Main`, `Situational`, `Blind-pickable`. Each band is a
   wrapping strip of champion chips in **priority order** (left = first answer), not a fixed grid of
   cells — a 3-champion pool and a 12-champion pool look different, and neither shows dead slots. The
-  blind band carries its own heading and a first-pick glyph; that is the whole legend, no coloured
-  border to decode.
+  blind band carries its own heading and nothing else; that is the whole legend, no coloured border
+  to decode. (A first-pick glyph was planned here and **not built** — the heading is enough, and an
+  icon that means "blind-pickable" in a band already titled that way is decoration.)
 
 ```text
         TOP · Jan        JUNGLE · Ben      MID · Flo       BOT · …      SUP · …
@@ -280,9 +284,11 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   already makes; into `blind` it *adds* a second opinion instead of moving, exactly like the menu.
 - **"Stand: aktualisiert vor 3 Tagen"** per column, from the `pool` header. A pool is an opinion;
   when it was last touched is part of reading it correctly.
-- **Empty is a state, not an error**: a player with no pool shows "noch kein Pool" and a completion
-  line for the captain ("3 von 5 haben ihren Pool gefüllt") — the same chase-list thinking as
-  `availability-planner.md`, one line here, no separate page.
+- **Empty is a state, not an error**: a player with no pool says "no pool yet", and the header
+  carries a completion line ("3 of 5 filled their pool") — the same chase-list thinking as
+  `availability-planner.md`, one line here, no separate page. It is shown to **everyone**, not only
+  the captain: the person who has not filled theirs is the one who should see the nudge, and hiding
+  it from members would make the line a secret scoreboard.
 - **Fast and cheap to re-read**: this page gets opened during champ select on a second screen. No
   spinner chain, no modal — it is a static read over ~60 champion chips.
 
@@ -343,26 +349,68 @@ changed a statement of intent, which is not a typo to be corrected.
 10. **Does a substitute have a pool row?** Yes — `Sub · Flo` is in the sheet for a reason. Confirm they
     are ordinary roster rows in the render (§1).
 
-## 11. Testing
+## 11. Testing — what actually exists
 
-| Layer | What |
+| Layer | What is covered |
 | --- | --- |
-| unit (`packages/shared`) | `canEditPool` (own / other / captain-of-other); `moveEntry(list, from, to)` incl. same-index and out-of-range; `validatePoolWrite` (duplicate within a kind → rejected, duplicate across kinds → allowed, main↔situational conflict → rejected, cap 15 exceeded, unknown championId rejected only for non-integers); `partitionByPool` for the stats basis |
-| unit (`apps/api`) | the read model: pools assembled per roster row in `ROLES` order, subs last; a player with no rows is present as empty with `version: 0`; `updatedAt` survives a clear |
-| integration | own write 200, anonymous 401, a forged `ownerId` in the body writes the caller's pool and never the victim's; a reorder in both directions does **not** hit the deferred unique constraint (§5); a stale `version` → 409 and **nothing is written**; a `PUT` with an empty list clears that kind and only that kind; a cross-kind move leaves one row |
-| web | drag reorder persists and survives a reload; keyboard up/down does the same thing; other columns render without drag handles; the three bands stay labelled and in order; a band wraps rather than overflowing its column; empty state and the completion line; unknown champion renders as a placeholder, not a crash |
+| unit (`packages/shared`) | `canEditPool` (own / other / captain-of-other / null); `moveEntry` incl. same index and out-of-range; `validatePoolWrite` (duplicate within a kind, main↔situational conflict, blind overlap allowed, cap 15, ids must be positive integers, unknown ids allowed); `emptyPoolLists` |
+| unit (`apps/api`) | `composePools`: a never-saved player is present with `version: 0`; lists ordered by `position` however the rows arrive; a cleared pool keeps version and `updatedAt`; entries of a non-roster owner are ignored |
+| unit (`apps/web`) | `poolAgeText` / `poolCompletion` / `hasAnyChampion`; `addChampion` / `removeChampion` / `moveWithin` / `moveAcross` / `moveAcrossAt`; `dragMove` / `dropTrash` / `applyDrop` / id parsing; `chipActions`; `searchChampions` + normalisation; `poolColumns`; `save-queue` (coalescing, version chaining, a read during a write, failure stops the chain, saving state) |
+| integration (`apps/api`) | the schema (deferred position constraint proven by removing the qualifier — both reorder tests fail without it, `23505`/`23514`/`23503` cases); `GET`: 401, 404 for non-members, roster order, empty pools, isolation between people, a member with a pool but no roster row; `PUT`: 401, first write, both-direction reorder, cross-kind move leaves one row, clearing one kind, stale `version` → 409 **and nothing written**, 422s, a forged `ownerId` writes the caller only |
+| page (`apps/web`, happy-dom) | five role slots incl. empty ones; icon-only chips with the name as label; only my column is sortable; the picker popover searches and autosaves; the action panel opens at the pointer, closes on mouseleave and Escape; a menu move autosaves with the version read; a 409 drops the draft and refetches |
 
-The end-to-end test worth writing first: **two players, one pool each, one of them reorders and the
-other's view changes** — it fails for any implementation that accidentally keys the order per viewer.
+**Not covered, on purpose or for now:** a *real* drag gesture, the trash drop and the Shift+F10 menu
+are not simulated in happy-dom — dnd-kit's pointer pipeline is not reproducible there, so the rules
+behind them are unit-tested and the gestures are not. Touch behaviour is likewise verified by
+`touch-action: none` and dnd-kit's sensors, not by a test.
 
-## 12. Suggested sequencing
+The end-to-end case that mattered — **two players, one pool each, one reorders and the other's view
+changes** — is the integration test "a saved pool reaches everyone in the shared order" plus "everyone
+sees the reordered list".
 
-This is the cheapest valuable feature in the repo: no rate limits, no background job, no external
-source beyond the champion cache that already exists.
+## 12. Decided while implementing (2026-11-25)
 
-0. ~~Caps, one pool per champion, who writes the team list~~ — decided, see §10.1, §10.3, §10.4.
-1. **Schema + `canEditPool` + the read model**, with the ordering tests (deferred constraint, stale
-   version). No UI yet. Migration is additive: two new tables, no backfill, nothing dropped.
-2. **The read-only page**: rows, icons, three blocks, updatedAt, empty states.
-3. **Own-row editing**: drag + keyboard, whole-pool `PUT`, optimistic concurrency, cross-kind moves.
-4. Then the `match-history.md` `WR-BASIS` consumer, once champion stats exist.
+These were not in the plan above, or were planned differently. They are the code's "why?":
+
+1. **Autosave, not a Save button.** Every gesture is a complete statement about the pool, so it is
+   written immediately. The risk this created — two gestures overlapping — is handled by a
+   **serialized queue** (`lib/pools/save-queue.ts`): one request at a time, newer edits replace the
+   single queued payload, each request uses the version the previous one returned. A `409` can
+   therefore only mean *somebody else* wrote first. The page shows "saving…" and nothing else.
+2. **The chip's actions are a right-click at the pointer**, not a corner button and not a `Menu`.
+   A `Menu` anchored to the chip rendered at the page's top-left (the anchor could not forward a ref)
+   and never closed; the panel is a portal at the `contextmenu` coordinates, closing on mouseleave,
+   Escape, outside click and scroll. Keyboard: Shift+F10.
+3. **The trash bin is a strip under the grid**, not a fixed corner — and it forced the `DndContext`
+   up to the page, because a droppable outside a column is unreachable from that column's context.
+   Which *copy* of a champion goes is decided by the band in the drag id (`applyDrop`).
+4. **`@dnd-kit/core` + `sortable`** was added as the feature's only dependency: pointer, touch and
+   keyboard sorting, plus the transform animation that made the drag stop feeling janky. Collision is
+   **pointer-first** (`pointerWithin`, `closestCenter` only for keyboard): with `closestCenter` the
+   band container beat the chip under the cursor, so drops appended instead of landing at an index.
+5. **The five role slots are always drawn**, empty ones as a dashed "no player yet" column, and the
+   column set is the **roster ∪ members who already have a pool** (a pool can exist before its roster
+   row does). Both come from the same thought: the page is a picture of five positions, and nobody's
+   work should be invisible.
+6. **Chips are icon-only at 56px**, four to a row at the page's 90rem width. The first version put
+   icon + name in a 30px `ActionIcon` and clipped the icon to a sliver; the page width and the icon
+   size are one decision, not two.
+7. **No `partitionByPool`** and no `drafter` consumer were built here — they belong to
+   `match-history.md` and `drafter.md`, which read the ids this feature stores.
+8. **Skipped on purpose:** per-entry notes (§10.5), a role hint for off-role picks (§10.7), soft cap
+   guidance, and a read-only-on-mobile mode.
+
+## 13. Where this ended — 2026-11-25
+
+Green: `bun run test`, `bun run test:db`, `bun run typecheck`.
+
+- **Shared:** `canEditPool`, `moveEntry`, `validatePoolWrite`, `POOL_CAP`, `emptyPoolLists`.
+- **API:** `GET /api/teams/:slug/pools` (roster order, empty pools present, members with a pool but
+  no roster row included) and `PUT /api/pools` (owner from the session, whole pool, atomic, `409` on
+  a stale version). Migration 0016 is additive, and its position constraint is hand-edited to
+  `DEFERRABLE INITIALLY DEFERRED` — drizzle cannot express it, and a test fails if the qualifier is
+  ever dropped.
+- **Web:** the pool page (five role slots, three bands, 56px chips), the champion picker (popover,
+  one column, whole cache on open), drag + right-click actions + trash, and autosave with its queue.
+- **Left for later:** a cross-pool search ("who plays Yone?") — the obvious next question on this
+  page during champ select, and not written down anywhere yet.

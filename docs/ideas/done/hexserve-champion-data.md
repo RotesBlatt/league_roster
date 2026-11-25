@@ -7,9 +7,10 @@ retention rules`, `… add hexserve champion dump client`, `… add champion cac
 date in the header`, and `fix(web): refresh champion data after five minutes`; the base URL became
 `HEXSERVE_BASE_URL` in the same release.
 
-Deliberately outside this idea, and recorded rather than hidden: **no page renders a champion yet** —
-that is `champion-pools.md` / `match-history.md` consuming the endpoint, and building it here would
-have been that feature in disguise; **`de_DE`** (decided: `en_US` only for now); **icons are not
+Deliberately outside this idea, and recorded rather than hidden: **no page rendered a champion yet
+when this shipped** — that was left to `champion-pools.md` (now done 2026-11-25; it is the first
+consumer, and the pool page is what the cache was built for) and `match-history.md` (still open),
+and building it here would have been that feature in disguise; **`de_DE`** (decided: `en_US` only for now); **icons are not
 mirrored** (§9.1 stays open — the SPA talks to CommunityDragon directly).
 **Used by:** `champion-pools.md` (name + icon per pool cell), `match-history.md` (champion names/icons
 in the games list and the stats table, and the `WR-BASIS` numbers next to them).
