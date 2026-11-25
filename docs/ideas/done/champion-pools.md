@@ -288,7 +288,9 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   carries a completion line ("3 of 5 filled their pool") — the same chase-list thinking as
   `availability-planner.md`, one line here, no separate page. It is shown to **everyone**, not only
   the captain: the person who has not filled theirs is the one who should see the nudge, and hiding
-  it from members would make the line a secret scoreboard.
+  it from members would make the line a secret scoreboard. The line **disappears once everybody has
+  filled theirs** (and on an empty roster): "all 5 filled their pool" is furniture in the space where
+  the sentence that needs acting on would sit.
 - **Fast and cheap to re-read**: this page gets opened during champ select on a second screen. No
   spinner chain, no modal — it is a static read over ~60 champion chips.
 

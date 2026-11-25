@@ -16,9 +16,10 @@ export function hasAnyChampion(lists: Lists): boolean {
 }
 
 /**
- * The captain's chase line: how many of the roster have filled anything.
+ * The chase line: how many of the roster have filled anything.
  *
- * `null` when there is nobody to count — a team with no roster must not read "0 of 0 filled".
+ * `null` when there is nobody to count (a team with no roster must not read "0 of 0 filled") **and
+ * when everybody is done** — a finished chase is not information, it is furniture.
  */
 export function poolCompletion(people: readonly Pick<PoolPersonDto, 'lists'>[]): {
   filled: number
@@ -28,9 +29,11 @@ export function poolCompletion(people: readonly Pick<PoolPersonDto, 'lists'>[]):
   const total = people.length
   const filled = people.filter((person) => hasAnyChampion(person.lists)).length
 
-  if (total === 0) return { filled, total, text: null }
+  // nothing to show when there is nothing to chase: an empty roster, or everybody done. "all 5
+  // filled their pool" is a status line for a state nobody has to act on, sitting in the same space
+  // as the sentence that does matter.
+  if (total === 0 || filled === total) return { filled, total, text: null }
   if (filled === 0) return { filled, total, text: 'no pool filled yet' }
-  if (filled === total) return { filled, total, text: `all ${total} filled their pool` }
 
   return { filled, total, text: `${filled} of ${total} filled their pool` }
 }

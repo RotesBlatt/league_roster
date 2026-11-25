@@ -47,12 +47,18 @@ describe('poolCompletion', () => {
     })
   })
 
-  test('everybody filled one', () => {
+  test('when everyone has filled one, there is nothing to chase and nothing is said', () => {
+    // a status line for a state nobody has to act on is noise in the same space as the sentence
+    // that matters
     expect(poolCompletion([person({ blind: [1] }), person({ main: [2] })])).toEqual({
       filled: 2,
       total: 2,
-      text: 'all 2 filled their pool',
+      text: null,
     })
+  })
+
+  test('a one-person team that filled its pool says nothing either', () => {
+    expect(poolCompletion([person({ main: [1] })]).text).toBeNull()
   })
 
   test('a situational-only or blind-only pool counts as filled', () => {
