@@ -79,9 +79,26 @@ export function AdminPage() {
   // nothing is decided before the list arrives — answering "denied" here would redirect a
   // captain off their own page on the first render
   if (access === 'loading') return null
+
+  // This URL names a team the list does not have. Redirecting from here is what broke a rename:
+  // the new row lands before the URL follows it, so for one render this page was asked about the
+  // slug it had just left and sent the captain off to the roster. Ask instead of acting — the
+  // navigation that follows the rename resolves it, and a stale link gets an answer either way.
+  if (access === 'unavailable') {
+    return (
+      <Card maw={460} mt="xl">
+        <Title order={3}>This team is not available</Title>
+        <Text c="dimmed" mt="xs">
+          No team of yours has this address. It may have been renamed — ask a captain for the
+          current link.
+        </Text>
+      </Card>
+    )
+  }
+
   // this team's roster: "/roster" is not a route, so it fell through the catch-all and landed on
   // the *default* team's roster — the same bounce the switcher used to cause
-  if (!isCaptain) return <Navigate to={`/t/${slug}/roster`} replace />
+  if (access === 'denied') return <Navigate to={`/t/${slug}/roster`} replace />
 
   return (
     <Stack gap="lg">

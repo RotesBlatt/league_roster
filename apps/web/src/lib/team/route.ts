@@ -56,7 +56,7 @@ export function otherTeams(teams: TeamSummary[], slug: string | null): TeamSumma
  * Who may open /t/:slug/admin. The URL names the team, so the answer comes from *that team's*
  * membership — `GET /api/teams` carries a `role` per team — never from `GET /api/me`.
  */
-export type TeamRole = 'loading' | 'captain' | 'denied'
+export type TeamRole = 'loading' | 'captain' | 'denied' | 'unavailable'
 
 export function teamRole(teams: TeamSummary[] | undefined, teamSlug: string): TeamRole {
   // undecided, not denied: the first render happens before the list arrives, and answering
@@ -64,6 +64,15 @@ export function teamRole(teams: TeamSummary[] | undefined, teamSlug: string): Te
   if (!teams) return 'loading'
 
   const team = teams.find((row) => row.slug === teamSlug)
-  // a stale link and a disabled membership are both simply absent from the list
-  return team?.role === 'captain' ? 'captain' : 'denied'
+  if (!team) {
+    // **A row the list does not have is not a verdict.** A rename rewrites the slug, so between
+    // the new row landing and the URL following it, the URL names a team that is no longer in
+    // the list — and answering "denied" there redirected the captain to the roster of the slug
+    // they had just renamed away from, which is how the shell ended up printing an identifier.
+    // So we only act against a team we can see: absent means "ask", never "go away".
+    return 'unavailable'
+  }
+
+  // a settled row that is not a captaincy is a real answer: a plain member, a disabled one
+  return team.role === 'captain' ? 'captain' : 'denied'
 }

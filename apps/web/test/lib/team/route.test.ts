@@ -146,10 +146,15 @@ describe('teamRole', () => {
     expect(teamRole([member('alpha', 'member')], 'alpha')).toBe('denied')
   })
 
-  // a stale link and a disabled membership both simply do not appear in the list
-  test('a slug that is not in my teams is denied', () => {
-    expect(teamRole([member('alpha', 'captain')], 'gone')).toBe('denied')
-    expect(teamRole([], 'alpha')).toBe('denied')
+  /**
+   * A row the list does not have is not a verdict. A rename rewrites a team's slug, so between
+   * the new row landing and the URL following it there is a render where the URL names a team the
+   * list no longer holds — and reading that as "denied" sent the captain to the roster of the
+   * slug they had just renamed away from, leaving the shell printing an identifier.
+   */
+  test('a slug that is not in my teams is unavailable, not denied', () => {
+    expect(teamRole([member('alpha', 'captain')], 'gone')).toBe('unavailable')
+    expect(teamRole([], 'alpha')).toBe('unavailable')
   })
 
   // the list arrives after the first render: deciding "denied" now would redirect a captain

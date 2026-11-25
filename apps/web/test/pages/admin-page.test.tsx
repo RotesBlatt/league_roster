@@ -114,6 +114,18 @@ describe('AdminPage', () => {
 
   // the redirect used to name `/roster`, which is not a route: it fell through the catch-all and
   // landed on the *default* team's roster instead of this team's
+  /**
+   * A slug the list does not have cannot be judged. This is also the exact render a rename passes
+   * through (the new row lands before the URL follows it), so acting on it is what threw the
+   * captain to the roster of the slug they had just renamed away from.
+   */
+  test('a slug the list does not have gets an answer, not a redirect', async () => {
+    renderAdmin('/t/gone/admin')
+
+    expect(await screen.findByText('This team is not available')).toBeDefined()
+    expect(screen.getByText('at /t/gone/admin')).toBeDefined()
+  })
+
   test('a plain member is sent to this team’s roster, not the default team’s', async () => {
     apiState.me = { data: { ...me, role: 'member' }, error: null, status: 200 }
     apiState.teamList = { data: [{ ...alpha, role: 'member' }], error: null, status: 200 }
