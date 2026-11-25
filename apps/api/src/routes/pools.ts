@@ -2,7 +2,7 @@ import { POOL_KINDS, validatePoolWrite } from '@lol/shared'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { Elysia, t } from 'elysia'
 import type { Db } from '../db/index.ts'
-import { poolEntries, pools, profile, rosterEntries, user } from '../db/schema.ts'
+import { memberships, poolEntries, pools, profile, rosterEntries, user } from '../db/schema.ts'
 import type { PoolsDto } from '../db/schema.types.ts'
 import { composePools, type PoolRosterPerson } from '../lib/pools.ts'
 import { compareRosterOrder } from '../lib/roster.ts'
@@ -12,14 +12,15 @@ import type { AuthPlugin } from '../plugins/auth.ts'
 /**
  * The team's champion pools, read (champion-pools.md §7, §8).
  *
- * `GET` is the whole feature's read half: every roster entry, in roster order, each with their
+ * `GET` is the whole feature's read half: one column per person, in role order, each with their
  * three ordered lists. It is a `member` right — seeing your teammates' opinions is the point — and
- * the write (`PUT /api/pools`, owner-only) lands in the next slice.
+ * the write (`PUT /api/pools`, owner-only) is a separate route.
  *
- * The roster is the source of *who* is shown (roster entries, so substitutes are included and a
- * member without a roster row does not appear); `pool` / `pool_entry` are global tables keyed by the
- * person, so they are read through the plain `Db` — the ids all came from entries the scope already
- * proved belong to this team.
+ * Who is shown is **the roster, plus any member who already has a pool** (§7): somebody who saved a
+ * pool before the captain put them on the roster appears at the position their preferred role
+ * implies, which is where they will be once added — a pool that exists but is invisible is the
+ * worst of both. `pool` / `pool_entry` are global tables keyed by the person, so they are read
+ * through the plain `Db`, restricted to this team's member ids.
  *
  * Four small reads instead of one join, because the composition rules are unit-tested in
  * `lib/pools.ts` and would otherwise live in SQL where they cannot be.
@@ -28,10 +29,14 @@ export function createPoolRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlugi
   return new Elysia({ prefix: '/pools' }).use(authPlugin).get(
     '/',
     async ({ team }): Promise<PoolsDto> => {
-      const entries = await scope(team).selectFrom(rosterEntries)
-      if (entries.length === 0) return { people: [] }
+      const [entries, memberRows] = await Promise.all([
+        scope(team).selectFrom(rosterEntries),
+        scope(team).selectFrom(memberships),
+      ])
 
-      const userIds = entries.map((entry) => entry.userId)
+      // read for **members**, not for roster entries: a pool can exist before its row does
+      const userIds = memberRows.map((row) => row.userId)
+      if (userIds.length === 0) return { people: [] }
       const [profiles, users, headers, rows] = await Promise.all([
         db
           .select({
@@ -49,19 +54,42 @@ export function createPoolRoutes(db: Db, scope: TeamScope, authPlugin: AuthPlugi
       const profileOf = new Map(profiles.map((row) => [row.userId, row]))
       const nameOf = new Map(users.map((row) => [row.id, row.name]))
 
-      const roster: PoolRosterPerson[] = entries
-        .map((entry) => {
+      const rostered = new Set(entries.map((entry) => entry.userId))
+      const hasPool = new Set(headers.map((header) => header.ownerId))
+
+      const person = (
+        userId: string,
+        own: (typeof profiles)[number] | undefined,
+        role: PoolRosterPerson['role'],
+        isActive: boolean,
+      ): PoolRosterPerson => ({
+        userId,
+        // same fallback as the roster page: a member without a profile is a person, not a gap
+        displayName: own?.displayName ?? nameOf.get(userId) ?? 'Unknown',
+        role,
+        isActive,
+      })
+
+      const roster: PoolRosterPerson[] = [
+        // the roster, with the captain's role override winning over the player's preference
+        ...entries.map((entry) => {
           const own = profileOf.get(entry.userId)
-          return {
-            userId: entry.userId,
-            // same fallback as the roster page: a member without a profile is a person, not a gap
-            displayName: own?.displayName ?? nameOf.get(entry.userId) ?? 'Unknown',
-            // the captain's override wins over the player's stated preference
-            role: entry.roleOverride ?? own?.preferredRole ?? null,
-            isActive: entry.isActive,
-          }
-        })
-        .sort((a, b) => compareRosterOrder(a, b) || a.userId.localeCompare(b.userId))
+          return person(
+            entry.userId,
+            own,
+            entry.roleOverride ?? own?.preferredRole ?? null,
+            entry.isActive,
+          )
+        }),
+        // …plus members who already have a pool but no roster row: they take their own role, so
+        // their column sits where it will be once the captain adds them
+        ...memberRows
+          .filter((row) => !rostered.has(row.userId) && hasPool.has(row.userId))
+          .map((row) => {
+            const own = profileOf.get(row.userId)
+            return person(row.userId, own, own?.preferredRole ?? null, row.status === 'active')
+          }),
+      ].sort((a, b) => compareRosterOrder(a, b) || a.userId.localeCompare(b.userId))
 
       return { people: composePools({ roster, pools: headers, entries: rows }) }
     },

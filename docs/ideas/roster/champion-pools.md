@@ -188,11 +188,17 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
 - **One page, read-only by default, editable in your own column.** Everyone's column is always fully
   visible; only your chips get drag handles and an "add champion" chip. The affordance tells the truth
   even before the 403 does.
-- **Columns, one per person**: roster order (roles from `ROLES`, subs last), because a scrim
-  conversation happens with everyone looking at the same picture. A column is a *person*, and its
-  header is `role · name` — so in the normal case the page reads as the five roles left to right
-  (`TOP · Jan`, `JUNGLE · Ben`, …), and two people on the same role simply get two adjacent columns
-  instead of fighting over one cell.
+- **Columns, one per person**: role order (`ROLES`: TOP → SUP), then name, then the roleless last,
+  because a scrim conversation happens with everyone looking at the same picture. A column is a
+  *person*, and its header is `role · name` — so in the normal case the page reads as the five roles
+  left to right (`TOP · Jan`, `JUNGLE · Ben`, …), and two people on the same role simply get two
+  adjacent columns instead of fighting over one cell.
+- **The set of columns is the roster *plus* any member who already has a pool.** A captain creates
+  roster rows, but a pool belongs to the person and can be saved before that row exists; hiding it
+  would mean "your work does not count until the captain gets round to you". Such a column takes the
+  player's own `preferredRole` as its position, which is exactly where it will sit once the row
+  appears — the *to-be* place, not a queue at the end. Ordering inside every list is by `position`
+  (dense, rewritten per write), never by insertion time or by champion id.
 - **Three bands per column, stacked**: `Main`, `Situational`, `Blind-pickable`. Each band is a
   wrapping strip of champion chips in **priority order** (left = first answer), not a fixed grid of
   cells — a 3-champion pool and a 12-champion pool look different, and neither shows dead slots. The

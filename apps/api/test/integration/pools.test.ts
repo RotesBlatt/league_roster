@@ -156,11 +156,35 @@ describe('GET /pools', () => {
       expect(person.lists).toEqual({ main: [], situational: [], blind: [] })
   })
 
-  test('a pool whose owner is not on this roster does not appear', async () => {
+  test('a pool whose owner is not a member here does not appear', async () => {
     const strangerId = await createUser(ctx, { name: 'Stranger' })
     await savePool(strangerId, { main: [1] })
 
     const dto = await pools(memberCookie)
     expect(dto.people.some((person) => person.userId === strangerId)).toBe(false)
+  })
+
+  test('a member with a pool but no roster row still shows, at their own role position', async () => {
+    // the captain has not added them yet; their pool must not be invisible (§7)
+    const lateId = await createUser(ctx, { name: 'Late' })
+    await addMembership(ctx, { teamId, userId: lateId })
+    await ctx.db.execute(sql`
+      insert into profile ("id", "userId", "displayName", "preferredRole", "updatedAt")
+      values (${crypto.randomUUID()}, ${lateId}, 'Late', 'SUP', now())
+    `)
+    await savePool(lateId, { main: [5, 6] })
+
+    const dto = await pools(memberCookie)
+
+    // position order is roles TOP → SUP, then name, and the roleless last — so a SUP sits exactly
+    // where they will sit once the roster row exists
+    expect(dto.people.map((person) => person.displayName)).toEqual([
+      'Anton', // TOP
+      'Ben', // JGL
+      'Chris', // MID
+      'Late', // SUP, roster row still missing
+      'Captain', // no role
+    ])
+    expect(dto.people.find((person) => person.userId === lateId)?.lists.main).toEqual([5, 6])
   })
 })
