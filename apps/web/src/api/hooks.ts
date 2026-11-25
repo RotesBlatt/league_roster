@@ -163,6 +163,23 @@ export function useChampions() {
   })
 }
 
+export const POOLS_KEY = ['pools'] as const
+
+/**
+ * The team's champion pools: one row per roster entry, each with their three ordered lists.
+ *
+ * One query for every column on purpose (champion-pools.md §7): the page is opened during champ
+ * select on a second screen, so it must be one read, not five. `slug` is in the key because the
+ * roster is what decides who is shown.
+ */
+export function usePools(slug: string) {
+  return useQuery({
+    queryKey: [...POOLS_KEY, slug],
+    queryFn: () => unwrap(api.teams({ slug }).pools.get()),
+    enabled: slug.length > 0,
+  })
+}
+
 export const ROSTER_KEY = ['roster'] as const
 
 /**

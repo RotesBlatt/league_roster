@@ -2,6 +2,7 @@ import type { Me } from '@lol/api/schema-types'
 import { AppShell, Avatar, Button, Group, Menu, Text } from '@mantine/core'
 import {
   IconCalendarWeek,
+  IconCards,
   IconLogout,
   IconShieldCog,
   IconUser,
@@ -56,6 +57,7 @@ export function AppLayout({ me }: { me: Me }) {
               label="Planner"
               icon={<IconCalendarWeek size={16} />}
             />
+            <NavButton to={`${base}/pools`} label="Pools" icon={<IconCards size={16} />} />
             {me.role === 'captain' && (
               <NavButton to={`${base}/admin`} label="Admin" icon={<IconShieldCog size={16} />} />
             )}
