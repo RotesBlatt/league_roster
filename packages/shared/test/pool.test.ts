@@ -4,6 +4,7 @@ import {
   emptyPoolLists,
   moveEntry,
   POOL_CAP,
+  POOL_KIND_LABELS,
   POOL_KINDS,
   validatePoolWrite,
 } from '../src/pool.ts'
@@ -86,6 +87,7 @@ describe('validatePoolWrite', () => {
 
   test('blind may repeat anything — that is the point of it', () => {
     const problems = validatePoolWrite({
+      ...emptyPoolLists(),
       main: [1, 2],
       situational: [3],
       blind: [1, 2, 3],
@@ -124,6 +126,52 @@ describe('validatePoolWrite', () => {
   test('every kind is validated, not just main', () => {
     expect(validatePoolWrite({ ...emptyPoolLists(), situational: [1, 1] })).toHaveLength(1)
     expect(validatePoolWrite({ ...emptyPoolLists(), blind: [1, 1] })).toHaveLength(1)
+  })
+})
+
+/**
+ * The fourth list: champions a player *wants to learn* (champion-pools.md §6, amended 2026-11-26).
+ *
+ * It is a `kind` rather than a flag because it is the same thing as the other three — an ordered set
+ * of champion ids owned by one person — and it differs only in where it is drawn (last, behind a
+ * divider) and in what it means for exclusivity: learning overlaps everything, because the whole
+ * promise of the list is "I want to add Yone, I have not played it yet".
+ */
+describe('the wip list', () => {
+  test('is called Learning on screen, and sorts last so the page can divide it off', () => {
+    expect(POOL_KIND_LABELS.wip).toBe('Learning')
+    expect(POOL_KINDS[POOL_KINDS.length - 1]).toBe('wip')
+  })
+
+  test('a champion may be a main pick and still be learning another copy of the idea', () => {
+    // overlap is not an accident here: promotion is "it is in main now", not "delete then re-add"
+    expect(validatePoolWrite({ ...emptyPoolLists(), main: [1], wip: [1] })).toEqual([])
+  })
+
+  test('overlaps situational and blind as well', () => {
+    expect(
+      validatePoolWrite({
+        main: [],
+        situational: [2],
+        blind: [2],
+        wip: [2],
+      }),
+    ).toEqual([])
+  })
+
+  test('the same champion twice inside wip is still rejected', () => {
+    const problems = validatePoolWrite({ ...emptyPoolLists(), wip: [9, 9] })
+    expect(problems).toHaveLength(1)
+    expect(problems[0]?.field).toBe('wip')
+  })
+
+  test('wip has the same cap as the other lists', () => {
+    const tooMany = Array.from({ length: POOL_CAP + 1 }, (_, index) => index + 1)
+    expect(validatePoolWrite({ ...emptyPoolLists(), wip: tooMany })).toHaveLength(1)
+  })
+
+  test('an empty wip list is a valid statement', () => {
+    expect(emptyPoolLists().wip).toEqual([])
   })
 })
 

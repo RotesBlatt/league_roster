@@ -1,21 +1,26 @@
 /**
- * Champion pools — the vocabulary and the three rules (champion-pools.md §5, §6, §8).
+ * Champion pools — the vocabulary and the rules (champion-pools.md §5, §6, §8).
  *
- * A pool is three ordered lists of champion ids that belong to one person: what they want to play
- * (`main`), what fits specific games (`situational`), and what they are willing to first-pick
- * (`blind`). No DB, no React, no HTTP: every rule here takes plain arrays and returns plain values,
- * so the parts that can be wrong quietly are testable without infrastructure.
+ * A pool is four ordered lists of champion ids that belong to one person: what they want to play
+ * (`main`), what fits specific games (`situational`), what they are willing to first-pick (`blind`),
+ * and what they want to learn (`wip`). No DB, no React, no HTTP: every rule here takes plain arrays
+ * and returns plain values, so the parts that can be wrong quietly are testable without
+ * infrastructure.
  *
  * Champion ids are opaque integers — never validated against the dump (§10.8). A champion that
  * patches away must not delete somebody's intent.
  */
 
-export const POOL_KINDS = ['main', 'situational', 'blind'] as const
+/**
+ * In drawing order: the three lists a player *has* come first, and `wip` last because the page draws
+ * it behind a divider — it is a plan, not a pool you can draft with.
+ */
+export const POOL_KINDS = ['main', 'situational', 'blind', 'wip'] as const
 export type PoolKind = (typeof POOL_KINDS)[number]
 
 /**
- * One pool, three lists, in **priority order** (index 0 is the first answer). Shared by the API's
- * read model, the write payload and the page, so the three cannot disagree about the shape.
+ * One pool, four lists, in **priority order** (index 0 is the first answer). Shared by the API's
+ * read model, the write payload and the page, so they cannot disagree about the shape.
  */
 export type PoolLists = Record<PoolKind, number[]>
 
@@ -26,11 +31,12 @@ export const POOL_KIND_LABELS: Record<PoolKind, string> = {
   main: 'Main',
   situational: 'Situational',
   blind: 'Blind-pickable',
+  wip: 'Learning',
 }
 
-/** A pool nobody has written yet: three empty lists, never a missing key. */
+/** A pool nobody has written yet: four empty lists, never a missing key. */
 export function emptyPoolLists(): PoolLists {
-  return { main: [], situational: [], blind: [] }
+  return { main: [], situational: [], blind: [], wip: [] }
 }
 
 /**
@@ -104,8 +110,9 @@ export function validatePoolWrite(lists: PoolLists): PoolProblem[] {
     }
   }
 
-  // One champion belongs to one pool: main and situational are mutually exclusive (§6), and blind
-  // is the list that may freely overlap both.
+  // One champion belongs to one pool: main and situational are mutually exclusive (§6). `blind` and
+  // `wip` are the two lists that may freely overlap everything — blind is a second opinion about a
+  // champion, and learning a champion you already play is a normal state, not a mistake.
   const inMain = new Set(lists.main.filter(isChampionId))
   const overlap = lists.situational.find((championId) => inMain.has(championId))
   if (overlap !== undefined) {

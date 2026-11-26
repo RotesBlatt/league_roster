@@ -46,7 +46,7 @@ const entry = (
 })
 
 describe('composePools', () => {
-  test('a player who never saved a pool is present with version 0 and three empty lists', () => {
+  test('a player who never saved a pool is present with version 0 and four empty lists', () => {
     const dto = composePools({ roster: [person('u1', 'Jan', 'TOP')], pools: [], entries: [] })
 
     expect(dto).toHaveLength(1)
@@ -57,7 +57,7 @@ describe('composePools', () => {
       isActive: true,
       version: 0,
       updatedAt: null,
-      lists: { main: [], situational: [], blind: [] },
+      lists: { main: [], situational: [], blind: [], wip: [] },
     })
   })
 
@@ -85,7 +85,7 @@ describe('composePools', () => {
     expect(dto[0]?.lists.main).toEqual([17, 64, 101])
   })
 
-  test('the three kinds stay apart, and each keeps its own order', () => {
+  test('the four kinds stay apart, and each keeps its own order', () => {
     const dto = composePools({
       roster: [person('u1', 'Jan')],
       pools: [header('u1')],
@@ -97,7 +97,7 @@ describe('composePools', () => {
       ],
     })
 
-    expect(dto[0]?.lists).toEqual({ main: [3], situational: [2], blind: [1, 4] })
+    expect(dto[0]?.lists).toEqual({ main: [3], situational: [2], blind: [1, 4], wip: [] })
   })
 
   test('a cleared pool keeps its version and timestamp — it was touched, and that is information', () => {
@@ -109,7 +109,7 @@ describe('composePools', () => {
 
     expect(dto[0]?.version).toBe(7)
     expect(dto[0]?.updatedAt).toBe(new Date('2026-11-20T19:00:00Z').getTime())
-    expect(dto[0]?.lists).toEqual({ main: [], situational: [], blind: [] })
+    expect(dto[0]?.lists).toEqual({ main: [], situational: [], blind: [], wip: [] })
   })
 
   test('a pool whose owner left the roster is not rendered', () => {
