@@ -38,12 +38,17 @@ async function addToRoster(userId: string, role: 'TOP' | 'MID'): Promise<void> {
   `)
 }
 
-type Lists = { main?: number[]; situational?: number[]; blind?: number[] }
+type Lists = { main?: number[]; situational?: number[]; blind?: number[]; wip?: number[] }
 
-/** The full body: three lists always, because the endpoint writes the whole pool. */
+/** The full body: every list always, because the endpoint writes the whole pool. */
 const body = (version: number, lists: Lists) => ({
   version,
-  lists: { main: lists.main ?? [], situational: lists.situational ?? [], blind: lists.blind ?? [] },
+  lists: {
+    main: lists.main ?? [],
+    situational: lists.situational ?? [],
+    blind: lists.blind ?? [],
+    wip: lists.wip ?? [],
+  },
 })
 
 const put = (cookie: string | undefined, payload: unknown) =>
@@ -134,7 +139,7 @@ describe('PUT /api/pools', () => {
 
     const written = await person(meId)
     expect(written.version).toBe(1)
-    expect(written.lists).toEqual({ main: [103, 7], situational: [13], blind: [7] })
+    expect(written.lists).toEqual({ main: [103, 7], situational: [13], blind: [7], wip: [] })
     expect(written.updatedAt).not.toBeNull()
   })
 
@@ -163,7 +168,7 @@ describe('PUT /api/pools', () => {
     expect((await put(meCookie, body(4, { main: [103] }))).status).toBe(200)
 
     const written = await person(meId)
-    expect(written.lists).toEqual({ main: [103], situational: [], blind: [] })
+    expect(written.lists).toEqual({ main: [103], situational: [], blind: [], wip: [] })
   })
 
   test('a stale version is a 409 and writes nothing at all', async () => {
@@ -172,7 +177,7 @@ describe('PUT /api/pools', () => {
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ reason: 'stale', version: 5 })
     // the old content, not the rejected one, and no partial write
-    expect((await person(meId)).lists).toEqual({ main: [103], situational: [], blind: [] })
+    expect((await person(meId)).lists).toEqual({ main: [103], situational: [], blind: [], wip: [] })
     expect((await person(meId)).version).toBe(5)
   })
 
@@ -195,7 +200,12 @@ describe('PUT /api/pools', () => {
     const response = await put(meCookie, body(6, { main: [1], situational: [1] }))
 
     expect(response.status).toBe(422)
-    expect((await person(meId)).lists).toEqual({ main: [245, 103], situational: [], blind: [] })
+    expect((await person(meId)).lists).toEqual({
+      main: [245, 103],
+      situational: [],
+      blind: [],
+      wip: [],
+    })
   })
 
   test('more than the cap is refused', async () => {
@@ -208,5 +218,32 @@ describe('PUT /api/pools', () => {
     // a write that changes nothing still counts: it is the statement "this is my pool"
     expect((await put(meCookie, body(before, { main: [245, 103] }))).status).toBe(200)
     expect((await person(meId)).version).toBe(before + 1)
+  })
+
+  test('the learning list is stored in its own order, and everyone reads it', async () => {
+    const before = (await person(meId)).version
+    expect((await put(meCookie, body(before, { wip: [103, 7] }))).status).toBe(200)
+
+    // read through the teammate's cookie: learning is shared information like every other list
+    const written = await person(meId)
+    expect(written.lists.wip).toEqual([103, 7])
+  })
+
+  test('a champion may be in a pool list and in the learning list at once', async () => {
+    const before = (await person(meId)).version
+    expect((await put(meCookie, body(before, { main: [245], wip: [245] }))).status).toBe(200)
+
+    const written = await person(meId)
+    expect(written.lists.main).toEqual([245])
+    expect(written.lists.wip).toEqual([245])
+
+    // the overlap is two real rows, not one row counted twice
+    const rows = await ctx.db.select().from(poolEntries).where(eq(poolEntries.ownerId, meId))
+    expect(
+      rows
+        .filter((row) => row.championId === 245)
+        .map((row) => row.kind)
+        .sort(),
+    ).toEqual(['main', 'wip'])
   })
 })

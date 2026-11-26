@@ -465,9 +465,10 @@ export const pools = pgTable('pool', {
 })
 
 /**
- * One champion of one list. Three kinds (`main` / `situational` / `blind`) in **one table**, because
- * all three *are* the same thing: an ordered set of champion ids owned by exactly one person — same
- * guard, same drag component, same endpoint. Only the label and the caps differ.
+ * One champion of one list. Four kinds (`main` / `situational` / `blind` / `wip`) in **one table**,
+ * because they all *are* the same thing: an ordered set of champion ids owned by exactly one person —
+ * same guard, same drag component, same endpoint. Only the label, the cap and where the page draws
+ * it (`wip` last, behind a divider) differ.
  *
  * `position` is dense `0..n-1` and is rewritten on every write; the order *is* the information
  * ("Sion, Ornn, Tahm Kench" says Sion is my first answer). The whole list is deleted and re-inserted
@@ -491,7 +492,7 @@ export const poolEntries = pgTable(
     updatedAt: updatedAt.notNull(),
   },
   (table) => [
-    // once per list; the same champion may still be in `blind` and in a pool section (§6)
+    // once per list; the same champion may still be in `blind` or `wip` and in a pool section (§6)
     unique('pool_entry_owner_kind_champion_idx').on(table.ownerId, table.kind, table.championId),
     /**
      * Dense positions, one row each. **`DEFERRABLE INITIALLY DEFERRED` in the migration** — drizzle

@@ -107,6 +107,7 @@ const writeBody = t.Object({
     main: t.Array(t.Integer()),
     situational: t.Array(t.Integer()),
     blind: t.Array(t.Integer()),
+    wip: t.Array(t.Integer()),
   }),
 })
 

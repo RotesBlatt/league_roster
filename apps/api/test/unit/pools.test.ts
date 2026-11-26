@@ -94,10 +94,13 @@ describe('composePools', () => {
         entry('u1', 'situational', 2, 0),
         entry('u1', 'main', 3, 0),
         entry('u1', 'blind', 4, 1),
+        // learning is its own list even when the champion is one the player already mains
+        entry('u1', 'wip', 3, 1),
+        entry('u1', 'wip', 5, 0),
       ],
     })
 
-    expect(dto[0]?.lists).toEqual({ main: [3], situational: [2], blind: [1, 4], wip: [] })
+    expect(dto[0]?.lists).toEqual({ main: [3], situational: [2], blind: [1, 4], wip: [5, 3] })
   })
 
   test('a cleared pool keeps its version and timestamp — it was touched, and that is information', () => {

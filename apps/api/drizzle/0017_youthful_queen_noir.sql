@@ -1,0 +1,2 @@
+ALTER TABLE "pool_entry" DROP CONSTRAINT "pool_entry_kind_check";--> statement-breakpoint
+ALTER TABLE "pool_entry" ADD CONSTRAINT "pool_entry_kind_check" CHECK ("pool_entry"."kind" in ('main', 'situational', 'blind', 'wip'));

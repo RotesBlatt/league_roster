@@ -46,7 +46,7 @@ async function addToRoster(
 /** A saved pool: header row plus one entry per (kind, champion) pair, positions 0..n-1. */
 async function savePool(
   ownerId: string,
-  lists: { main?: number[]; situational?: number[]; blind?: number[] },
+  lists: { main?: number[]; situational?: number[]; blind?: number[]; wip?: number[] },
   version = 1,
 ): Promise<void> {
   await ctx.db.execute(sql`
@@ -129,7 +129,7 @@ describe('GET /pools', () => {
       'Captain', // no role: after everyone with one
     ])
     for (const person of dto.people) {
-      expect(person.lists).toEqual({ main: [], situational: [], blind: [] })
+      expect(person.lists).toEqual({ main: [], situational: [], blind: [], wip: [] })
       expect(person.version).toBe(0)
       expect(person.updatedAt).toBeNull()
     }
@@ -142,7 +142,12 @@ describe('GET /pools', () => {
     const mid = dto.people.find((person) => person.userId === midId)
 
     expect(mid?.version).toBe(4)
-    expect(mid?.lists).toEqual({ main: [103, 7, 245], situational: [13], blind: [103, 141] })
+    expect(mid?.lists).toEqual({
+      main: [103, 7, 245],
+      situational: [13],
+      blind: [103, 141],
+      wip: [],
+    })
     expect(mid?.updatedAt).not.toBeNull()
   })
 
@@ -153,7 +158,7 @@ describe('GET /pools', () => {
 
     expect(mid?.lists.main).toEqual([103, 7, 245])
     for (const person of others)
-      expect(person.lists).toEqual({ main: [], situational: [], blind: [] })
+      expect(person.lists).toEqual({ main: [], situational: [], blind: [], wip: [] })
   })
 
   test('a pool whose owner is not a member here does not appear', async () => {
@@ -186,5 +191,19 @@ describe('GET /pools', () => {
       'Captain', // no role
     ])
     expect(dto.people.find((person) => person.userId === lateId)?.lists.main).toEqual([5, 6])
+  })
+
+  test('the learning list is read in its own order, next to the other three', async () => {
+    // stored as raw rows on purpose: the read path must not depend on the write handler for wip
+    const learnerId = await createUser(ctx, { name: 'Dana' })
+    await addMembership(ctx, { teamId, userId: learnerId })
+    await addToRoster(learnerId, 'SUP')
+    await savePool(learnerId, { main: [7], wip: [245, 103] }, 2)
+
+    const dto = await pools(memberCookie)
+    const learner = dto.people.find((person) => person.userId === learnerId)
+
+    expect(learner?.lists.wip).toEqual([245, 103])
+    expect(learner?.lists.main).toEqual([7])
   })
 })
