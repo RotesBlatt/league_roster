@@ -4,7 +4,9 @@
 rules, `GET /api/teams/:slug/pools`, `PUT /api/pools`, and the pool page with drag, right-click
 actions, the trash bin and autosave. Commits `241f8d3` … `61a64c1` (`feat(shared)`, `feat(api)`,
 `feat(web)`). Model revised 2026-11-25: **three side-neutral lists per player** (`main`,
-`situational`, `blind`), the blue/red blind split and the team-wide block dropped.
+`situational`, `blind`), the blue/red blind split and the team-wide block dropped. Revised again
+2026-11-26: **a fourth list, `wip` ("Learning")** — champions the player *wants to learn* — see §14
+and migration 0017.
 **Depends on:** `player-profiles.md` (whose pool it is — a person, not a roster row) and
 `hexserve-champion-data.md` (the champion name and icon shown in every cell — our own per-patch dump,
 not a table of ours; that slice is **done**).
@@ -19,7 +21,8 @@ Every player curates their own champion pool and everyone on the team can see al
 - a **Main pool** — the champions they actually want to play, in *their* order;
 - a **Situational pool** ("Situativ / Extra") — the picks that fit specific games, again in their
   order;
-- a **Blind-pick list** — what they are willing to first-pick, side-neutral, in their order.
+- a **Blind-pick list** — what they are willing to first-pick, side-neutral, in their order;
+- a **Learning list** — the champions they want to learn, in their order (§14).
 
 Everyone sees every row. **Only you edit your own.** The point is the conversation before and during
 a game: open the page, see who can blind what, agree on the first three picks, and know it is
@@ -171,7 +174,7 @@ Fix it with `DEFERRABLE INITIALLY DEFERRED` (checked at commit), or by rewriting
 (delete + insert) inside the transaction. Discovering this in production means "reordering sometimes
 fails with a 500" — pin it with a test that reorders a three-item list in both directions.
 
-## 6. The three lists
+## 6. The four lists
 
 - **A champion may be in `main` or `situational`, not both** — a champion in both makes the pool
   basis ambiguous (§9). A move between them is a `kind` change, not a second row.
@@ -183,6 +186,10 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
 - **Blind-pickability is patch-dependent** and changes faster than a pool does. A flag on a pool entry
   would force "add it to my pool to flag it", which pollutes the pool — which is why it is a third
   list and not a column.
+- **`wip` overlaps everything**, including `main`, `situational` and `blind` (§14). Learning a
+  champion you already play is a normal state ("I main Sion and I am learning the new patch Sion"),
+  and promotion is "it is in main now" rather than "delete it, then add it". So the only exclusivity
+  rule is still main↔situational; `wip` is the second free list next to `blind`.
 - There is no `b1`/`b2`/`b1_only` slot meaning any more: position is priority, nothing more. If that
   ever needs meaning, it is a new column, not a new list (§10.6).
 
@@ -206,7 +213,10 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
   player's own `preferredRole` as its position, which is exactly where it will sit once the row
   appears — the *to-be* place, not a queue at the end. Ordering inside every list is by `position`
   (dense, rewritten per write), never by insertion time or by champion id.
-- **Three bands per column, stacked**: `Main`, `Situational`, `Blind-pickable`. Each band is a
+- **Four bands per column, stacked**: `Main`, `Situational`, `Blind-pickable`, then a divider and
+  `Learning`. The divider is the whole distinction: the first three say what a player *can play*, the
+  last says what they *want to learn*, and a band that looks like the others must not be read as
+  draftable. Its placement is data (`poolBandGroups`), not a line in the JSX. Each band is a
   wrapping strip of champion chips in **priority order** (left = first answer), not a fixed grid of
   cells — a 3-champion pool and a 12-champion pool look different, and neither shows dead slots. The
   blind band carries its own heading and nothing else; that is the whole legend, no coloured border
@@ -219,6 +229,8 @@ fails with a 500" — pin it with a test that reorders a three-item list in both
                          [Jarvan][Sej.]
  situ   [Poppy]          —                 [Kassadin]       …            …
  blind  [Sion][Karma]    [Jarvan]          [Ahri]           …            …
+ ─────────────────────────────────────────────────────────────────────────────
+ learn  [Gnar]           [Ivern]           [Yone]           …            …
 ```
 
 - **Width, not depth**: three bands × five columns stays inside the page width at a normal laptop
@@ -416,3 +428,25 @@ Green: `bun run test`, `bun run test:db`, `bun run typecheck`.
   one column, whole cache on open), drag + right-click actions + trash, and autosave with its queue.
 - **Left for later:** a cross-pool search ("who plays Yone?") — the obvious next question on this
   page during champ select, and not written down anywhere yet.
+
+## 14. The learning list — 2026-11-26
+
+A fourth `kind` (`wip`, label **Learning**) so "I want to add Yone, I have not played it yet" is a
+first-class statement. It is not a flag and not a second table: it is the same thing as the other
+three — an ordered set of champion ids owned by one person — so it shares the table, the endpoint,
+the guard, the drag component and the cap. The four decisions that were open:
+
+1. **Stored as a new value of the existing `kind` enum.** Migration 0017 is the
+   `pool_entry_kind_check` re-statement and nothing else; the replay harness seeds rows at 0016 and
+   migrates under them.
+2. **Overlaps everything.** `validatePoolWrite` was not touched — the only exclusivity it enforces is
+   main↔situational. `addChampion` therefore treats `wip` exactly like `blind`: entering it *adds*,
+   so a main-pick champion keeps its pool entry; only `wip → main` relocates.
+3. **Drawn last, behind a divider** (`poolBandGroups`), in the same card — the band is identical in
+   behaviour, different in meaning.
+4. **Not counted in the chase line.** `hasAnyChampion`/`poolCompletion` still read only the three
+   draftable lists: the line means "we can draft with this", and five champions being learned is not
+   a filled pool.
+
+No promote action was added (§14.2): promotion is "also add it to main", and a menu that moved it
+would be a second, lossier way to say the same thing.

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { PoolPersonDto } from '@lol/api/schema-types'
-import { ROLES } from '@lol/shared'
+import { emptyPoolLists, ROLES } from '@lol/shared'
 import { poolColumns } from '../../../src/lib/pools/pool-columns.ts'
 
 /**
@@ -24,7 +24,7 @@ const person = (
   isActive: true,
   version: 0,
   updatedAt: null,
-  lists: { main: [], situational: [], blind: [] },
+  lists: emptyPoolLists(),
 })
 
 describe('poolColumns', () => {

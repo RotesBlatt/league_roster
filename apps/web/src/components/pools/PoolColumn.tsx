@@ -2,19 +2,14 @@ import { useDroppable } from '@dnd-kit/core'
 import { rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PoolPersonDto } from '@lol/api/schema-types'
-import {
-  POOL_KIND_LABELS,
-  POOL_KINDS,
-  type PoolKind,
-  type PoolLists,
-  ROLE_LABELS,
-} from '@lol/shared'
-import { Badge, Box, Group, Paper, Stack, Text } from '@mantine/core'
-import { useRef, useState } from 'react'
+import { POOL_KIND_LABELS, type PoolKind, type PoolLists, ROLE_LABELS } from '@lol/shared'
+import { Badge, Box, Divider, Group, Paper, Stack, Text } from '@mantine/core'
+import { Fragment, useRef, useState } from 'react'
 import { useChampions } from '../../api/hooks.ts'
 import { championLabelFor, unknownChampionName } from '../../lib/champions/labels.ts'
 import { chipActions } from '../../lib/pools/chip-actions.ts'
 import { bandDragId, championDragId, type DragTarget } from '../../lib/pools/drag.ts'
+import { poolBandGroups } from '../../lib/pools/pool-bands.ts'
 import { poolAgeText } from '../../lib/pools/pool-view.ts'
 import { ChampionIcon } from '../champions/ChampionIcon.tsx'
 import { ChampionPicker } from './ChampionPicker.tsx'
@@ -258,15 +253,22 @@ export function PoolColumn({
   const age = poolAgeText(person.updatedAt, now)
   const shown = lists ?? person.lists
 
-  const bands = POOL_KINDS.map((kind) => (
-    <PoolBand
-      key={kind}
-      kind={kind}
-      lists={shown}
-      dropTarget={dropTarget ?? null}
-      {...(onChange ? { onChange } : {})}
-      {...(onPick ? { onPick: (championId: number) => onPick(kind, championId) } : {})}
-    />
+  // Grouped, not a flat list: the learning band is divided off from the three you can draft with
+  // (`poolBandGroups`, so the divider is a tested decision rather than a line in the JSX).
+  const bands = poolBandGroups().map((group) => (
+    <Fragment key={group.kinds.join(':')}>
+      {group.dividedFromAbove ? <Divider /> : null}
+      {group.kinds.map((kind) => (
+        <PoolBand
+          key={kind}
+          kind={kind}
+          lists={shown}
+          dropTarget={dropTarget ?? null}
+          {...(onChange ? { onChange } : {})}
+          {...(onPick ? { onPick: (championId: number) => onPick(kind, championId) } : {})}
+        />
+      ))}
+    </Fragment>
   ))
 
   return (

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { emptyPoolLists, type PoolLists } from '@lol/shared'
 import { createSaveQueue } from '../../../src/lib/pools/save-queue.ts'
 
 /**
@@ -9,9 +10,9 @@ import { createSaveQueue } from '../../../src/lib/pools/save-queue.ts'
  * drives the queue with a controllable promise, so "in flight" and "queued" are real states.
  */
 
-type Sent = { version: number; lists: { main: number[]; situational: number[]; blind: number[] } }
+type Sent = { version: number; lists: PoolLists }
 
-const lists = (main: number[]) => ({ main, situational: [], blind: [] })
+const lists = (main: number[]) => ({ ...emptyPoolLists(), main })
 
 /** A `send` whose promises resolve only when the test says so. */
 function controllable(bump = 1) {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import type { Me, PoolPersonDto } from '@lol/api/schema-types'
+import { emptyPoolLists } from '@lol/shared'
 import { MantineProvider } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -38,7 +39,7 @@ const person = (overrides: Partial<PoolPersonDto> = {}): PoolPersonDto => ({
   version: 3,
   // a saved pool always has a header, so it always has an age (only `mate` never saved)
   updatedAt: Date.now() - 3 * 86_400_000,
-  lists: { main: [1, 2], situational: [], blind: [] },
+  lists: { ...emptyPoolLists(), main: [1, 2] },
   ...overrides,
 })
 
@@ -49,7 +50,7 @@ const mate = person({
   role: 'MID',
   version: 0,
   updatedAt: null,
-  lists: { main: [], situational: [], blind: [] },
+  lists: emptyPoolLists(),
 })
 
 function renderPage() {
@@ -90,15 +91,18 @@ beforeEach(() => {
 })
 
 describe('read', () => {
-  test('one column per person, three bands each, and the never-saved column says so', async () => {
+  test('one column per person, four bands each, and the never-saved column says so', async () => {
     renderPage()
 
     expect(await screen.findByText('Me')).toBeTruthy()
     expect(screen.getByText('Mate')).toBeTruthy()
-    // three band headings per column, two columns; the capitals are CSS (`tt`), not the text
+    // four band headings per column, two columns; the capitals are CSS (`tt`), not the text
     expect(screen.getAllByText('Main')).toHaveLength(2)
     expect(screen.getAllByText('Situational')).toHaveLength(2)
     expect(screen.getAllByText('Blind-pickable')).toHaveLength(2)
+    expect(screen.getAllByText('Learning')).toHaveLength(2)
+    // the learning band is divided off, once per column, and nothing else is
+    expect(screen.getAllByRole('separator')).toHaveLength(2)
     // the age line distinguishes "never saved" from "saved a while ago"
     expect(screen.getByText('no pool yet')).toBeTruthy()
     // one of two columns is filled
@@ -151,8 +155,8 @@ describe('editing your own column', () => {
   test('only my column has handles — the others are reads', async () => {
     renderPage()
 
-    // two add buttons per editable band (Main, Situational, Blind) = 3, exactly once
-    expect(await screen.findAllByLabelText(/^Add a champion to/)).toHaveLength(3)
+    // one add button per editable band (Main, Situational, Blind, Learning) = 4, exactly once
+    expect(await screen.findAllByLabelText(/^Add a champion to/)).toHaveLength(4)
     // and only my two chips are sortable; the other column's are plain reads
     await waitFor(() => expect(sortableChips()).toHaveLength(2))
   })
@@ -194,7 +198,7 @@ describe('editing your own column', () => {
     await waitFor(() =>
       expect(apiState.sentPool).toEqual({
         version: 3,
-        lists: { main: [1, 2, 103], situational: [], blind: [] },
+        lists: { ...emptyPoolLists(), main: [1, 2, 103] },
       }),
     )
   })
@@ -237,7 +241,7 @@ describe('editing your own column', () => {
     await waitFor(() =>
       expect(apiState.sentPool).toEqual({
         version: 3,
-        lists: { main: [2, 1], situational: [], blind: [] },
+        lists: { ...emptyPoolLists(), main: [2, 1] },
       }),
     )
   })
