@@ -11,21 +11,25 @@ import { moveEntry, POOL_CAP, type PoolKind, type PoolLists } from '@lol/shared'
  * Every function returns a new `PoolLists`; nothing mutates what it is given.
  */
 
-/** The two pool sections are exclusive; `blind` is a separate opinion and may overlap both. */
+/**
+ * The two pool sections are exclusive; `blind` is a separate opinion and `wip` a separate plan, and
+ * both may overlap them (and each other).
+ */
 const isPoolSection = (kind: PoolKind): boolean => kind === 'main' || kind === 'situational'
 
 const copy = (lists: PoolLists): PoolLists => ({
   main: [...lists.main],
   situational: [...lists.situational],
   blind: [...lists.blind],
+  wip: [...lists.wip],
 })
 
 /**
  * Appends a champion to `kind` — at the end, because the order *is* the priority.
  *
  * Adding to `main` or `situational` removes the champion from the other section (a champion is in
- * one pool). `blind` overlaps freely, in both directions: a blind-pickable champion stays in its
- * pool section, and a pool champion may be added to blind.
+ * one pool). `blind` and `wip` overlap freely, in both directions: a blind-pickable or learning
+ * champion stays in its pool section, and a pool champion may be added to either.
  */
 export function addChampion(lists: PoolLists, kind: PoolKind, championId: number): PoolLists {
   const next = copy(lists)
@@ -66,8 +70,9 @@ export function moveWithin(lists: PoolLists, kind: PoolKind, from: number, to: n
  * The two directions are deliberately not symmetric (§6):
  * - **into a pool section** is a relocation — the champion leaves the list it came from, and
  *   `addChampion` clears the other pool section too, so it ends up in exactly one;
- * - **into `blind`** is an *addition*, not a move: blind is a second opinion about the same
- *   champion, so a main-pool champion stays in the main pool and becomes blind-pickable as well.
+ * - **into `blind` or `wip`** is an *addition*, not a move: blind is a second opinion and wip is a
+ *   plan, so a main-pool champion stays in the main pool and becomes blind-pickable or learner too.
+ *   Leaving `wip` for a pool section is therefore the only direction that removes it.
  */
 export function moveAcross(
   lists: PoolLists,

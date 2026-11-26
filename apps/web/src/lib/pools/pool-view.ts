@@ -10,7 +10,13 @@ import type { PoolPersonDto } from '@lol/api/schema-types'
 
 type Lists = PoolPersonDto['lists']
 
-/** Does this person have any list filled at all? A cleared pool and a never-saved one look alike. */
+/**
+ * Does this person have any list filled at all? A cleared pool and a never-saved one look alike.
+ *
+ * `wip` is deliberately left out, here and in `poolCompletion`: the chase lines are about being able
+ * to draft, and a list of champions somebody is *learning* is a plan, not a pool. Counting it would
+ * silently stop chasing a player who is not draftable.
+ */
 export function hasAnyChampion(lists: Lists): boolean {
   return lists.main.length > 0 || lists.situational.length > 0 || lists.blind.length > 0
 }

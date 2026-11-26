@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { POOL_CAP, validatePoolWrite } from '@lol/shared'
+import { emptyPoolLists, POOL_CAP, validatePoolWrite } from '@lol/shared'
 import {
   addChampion,
   moveAcross,
@@ -16,7 +16,7 @@ import {
  * back 422 — or worse, until it succeeds with a pool nobody meant.
  */
 
-const empty = { main: [], situational: [], blind: [] }
+const empty = emptyPoolLists()
 
 describe('addChampion', () => {
   test('appends at the end: the newest addition is the last answer, not the first', () => {
@@ -44,8 +44,27 @@ describe('addChampion', () => {
 
   test('blind may hold a champion that is also in a pool section', () => {
     const lists = addChampion({ ...empty, main: [1] }, 'blind', 1)
-    expect(lists).toEqual({ main: [1], situational: [], blind: [1] })
+    expect(lists).toEqual({ ...empty, main: [1], blind: [1] })
     expect(validatePoolWrite(lists)).toEqual([])
+  })
+
+  test('learning a champion you already play keeps it in the pool — wip is not a pool section', () => {
+    const lists = addChampion({ ...empty, main: [1] }, 'wip', 1)
+    expect(lists.main).toEqual([1])
+    expect(lists.wip).toEqual([1])
+    // the local rule and the shared one agree: learning overlaps everything
+    expect(validatePoolWrite(lists)).toEqual([])
+  })
+
+  test('adding to main leaves the learning copy where it is', () => {
+    const lists = addChampion({ ...empty, wip: [1] }, 'main', 1)
+    expect(lists.main).toEqual([1])
+    expect(lists.wip).toEqual([1])
+  })
+
+  test('the cap applies to the learning list as well', () => {
+    const full = Array.from({ length: POOL_CAP }, (_, index) => index + 1)
+    expect(addChampion({ ...empty, wip: full }, 'wip', 99).wip).toEqual(full)
   })
 
   test('the cap is the shared one, and the list is left alone at it', () => {
@@ -64,7 +83,13 @@ describe('addChampion', () => {
 describe('removeChampion', () => {
   test('removes from that list only — the same id may stay blind-pickable', () => {
     const lists = removeChampion({ ...empty, main: [1, 2], blind: [1] }, 'main', 1)
-    expect(lists).toEqual({ main: [2], situational: [], blind: [1] })
+    expect(lists).toEqual({ ...empty, main: [2], blind: [1] })
+  })
+
+  test('removing from main keeps the learning copy', () => {
+    const lists = removeChampion({ ...empty, main: [1], wip: [1] }, 'main', 1)
+    expect(lists.main).toEqual([])
+    expect(lists.wip).toEqual([1])
   })
 
   test('removing something that is not there changes nothing', () => {
@@ -92,7 +117,19 @@ describe('moveAcross', () => {
 
   test('main -> blind leaves the pool section alone: blind is not a pool', () => {
     const lists = moveAcross({ ...empty, main: [1] }, 'main', 1, 'blind')
-    expect(lists).toEqual({ main: [1], situational: [], blind: [1] })
+    expect(lists).toEqual({ ...empty, main: [1], blind: [1] })
+  })
+
+  test('main -> wip is an addition like blind: wanting to learn it is not leaving the pool', () => {
+    const lists = moveAcross({ ...empty, main: [1] }, 'main', 1, 'wip')
+    expect(lists).toEqual({ ...empty, main: [1], wip: [1] })
+  })
+
+  test('wip -> main is a relocation: it leaves the learning list', () => {
+    const lists = moveAcross({ ...empty, wip: [2, 1] }, 'wip', 1, 'main')
+    expect(lists.main).toEqual([1])
+    expect(lists.wip).toEqual([2])
+    expect(validatePoolWrite(lists)).toEqual([])
   })
 
   test('moving to the list it is already in is a no-op', () => {

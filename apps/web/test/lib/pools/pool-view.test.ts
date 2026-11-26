@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { PoolPersonDto } from '@lol/api/schema-types'
+import { emptyPoolLists } from '@lol/shared'
 import { hasAnyChampion, poolAgeText, poolCompletion } from '../../../src/lib/pools/pool-view.ts'
 
 /**
@@ -8,7 +9,7 @@ import { hasAnyChampion, poolAgeText, poolCompletion } from '../../../src/lib/po
  * only a test catches — "0 of 0 filled" on an empty team, and "updated 1 days ago".
  */
 
-const empty = { main: [], situational: [], blind: [] }
+const empty = emptyPoolLists()
 
 const person = (lists: Partial<PoolPersonDto['lists']> = {}): Pick<PoolPersonDto, 'lists'> => ({
   lists: { ...empty, ...lists },
@@ -23,6 +24,10 @@ describe('hasAnyChampion', () => {
     expect(hasAnyChampion({ ...empty, main: [1] })).toBe(true)
     expect(hasAnyChampion({ ...empty, situational: [1] })).toBe(true)
     expect(hasAnyChampion({ ...empty, blind: [1] })).toBe(true)
+  })
+
+  test('the learning list alone is not a pool — a plan is not something we can draft with', () => {
+    expect(hasAnyChampion({ ...empty, wip: [1] })).toBe(false)
   })
 })
 
@@ -64,6 +69,15 @@ describe('poolCompletion', () => {
   test('a situational-only or blind-only pool counts as filled', () => {
     expect(poolCompletion([person({ situational: [9] })]).filled).toBe(1)
     expect(poolCompletion([person({ blind: [9] })]).filled).toBe(1)
+  })
+
+  test('a learner is still chased: learning five champions is not filling a pool', () => {
+    // the line means "we can draft with this", so a wip-only pool must keep the sentence visible
+    expect(poolCompletion([person({ main: [1] }), person({ wip: [2, 3] })])).toEqual({
+      filled: 1,
+      total: 2,
+      text: '1 of 2 filled their pool',
+    })
   })
 })
 
