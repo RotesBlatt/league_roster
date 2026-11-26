@@ -4,7 +4,7 @@ import { emptyPoolLists } from '@lol/shared'
 import { MantineProvider } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { apiState, installApiMock, resetApiState } from '../api-mock.ts'
 
@@ -215,8 +215,35 @@ describe('editing your own column', () => {
     expect(menu.style.left).toBe('120px')
     expect(menu.style.top).toBe('80px')
 
-    // and it leaves when the pointer does, without needing a click somewhere else
+    // leaving does not close it on the spot: there is a 0.2 s window to come back into
     fireEvent.mouseLeave(menu)
+    expect(screen.queryByRole('menu')).toBeTruthy()
+
+    // ...and it does leave once the window has passed, without a click somewhere else. The close
+    // comes from a timer, so it is flushed inside `act` — polling with `waitFor` cannot see a
+    // pending timer-driven update in this harness.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  test('coming back into the panel within the window keeps it open', async () => {
+    renderPage()
+    await waitFor(() => expect(sortableChips()).toHaveLength(2))
+
+    fireEvent.contextMenu(sortableChips()[0]!)
+    const menu = await screen.findByRole('menu')
+
+    fireEvent.mouseLeave(menu)
+    fireEvent.mouseEnter(menu)
+
+    // wait past the grace window: an uncancelled timer would have closed the panel by now
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(screen.queryByRole('menu')).toBeTruthy()
+
+    // no leaked open panel for the next test
+    fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
   })
 
