@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { emptyPoolLists } from '@lol/shared'
 import { chipActions } from '../../../src/lib/pools/chip-actions.ts'
 
 /**
@@ -10,7 +11,7 @@ import { chipActions } from '../../../src/lib/pools/chip-actions.ts'
  * inline is a component whose menu can drift from `pool-edit.ts`.
  */
 
-const empty = { main: [], situational: [], blind: [] }
+const empty = emptyPoolLists()
 
 describe('chipActions', () => {
   test('a main chip offers move, move across, blind and remove', () => {
@@ -58,8 +59,19 @@ describe('chipActions', () => {
     expect(keys).toEqual(['up', 'down', 'remove'])
   })
 
+  test('a learning chip has no section to move across to, but can still become blind', () => {
+    const keys = chipActions({ ...empty, wip: [1] }, 'wip', 1, 0).map((action) => action.key)
+    expect(keys).toEqual(['up', 'down', 'to-blind', 'remove'])
+  })
+
+  test('adding a learning champion to blind is an addition: it stays in the learning list', () => {
+    const lists = { ...empty, wip: [1, 2] }
+    const blind = chipActions(lists, 'wip', 1, 0).find((action) => action.key === 'to-blind')
+    expect(blind?.apply()).toEqual({ ...empty, wip: [1, 2], blind: [1] })
+  })
+
   test('a champion that is already blind-pickable offers no blind action', () => {
-    const keys = chipActions({ main: [1], situational: [], blind: [1] }, 'main', 1, 0).map(
+    const keys = chipActions({ ...empty, main: [1], blind: [1] }, 'main', 1, 0).map(
       (action) => action.key,
     )
     expect(keys).not.toContain('to-blind')
@@ -68,14 +80,14 @@ describe('chipActions', () => {
   test('apply() produces the lists the action means', () => {
     const lists = { ...empty, main: [1, 2] }
     const down = chipActions(lists, 'main', 1, 0).find((action) => action.key === 'down')
-    expect(down?.apply()).toEqual({ main: [2, 1], situational: [], blind: [] })
+    expect(down?.apply()).toEqual({ ...empty, main: [2, 1] })
 
     const blind = chipActions(lists, 'main', 1, 0).find((action) => action.key === 'to-blind')
     // into blind is an addition: the champion stays in main
-    expect(blind?.apply()).toEqual({ main: [1, 2], situational: [], blind: [1] })
+    expect(blind?.apply()).toEqual({ ...empty, main: [1, 2], blind: [1] })
 
     const remove = chipActions(lists, 'main', 1, 0).find((action) => action.key === 'remove')
-    expect(remove?.apply()).toEqual({ main: [2], situational: [], blind: [] })
+    expect(remove?.apply()).toEqual({ ...empty, main: [2] })
   })
 
   test('remove is the destructive one, so it is marked as such', () => {

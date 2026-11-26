@@ -12,11 +12,15 @@ import { moveAcross, moveWithin, removeChampion } from './pool-edit.ts'
 
 export type ChipActionKey = 'up' | 'down' | 'to-other-section' | 'to-blind' | 'remove'
 
-/** Where "move across" goes: the two pool sections swap, and `blind` has nowhere to go (§6). */
+/**
+ * Where "move across" goes: the two pool sections swap, and `blind`/`wip` have nowhere to go (§6) —
+ * neither is a pool section, so entering one is an addition and there is no counterpart to swap to.
+ */
 const OTHER_SECTION: Record<PoolKind, PoolKind | null> = {
   main: 'situational',
   situational: 'main',
   blind: null,
+  wip: null,
 }
 
 export type ChipAction = {
@@ -35,7 +39,7 @@ export function chipActions(
   index: number,
 ): ChipAction[] {
   const count = lists[kind].length
-  // main <-> situational is a real move; blind is a second opinion about the same champion (§6)
+  // main <-> situational is a real move; blind and wip are second opinions about the same champion (§6)
   const otherSection = OTHER_SECTION[kind]
 
   const actions: ChipAction[] = [

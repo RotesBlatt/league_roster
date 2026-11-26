@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { emptyPoolLists } from '@lol/shared'
 import {
   applyDrop,
   bandDragId,
@@ -19,7 +20,7 @@ import {
  * of glue that is wrong forever if it is only ever tested through a mouse.
  */
 
-const empty = { main: [], situational: [], blind: [] }
+const empty = emptyPoolLists()
 
 describe('drag ids', () => {
   test('a champion id carries its band', () => {
@@ -63,10 +64,32 @@ describe('dragMove', () => {
   test('dropping on an empty band appends there', () => {
     const lists = { ...empty, main: [1, 2] }
     expect(dragMove(lists, championDragId('main', 1), bandDragId('situational'))).toEqual({
+      ...empty,
       main: [2],
       situational: [1],
-      blind: [],
     })
+  })
+
+  test('the learning band is a drop target, and dropping on it is an addition', () => {
+    const lists = { ...empty, main: [1, 2] }
+    const next = dragMove(lists, championDragId('main', 2), bandDragId('wip'))
+    // the pool keeps the champion: wanting to learn it does not take it off the pool
+    expect(next.main).toEqual([1, 2])
+    expect(next.wip).toEqual([2])
+  })
+
+  test('dropping on a learning chip lands at that position, and still adds', () => {
+    const lists = { ...empty, main: [1], wip: [5, 6] }
+    const next = dragMove(lists, championDragId('main', 1), championDragId('wip', 6))
+    expect(next.wip).toEqual([5, 1, 6])
+    expect(next.main).toEqual([1])
+  })
+
+  test('dragging a learning chip into a pool section takes it out of the learning list', () => {
+    const lists = { ...empty, wip: [5, 6] }
+    const next = dragMove(lists, championDragId('wip', 6), bandDragId('main'))
+    expect(next.main).toEqual([6])
+    expect(next.wip).toEqual([5])
   })
 
   test('dropping a pool champion into blind keeps it in its pool section (§6)', () => {
@@ -87,7 +110,7 @@ describe('dragMove', () => {
   test('the input is never mutated', () => {
     const lists = { ...empty, main: [1, 2] }
     dragMove(lists, championDragId('main', 1), bandDragId('situational'))
-    expect(lists).toEqual({ main: [1, 2], situational: [], blind: [] })
+    expect(lists).toEqual({ ...empty, main: [1, 2] })
   })
 })
 
@@ -98,21 +121,18 @@ describe('dropTrash', () => {
 
   test('throwing a champion away removes it from the band it was grabbed in', () => {
     const lists = { ...empty, main: [1, 2, 3] }
-    expect(dropTrash(lists, championDragId('main', 2))).toEqual({
-      main: [1, 3],
-      situational: [],
-      blind: [],
-    })
+    expect(dropTrash(lists, championDragId('main', 2))).toEqual({ ...empty, main: [1, 3] })
+  })
+
+  test('the learning copy can be thrown away without touching the pool copy', () => {
+    const lists = { ...empty, main: [7], wip: [7] }
+    expect(dropTrash(lists, championDragId('wip', 7))).toEqual({ ...empty, main: [7] })
   })
 
   test('the band in the id decides, so a blind copy can go without touching the pool', () => {
     // the same champion sits in main and in blind: dragging the blind chip discards only that copy
-    const lists = { main: [7], situational: [], blind: [7] }
-    expect(dropTrash(lists, championDragId('blind', 7))).toEqual({
-      main: [7],
-      situational: [],
-      blind: [],
-    })
+    const lists = { ...empty, main: [7], blind: [7] }
+    expect(dropTrash(lists, championDragId('blind', 7))).toEqual({ ...empty, main: [7] })
   })
 
   test('a band id, or anything not ours, is not a champion to throw away', () => {
@@ -138,9 +158,8 @@ describe('applyDrop', () => {
   test('the trash wins over everything else', () => {
     const lists = { ...empty, main: [1, 2] }
     expect(applyDrop(lists, championDragId('main', 1), TRASH_ID)).toEqual({
+      ...empty,
       main: [2],
-      situational: [],
-      blind: [],
     })
   })
 

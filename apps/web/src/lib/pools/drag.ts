@@ -6,12 +6,12 @@ import { moveAcrossAt, removeChampion } from './pool-edit.ts'
  * out. The moving rules themselves stay in `pool-edit.ts` — this only says what was dragged onto
  * what, which is the part a mouse test would never pin down properly.
  *
- * **The band is part of the identity.** A champion may be in `main` *and* in `blind` (§6), so an id
- * of "103" would let a drag of the blind copy move the pool copy. Every id therefore carries its
- * band, and a band is a drop target of its own so an empty band can receive a champion.
+ * **The band is part of the identity.** A champion may be in `main` *and* in `blind` or `wip` (§6),
+ * so an id of "103" would let a drag of the blind copy move the pool copy. Every id therefore
+ * carries its band, and a band is a drop target of its own so an empty band can receive a champion.
  */
 
-const POOL_KIND_SET = new Set<string>(['main', 'situational', 'blind'])
+const POOL_KIND_SET = new Set<string>(['main', 'situational', 'blind', 'wip'])
 
 const isPoolKind = (value: string | undefined): value is PoolKind =>
   value !== undefined && POOL_KIND_SET.has(value)
@@ -32,8 +32,8 @@ export const TRASH_ID = 'trash'
 
 /**
  * Throwing a champion away: the **band in the id** decides which copy goes. A champion may sit in
- * `main` and in `blind` (§6), and the whole point of dragging the blind chip to the bin is to keep
- * the pool entry — so a bare champion id would delete both.
+ * `main` and in `blind` or `wip` (§6), and the whole point of dragging the blind or learning chip
+ * to the bin is to keep the pool entry — so a bare champion id would delete both.
  *
  * A band id, an id that is not ours, or a champion that is not in that band: unchanged, and the
  * write is not attempted.
@@ -66,6 +66,7 @@ const copy = (lists: PoolLists): PoolLists => ({
   main: [...lists.main],
   situational: [...lists.situational],
   blind: [...lists.blind],
+  wip: [...lists.wip],
 })
 
 /**
