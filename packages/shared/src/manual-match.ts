@@ -112,18 +112,23 @@ export function validateManualMatch(
         continue
       }
       const userId = typeof raw.userId === 'string' ? raw.userId.trim() : ''
+
+      // **both faults are reported**, even though the row is dropped either way: this function's
+      // promise is every reason at once, and a row with no player and no champion has two.
+      let rowUsable = true
       if (userId.length === 0) {
         errors.push(`player ${index + 1} needs a userId`)
-        continue
-      }
-      if (seen.has(userId)) {
+        rowUsable = false
+      } else if (seen.has(userId)) {
         // would double this person's champion stats for one game
         errors.push(`player ${index + 1} is listed twice`)
-        continue
+        rowUsable = false
+      } else {
+        seen.add(userId)
       }
-      seen.add(userId)
 
       const id = championId(raw.championId, `player ${index + 1}'s championId`, errors)
+      if (!rowUsable) continue
 
       let role: Role | null = null
       if (raw.role !== undefined && raw.role !== null) {

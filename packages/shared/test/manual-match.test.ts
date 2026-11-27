@@ -140,6 +140,20 @@ describe('what is refused', () => {
     expect(result.ok).toBe(false)
   })
 
+  test('one row with two problems reports both of them', () => {
+    // the promise is "every reason at once": a row with no player and no champion has two faults,
+    // and a form that shows them one per submit is a form nobody finishes
+    const result = validateManualMatch(
+      { ...minimal, players: [{ userId: '', championId: '' }] },
+      { now },
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join(' ')).toContain('userId')
+      expect(result.errors.join(' ')).toContain('championId')
+    }
+  })
+
   test('everything wrong at once reports every reason, not just the first', () => {
     // a form that fixes one error per submit is a form nobody finishes at 23:30
     const result = validateManualMatch({ playedAt: 'gestern', kind: 'solo', players: [] }, { now })
