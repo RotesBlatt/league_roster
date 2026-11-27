@@ -553,6 +553,7 @@ override covers the gap.
 | --- | --- | --- |
 | Solo/Duo | `queueId = 420` | derived |
 | Flex | `queueId = 440` | derived |
+| **Ranked 5v5** | `queueId = 710` — its own ladder, so its own data set, never folded into Flex. **The id is unconfirmed**: Riot's published `queues.json` has no 710 (only 700/720, both Clash), so this came from the product owner and needs one recorded payload to settle it | derived (pending) |
 | Normal | 400 / 430 | derived |
 | Custom | `queueId = 0`, `gameType = CUSTOM_GAME` | derived |
 | **Tournament** | the match is a member of `tournament_game`, and that tournament's `kind` is `tournament` (§4.7) | membership fact (Riot) + one human label |
@@ -645,7 +646,7 @@ Deliberately in `packages/shared/match-stats.ts`, no DB and no React — same ti
 
 ```text
 classifyQueue(queueId, gameType)      → kind
-filterByScope(rows, scope)            → rows        // 'all' | 'solo' | 'flex' | 'scrim' | 'tournament'
+filterByScope(rows, scope)            → rows        // 'all' | any MatchKind (incl. 'ranked5')
 resolveKind(annotation, queueId, gameType) → kind  // taggedKind wins, else classify, else 'other'
 championStats(rows, opts)             → rows
 winrateTone(winrate, games)           → 'good' | 'meh' | 'bad' | 'none'
@@ -701,8 +702,8 @@ the kind of half-applied filter that reads as a data bug. Hence `{ scope }` as a
 ### Champion stats
 
 - Columns per player as in the sheet, headers showing `N Games · M% Winrate` for the *current scope*
-  — and the scope selector now has five values (Alle / SoloQ / Flex / Scrim / Turnier), because scrims
-  are practice and mixing them into a tournament winrate would be a lie (§6).
+  — and the scope selector now has six values (Alle / SoloQ / Flex / Ranked 5v5 / Scrim / Turnier),
+  because scrims are practice and mixing them into a tournament winrate would be a lie (§6).
 - Champion names and icons come from Hexserve (`hexserve-champion-data.md`); a champion the cache does
   not know renders as its id — ugly, but never a blank cell or a spinner.
 - Sub-header row: champion / games / W/L / WR / last played. Zero-game champions render greyed with
