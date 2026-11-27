@@ -34,10 +34,20 @@ try {
 // `--parallel`: every integration file owns a throwaway database named after a UUID, so the
 // files cannot collide. 14s sequential, ~4s here. Not for the unit or web suite: the web tests
 // mock whole modules, which `--parallel` (it implies `--isolate`) does not survive.
-const proc = Bun.spawn([process.execPath, 'test', '--parallel', 'apps/api/test/integration'], {
-  cwd: root,
-  stdio: ['inherit', 'inherit', 'inherit'],
-  env: { ...process.env, TEST_DATABASE_URL: adminUrl },
-})
+//
+// `--timeout` because bun's 5s default is a *unit-test* budget and these are not unit tests: one
+// migration-replay case creates a database, applies half the migrations, seeds every table and
+// applies the rest — ~2.3s alone, and comfortably over 5s while ~27 files each do the same against
+// one Postgres container. The failures were 5000ms timeouts on steps that pass in isolation, i.e.
+// contention, not a hang; the budget was the only thing wrong. 20s is headroom over the measured
+// worst case, not a way to sit through a real hang: a genuine deadlock still fails the run.
+const proc = Bun.spawn(
+  [process.execPath, 'test', '--parallel', '--timeout', '20000', 'apps/api/test/integration'],
+  {
+    cwd: root,
+    stdio: ['inherit', 'inherit', 'inherit'],
+    env: { ...process.env, TEST_DATABASE_URL: adminUrl },
+  },
+)
 
 process.exit(await proc.exited)
