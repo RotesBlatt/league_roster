@@ -14,6 +14,7 @@ import { createThrottle, type Throttle } from './riot/throttle.ts'
 import { createChampionRoutes } from './routes/champions.ts'
 import { createClaimRoutes } from './routes/claim.ts'
 import { createInviteRoutes } from './routes/invites.ts'
+import { createMatchRoutes } from './routes/matches.ts'
 import { createMeRoutes } from './routes/me.ts'
 import { createMemberRoutes } from './routes/members.ts'
 import { createPlannerRoutes } from './routes/planner.ts'
@@ -170,6 +171,8 @@ export function createApp(options: AppOptions = {}) {
               .use(createPlannerRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               // champion pools: everyone reads the roster's columns, only the owner writes
               .use(createPoolRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
+              // games: `match` has no teamId by design, so this one gets the plain db (§5.2)
+              .use(createMatchRoutes(db, authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
               .use(
                 createMemberRoutes(db, (scoped) => forTeam(db, scoped), authPlugin, requestLogger),

@@ -1,6 +1,9 @@
 import type {
   ChampionCacheState,
   Division,
+  MatchKind,
+  MatchScope,
+  MatchSource,
   MemberStatus,
   PlayWindow,
   PoolLists,
@@ -249,6 +252,79 @@ export type PoolPersonDto = {
  */
 export type PoolsDto = {
   people: PoolPersonDto[]
+}
+
+/**
+ * One participant as the games list names them (match-history.md §7, §9).
+ *
+ * Deliberately uniform and nullable: the **lane partner is always ours** (same team), while the
+ * lane opponent usually is not — an enemy is a puuid we hold no account for, so all we can honestly
+ * say about them is their champion (§5.6: a puuid without a `riot_account` row is not an error).
+ */
+export type MatchLaneRefDto = {
+  puuid: string | null
+  userId: string | null
+  displayName: string | null
+  /** What the UI can actually render for an enemy, and a useful cross-check for a teammate. */
+  championId: number | null
+}
+
+/**
+ * One row of the games list — **per participant**, not per game (§1): the sheet repeats "09.11.2026
+ * Flex" five times, once per player. Grouping by game is a rendering concern.
+ *
+ * Every nullable field is nullable for the honest reason: a hand-entered scrim has no KDA, no
+ * duration and no Riot id, and the UI renders `–` rather than `0` (§5.8).
+ */
+export type MatchGameDto = {
+  /** Ours, never Riot's: a manual row has no Riot id to key on (§5.8). */
+  matchId: string
+  /** ISO instant; the SPA renders it in the team's timezone (§5.3). */
+  gameStartAt: string
+  kind: MatchKind
+  /** The §9 badge: `riot` or `manual` (`tournament-code` arrives with the code ingest). */
+  provenance: MatchSource
+  /** Derived from the duration, never stored (§7) — shown as a marker, not hidden. */
+  isRemake: boolean
+  queueId: number | null
+  durationSeconds: number | null
+  /** How many of **ours were on this side** — `3/5`, not `5/10` (§7). */
+  teamCount: number
+  player: {
+    userId: string | null
+    displayName: string | null
+    /** `GameName#TagLine` of the account that played, when a Riot row said which it was. */
+    account: string | null
+  }
+  championId: number | null
+  /** Our role vocabulary, or `null` when Riot reported no position (ARAM, a swap it could not tell). */
+  role: Role | null
+  win: boolean | null
+  kills: number | null
+  deaths: number | null
+  assists: number | null
+  cs: number | null
+  goldEarned: number | null
+  visionScore: number | null
+  lane: {
+    partner: MatchLaneRefDto | null
+    laneOpponent: MatchLaneRefDto | null
+    opponentPartner: MatchLaneRefDto | null
+  }
+  /** The team's note; `null` means nobody wrote one, which is not the same as an empty note. */
+  note: string | null
+}
+
+/**
+ * `GET /api/teams/:slug/matches` — one page of the games list.
+ *
+ * The cursor is opaque and keyed on `(gameStartAt, id)`; `null` means "this is the end". `scope` is
+ * echoed back so a client that switched tabs under a slow response cannot render the wrong label.
+ */
+export type MatchGamesPage = {
+  games: MatchGameDto[]
+  nextCursor: string | null
+  scope: MatchScope
 }
 
 export type ApiError = { message: string }
