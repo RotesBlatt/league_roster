@@ -3,6 +3,7 @@ import { useMe } from './api/hooks.ts'
 import { RequireCompleteProfile } from './components/RequireCompleteProfile.tsx'
 import { RequireMember } from './components/RequireMember.tsx'
 import { AdminPage } from './pages/AdminPage.tsx'
+import { GamesPage } from './pages/GamesPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { NewTeamPage } from './pages/NewTeamPage.tsx'
@@ -38,6 +39,7 @@ export function App() {
           <Route path="/t/:slug/roster" element={<RosterPage />} />
           <Route path="/t/:slug/planner" element={<WeekPlannerPage />} />
           <Route path="/t/:slug/pools" element={<PoolsPage />} />
+          <Route path="/t/:slug/games" element={<GamesPage />} />
           <Route path="/t/:slug/admin" element={<AdminPage />} />
           {/* the data is global, but the URL carries the team so the shell cannot switch under you */}
           <Route path="/t/:slug/profile" element={<ProfilePage />} />

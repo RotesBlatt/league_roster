@@ -5,6 +5,7 @@ import {
   IconCards,
   IconLogout,
   IconShieldCog,
+  IconSwords,
   IconUser,
   IconUsersGroup,
 } from '@tabler/icons-react'
@@ -58,6 +59,7 @@ export function AppLayout({ me }: { me: Me }) {
               icon={<IconCalendarWeek size={16} />}
             />
             <NavButton to={`${base}/pools`} label="Pools" icon={<IconCards size={16} />} />
+            <NavButton to={`${base}/games`} label="Games" icon={<IconSwords size={16} />} />
             {me.role === 'captain' && (
               <NavButton to={`${base}/admin`} label="Admin" icon={<IconShieldCog size={16} />} />
             )}
