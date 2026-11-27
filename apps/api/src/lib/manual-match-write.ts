@@ -60,6 +60,35 @@ export async function createManualMatch(
     }
   }
 
+  // --- the enemies, in the slot of the player they face -------------------------------
+  // A paired opponent must land on side 200 at the *same slot position* as our player, and carry
+  // that player's Riot position: `assignLanes` matches a lane opponent by `teamPosition`, so without
+  // the position the form's answer would be stored and the games list would still show `–`.
+  const pairedEnemies = entry.players.flatMap((player, index) =>
+    player.opponentChampionId === null
+      ? []
+      : [
+          {
+            slot: 6 + index,
+            championId: player.opponentChampionId,
+            teamPosition: player.role ? teamPositionFromRole(player.role) : null,
+          },
+        ],
+  )
+
+  const takenSlots = new Set(pairedEnemies.map((enemy) => enemy.slot))
+  const freeSlots = [6, 7, 8, 9, 10].filter((slot) => !takenSlots.has(slot))
+  const extraEnemies: { slot: number; championId: number; teamPosition: null }[] = []
+  for (const opponent of entry.opponents) {
+    const slot = freeSlots[extraEnemies.length]
+    if (slot === undefined) {
+      // five enemies is a team; a sixth would violate the slot constraint with a database error
+      // instead of a sentence somebody can act on
+      return { ok: false, status: 422, message: 'a game has at most five enemies' }
+    }
+    extraEnemies.push({ slot, championId: opponent.championId, teamPosition: null })
+  }
+
   const matchId = crypto.randomUUID()
   const now = input.now ?? new Date()
 
@@ -90,15 +119,15 @@ export async function createManualMatch(
         assists: player.assists,
       })),
       // theirs: champions only — nobody typed a puuid, and inventing one is the one thing §5.1 forbids
-      ...entry.opponents.map((opponent, index) => ({
+      ...[...pairedEnemies, ...extraEnemies].map((enemy) => ({
         id: crypto.randomUUID(),
         matchId,
         side: 200,
-        slot: 6 + index,
+        slot: enemy.slot,
         puuid: null,
         userId: null,
-        teamPosition: null,
-        championId: opponent.championId,
+        teamPosition: enemy.teamPosition,
+        championId: enemy.championId,
         // the inverse result, so neither side reads as "unknown" on a finished game
         win: !entry.win,
         kills: null,

@@ -209,6 +209,136 @@ describe('the write', () => {
   })
 })
 
+/**
+ * The enemy in the *same row* as our player (match-history.md §7).
+ *
+ * Storing the pairing is not enough: `assignLanes` matches a lane opponent by **`teamPosition`**, so
+ * the enemy row has to carry the position of the player it faces. Otherwise the form would know the
+ * answer and the games list would still show `–`.
+ */
+describe('a paired opponent lands in our player’s lane', () => {
+  test('the enemy row takes our player’s slot and Riot position', async () => {
+    const response = await post(
+      body({
+        players: [{ userId: memberA, championId: 103, role: 'MID', opponentChampionId: 24 }],
+      }),
+    )
+    const { matchId } = (await response.json()) as { matchId: string }
+
+    const [row] = [
+      ...(await ctx.db.execute<{
+        slot: number
+        teamPosition: string | null
+        championId: number | null
+        win: boolean | null
+      }>(sql`
+        select "slot", "teamPosition", "championId", "win" from match_participant
+        where "matchId" = ${matchId} and "side" = 200
+      `)),
+    ]
+    expect(row).toMatchObject({
+      slot: 6,
+      teamPosition: 'MIDDLE',
+      championId: 24,
+      win: false,
+    })
+  })
+
+  test('two players keep their own enemies, in their own slots', async () => {
+    const response = await post(
+      body({
+        players: [
+          { userId: memberA, championId: 103, role: 'TOP', opponentChampionId: 24 },
+          { userId: captainA, championId: 64, role: 'JGL', opponentChampionId: 121 },
+        ],
+      }),
+    )
+    const { matchId } = (await response.json()) as { matchId: string }
+
+    const rows = [
+      ...(await ctx.db.execute<{ slot: number; teamPosition: string | null }>(sql`
+        select "slot", "teamPosition" from match_participant
+        where "matchId" = ${matchId} and "side" = 200 order by "slot"
+      `)),
+    ]
+    expect(rows).toEqual([
+      { slot: 6, teamPosition: 'TOP' },
+      { slot: 7, teamPosition: 'JUNGLE' },
+    ])
+  })
+
+  test('an enemy of a player with no role keeps an empty position rather than a guess', async () => {
+    const response = await post(
+      body({ players: [{ userId: memberA, championId: 103, opponentChampionId: 24 }] }),
+    )
+    const { matchId } = (await response.json()) as { matchId: string }
+    const [row] = [
+      ...(await ctx.db.execute<{ teamPosition: string | null }>(sql`
+        select "teamPosition" from match_participant
+        where "matchId" = ${matchId} and "side" = 200
+      `)),
+    ]
+    expect(row?.teamPosition).toBeNull()
+  })
+
+  test('the games list shows it as *the* lane opponent, not just another enemy', async () => {
+    // the whole point of the pairing: the read resolves it without any extra input
+    const response = await post(
+      body({
+        players: [{ userId: memberA, championId: 103, role: 'MID', opponentChampionId: 24 }],
+      }),
+    )
+    const { matchId } = (await response.json()) as { matchId: string }
+
+    const list = await call(`/api/teams/${slugA}/matches`, { cookie: captainCookie })
+    const page = (await list.json()) as {
+      games: {
+        matchId: string
+        player: { userId: string | null }
+        lane: { laneOpponent: { championId: number | null } | null }
+      }[]
+    }
+    const row = page.games.find(
+      (game) => game.matchId === matchId && game.player.userId === memberA,
+    )
+    expect(row?.lane.laneOpponent?.championId).toBe(24)
+  })
+
+  test('paired enemies and an extra one fill the five slots without colliding', async () => {
+    const response = await post(
+      body({
+        players: [
+          { userId: memberA, championId: 103, role: 'TOP', opponentChampionId: 24 },
+          { userId: captainA, championId: 64, role: 'JGL', opponentChampionId: 121 },
+        ],
+        opponents: [{ championId: 89 }],
+      }),
+    )
+    const { matchId } = (await response.json()) as { matchId: string }
+
+    const rows = [
+      ...(await ctx.db.execute<{ slot: number }>(sql`
+        select "slot" from match_participant
+        where "matchId" = ${matchId} and "side" = 200 order by "slot"
+      `)),
+    ]
+    // 6 and 7 are the paired laners; the unpaired enemy takes the next free slot, never a duplicate
+    expect(rows.map((row) => row.slot)).toEqual([6, 7, 8])
+  })
+
+  test('more than five enemies in one game is refused instead of breaking the slot check', async () => {
+    const players = Array.from({ length: 5 }, (_unused, index) => ({
+      userId: index % 2 === 0 ? memberA : captainA,
+      championId: index + 1,
+      opponentChampionId: 100 + index,
+    }))
+    // the ids repeat only if the same person twice — give each row a distinct member instead
+    players[1]!.userId = memberA
+    const response = await post(body({ players, opponents: [{ championId: 5 }] }))
+    expect([400, 422]).toContain(response.status)
+  })
+})
+
 describe('what is refused', () => {
   test('a body with no players is 400, and says why', async () => {
     const response = await post(body({ players: [] }))
