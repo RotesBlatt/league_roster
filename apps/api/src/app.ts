@@ -22,6 +22,7 @@ import { createMyPoolRoutes, createPoolRoutes } from './routes/pools.ts'
 import { createProfileRoutes } from './routes/profile.ts'
 import { createRiotAccountRoutes } from './routes/riot-accounts.ts'
 import { createRosterRoutes } from './routes/roster.ts'
+import { createStatsRoutes } from './routes/stats.ts'
 import { createTeamSettingsRoutes } from './routes/team-settings.ts'
 import { createTeamRoutes } from './routes/teams.ts'
 
@@ -173,6 +174,8 @@ export function createApp(options: AppOptions = {}) {
               .use(createPoolRoutes(db, (scoped) => forTeam(db, scoped), authPlugin))
               // games: `match` has no teamId by design, so this one gets the plain db (§5.2)
               .use(createMatchRoutes(db, authPlugin))
+              // champion stats per player: same tenancy rule, no scope (§8)
+              .use(createStatsRoutes(db, authPlugin))
               .use(createInviteRoutes((scoped) => forTeam(db, scoped), authPlugin, requestLogger))
               .use(
                 createMemberRoutes(db, (scoped) => forTeam(db, scoped), authPlugin, requestLogger),

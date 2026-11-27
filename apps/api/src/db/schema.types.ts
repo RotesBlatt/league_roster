@@ -327,4 +327,44 @@ export type MatchGamesPage = {
   scope: MatchScope
 }
 
+/**
+ * One champion of one player (match-history.md §8) — the left-hand table of the stats page.
+ *
+ * `winrate` is an integer percent or `null`; `null` is "no games", which the table renders `–`. A
+ * champion the player never played is not listed here at all: this is what *happened*, not a pool.
+ */
+export type ChampionStatDto = {
+  championId: number
+  games: number
+  wins: number
+  losses: number
+  winrate: number | null
+  /** Newest game of this champion for this player, as an ISO instant. */
+  lastPlayedAt: string
+}
+
+/**
+ * One player's column on the stats page: the four numbers of the screenshot's KPI row, plus their
+ * champions. A player with **no games yet** is still a column (`games: 0`, `winrate: null`,
+ * `lastPlayedAt: null`) — a missing teammate would read as "not on the team".
+ */
+export type PlayerStatsDto = {
+  userId: string
+  displayName: string
+  role: Role | null
+  isActive: boolean
+  games: number
+  wins: number
+  losses: number
+  winrate: number | null
+  lastPlayedAt: string | null
+  /** Sorted by games, then champion id — the flat list of what the player actually played (§8). */
+  champions: ChampionStatDto[]
+}
+
+/** `GET /api/teams/:slug/stats` — every player of the team, in roster order. No scope: all games. */
+export type TeamStatsDto = {
+  players: PlayerStatsDto[]
+}
+
 export type ApiError = { message: string }

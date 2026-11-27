@@ -116,6 +116,51 @@ export function parseGamesQuery(query: {
   }
 }
 
+/**
+ * The team's people and their accounts — the **only** legitimate starting point for any match read
+ * (§5.2). Extracted so the games list and the champion stats cannot drift apart: a second copy of
+ * "who is ours" is a second chance to leak another team's games.
+ */
+export type TeamAccounts = {
+  memberIds: string[]
+  puuids: string[]
+  accounts: { puuid: string; userId: string; gameName: string; tagLine: string }[]
+}
+
+export async function loadTeamAccounts(db: Db, teamId: string): Promise<TeamAccounts> {
+  const memberRows = await db
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(eq(memberships.teamId, teamId))
+  const memberIds = memberRows.map((row) => row.userId)
+  if (memberIds.length === 0) return { memberIds, puuids: [], accounts: [] }
+
+  const accounts = await db
+    .select({
+      puuid: riotAccounts.puuid,
+      userId: riotAccounts.userId,
+      gameName: riotAccounts.gameName,
+      tagLine: riotAccounts.tagLine,
+    })
+    .from(riotAccounts)
+    .where(inArray(riotAccounts.userId, memberIds))
+
+  return { memberIds, puuids: accounts.map((account) => account.puuid), accounts }
+}
+
+/** Both halves of "ours": an account of a member, or a member named by a hand-entered row. */
+export function ourRowsCondition(
+  memberIds: readonly string[],
+  puuids: readonly string[],
+): SQL | undefined {
+  const conditions = [inArray(matchParticipants.userId, [...memberIds])]
+  if (puuids.length > 0) conditions.push(inArray(matchParticipants.puuid, [...puuids]))
+  return conditions.reduce<SQL | undefined>(
+    (combined, condition) => (combined ? or(combined, condition) : condition),
+    undefined,
+  )
+}
+
 /** Resolved once per request, not once per row. */
 type Looking = {
   /** puuid → whose account it is, and its label. */
@@ -134,31 +179,11 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
     return empty
   }
 
-  const memberRows = await db
-    .select({ userId: memberships.userId })
-    .from(memberships)
-    .where(eq(memberships.teamId, input.teamId))
-  const memberIds = memberRows.map((row) => row.userId)
+  const { memberIds, puuids, accounts } = await loadTeamAccounts(db, input.teamId)
   if (memberIds.length === 0) return empty
 
-  const accounts = await db
-    .select({
-      puuid: riotAccounts.puuid,
-      userId: riotAccounts.userId,
-      gameName: riotAccounts.gameName,
-      tagLine: riotAccounts.tagLine,
-    })
-    .from(riotAccounts)
-    .where(inArray(riotAccounts.userId, memberIds))
-  const puuids = accounts.map((account) => account.puuid)
-
-  // both halves of "ours"; `or` one at a time so no non-null assertion is needed
-  const ours = [inArray(matchParticipants.userId, memberIds)]
-  if (puuids.length > 0) ours.push(inArray(matchParticipants.puuid, puuids))
-  const visible = ours.reduce<SQL | undefined>(
-    (combined, condition) => (combined ? or(combined, condition) : condition),
-    undefined,
-  )
+  // one shared definition of "ours", used by the games list and the champion stats alike (§5.2)
+  const visible = ourRowsCondition(memberIds, puuids)
 
   const cursor = decodeCursor(input.cursor)
   const cursorCondition = cursor
