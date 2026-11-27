@@ -1,43 +1,46 @@
-import { ROLE_LABELS, ROLES, type TaggableKind } from '@lol/shared'
+import { ROLE_LABELS, ROLES, type Role, type TaggableKind } from '@lol/shared'
 import {
-  ActionIcon,
   Alert,
   Button,
-  Divider,
   Group,
   Modal,
-  Paper,
   SegmentedControl,
   Select,
   Stack,
+  Table,
   Text,
   Textarea,
   TextInput,
 } from '@mantine/core'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
-import { useState } from 'react'
-import { useChampions, useCreateManualMatch, useMembers } from '../../api/hooks.ts'
+import { useEffect, useMemo, useState } from 'react'
+import { useChampions, useCreateManualMatch, useMembers, useRoster } from '../../api/hooks.ts'
 import { messageOf } from '../../api/result.ts'
 import {
   emptyDraft,
-  emptyOpponent,
-  emptyPlayer,
   formErrors,
   type ManualPlayerDraft,
+  prefillPlayers,
+  roleForMember,
   toBody,
 } from '../../lib/matches/manual-form.ts'
 
+/** Inputs are narrow; the row is wide so the table can hold seven columns without scrolling. */
+const CELL = 96
+
 /**
- * Entering a scrim by hand (match-history.md §5.8, §9).
+ * Entering a scrim by hand (match-history.md §5.8, §7, §9).
  *
- * The form is deliberately **one screen with no wizard**: it is filled in minutes after a scrim block,
- * usually late, sometimes half-remembered. So only the date, a result and one player with a champion
- * are required; roles, KDA, opponents and the note are there for whoever has the patience, and every
- * one of them may stay empty.
+ * Laid out like the game itself: **one row per player, five rows, with the enemy champion beside the
+ * teammate it faced**. That is the only arrangement in which a human can answer "who was I against?"
+ * — a separate list of opponents cannot say whose lane an entry belongs to, and the games list needs
+ * exactly that to fill its lane-opponent column.
  *
- * The rules are not re-implemented here: `formErrors` runs the API's own `validateManualMatch`, so the
- * form cannot accept something the route refuses. The errors appear **after the first submit attempt**,
- * not while typing — a form that turns red as you fill it in reads as hostile.
+ * The roster arrives prefilled, each row with that player's role, because a scrim lineup *is* the
+ * roster nine times out of ten; the role stays a normal select, since a swap is exactly what happens
+ * in practice. Rows nobody touches are not submitted, so a 4v5 scrim saves fine.
+ *
+ * Rules are not re-implemented: `formErrors` runs the API's own `validateManualMatch`, and the errors
+ * appear after the first submit attempt rather than while typing.
  */
 export function ManualMatchForm({
   opened,
@@ -49,11 +52,34 @@ export function ManualMatchForm({
   slug: string
 }) {
   const members = useMembers(slug, opened)
+  const roster = useRoster(slug)
   const champions = useChampions()
   const create = useCreateManualMatch(slug)
 
-  const [draft, setDraft] = useState(emptyDraft)
+  // **memoised**, because this array used to be rebuilt on every render: it was in the effect's
+  // dependency list, so the effect re-fired every render, set state, and the page died with
+  // "Maximum update depth exceeded". One stable identity per response is the first half of the fix.
+  const rosterData = roster.data
+  const rosterPeople = useMemo(
+    () => (rosterData ?? []).map((entry) => ({ userId: entry.userId, role: entry.role })),
+    [rosterData],
+  )
+
+  // the modal unmounts its children when closed, so this initialises freshly on every open
+  const [draft, setDraft] = useState(() => emptyDraft(new Date(), rosterPeople))
+  const [pristine, setPristine] = useState(true)
   const [attempted, setAttempted] = useState(false)
+
+  // The roster usually arrives after the first render: fill the rows in once it does, and only while
+  // nobody has touched them. The second half of the fix is `prefillPlayers` — it returns the *same*
+  // array when there is nothing to do, so this `setState` is a no-op and cannot feed itself.
+  useEffect(() => {
+    if (!pristine) return
+    setDraft((current) => {
+      const players = prefillPlayers(current.players, rosterPeople)
+      return players === current.players ? current : { ...current, players }
+    })
+  }, [rosterPeople, pristine])
 
   const errors = formErrors(draft)
   const memberOptions = (members.data ?? []).map((member) => ({
@@ -65,13 +91,15 @@ export function ManualMatchForm({
     label: champion.name,
   }))
 
-  const setPlayer = (index: number, patch: Partial<ManualPlayerDraft>) =>
+  const setPlayer = (id: string, patch: Partial<ManualPlayerDraft>) => {
+    setPristine(false)
     setDraft((current) => ({
       ...current,
-      players: current.players.map((player, at) =>
-        at === index ? { ...player, ...patch } : player,
+      players: current.players.map((player) =>
+        player.id === id ? { ...player, ...patch } : player,
       ),
     }))
+  }
 
   const submit = () => {
     setAttempted(true)
@@ -79,7 +107,8 @@ export function ManualMatchForm({
 
     create.mutate(toBody(draft), {
       onSuccess: () => {
-        setDraft(emptyDraft())
+        setDraft(emptyDraft(new Date(), rosterPeople))
+        setPristine(true)
         setAttempted(false)
         onClose()
       },
@@ -95,7 +124,7 @@ export function ManualMatchForm({
   const serverError = create.isError ? messageOf(create.error) : null
 
   return (
-    <Modal opened={opened} onClose={close} title="Enter a game" size="xl" centered>
+    <Modal opened={opened} onClose={close} title="Enter a game" size="min(1200px, 96vw)" centered>
       <Stack gap="sm">
         <Group align="flex-end" gap="sm" wrap="wrap">
           <TextInput
@@ -135,130 +164,84 @@ export function ManualMatchForm({
           </Stack>
         </Group>
 
-        {draft.players.map((player, index) => (
-          // keyed by the row's own id, so removing one in the middle does not re-key the rest
-          <Paper key={player.id} withBorder p="xs">
-            <Group align="flex-end" gap="xs" wrap="wrap">
-              <Select
-                label="Player"
-                w={170}
-                searchable
-                value={player.userId || null}
-                data={memberOptions}
-                onChange={(value) => setPlayer(index, { userId: value ?? '' })}
-              />
-              <Select
-                label="Champion"
-                w={170}
-                searchable
-                value={player.championId || null}
-                data={championOptions}
-                onChange={(value) => setPlayer(index, { championId: value ?? '' })}
-              />
-              <Select
-                label="Role"
-                w={110}
-                clearable
-                value={player.role || null}
-                data={ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))}
-                onChange={(value) => setPlayer(index, { role: value ?? '' })}
-              />
-              {(['kills', 'deaths', 'assists'] as const).map((field) => (
-                <TextInput
-                  key={field}
-                  label={field.charAt(0).toUpperCase()}
-                  w={56}
-                  value={player[field]}
-                  onChange={(event) => setPlayer(index, { [field]: event.currentTarget.value })}
-                />
-              ))}
-              {draft.players.length > 1 ? (
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
-                  aria-label="Remove player"
-                  onClick={() =>
-                    setDraft((current) => ({
-                      ...current,
-                      players: current.players.filter((_unused, at) => at !== index),
-                    }))
-                  }
-                >
-                  <IconTrash size={16} />
-                </ActionIcon>
-              ) : null}
-            </Group>
-          </Paper>
-        ))}
+        <Table withTableBorder withColumnBorders verticalSpacing="xs" fz="sm">
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Player</Table.Th>
+              <Table.Th>Champion</Table.Th>
+              <Table.Th>Role</Table.Th>
+              <Table.Th>K</Table.Th>
+              <Table.Th>D</Table.Th>
+              <Table.Th>A</Table.Th>
+              {/* beside the player: this is the lane opponent the games list will show (§7) */}
+              <Table.Th>Opponent</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {draft.players.map((player) => (
+              <Table.Tr key={player.id}>
+                <Table.Td>
+                  <Select
+                    placeholder="Pick a player"
+                    searchable
+                    value={player.userId || null}
+                    data={memberOptions}
+                    onChange={(value) =>
+                      // picking a teammate brings their lane with them; still editable below
+                      setPlayer(player.id, {
+                        userId: value ?? '',
+                        role: value ? roleForMember(rosterPeople, value) : '',
+                      })
+                    }
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Select
+                    placeholder="Champion"
+                    searchable
+                    value={player.championId || null}
+                    data={championOptions}
+                    onChange={(value) => setPlayer(player.id, { championId: value ?? '' })}
+                  />
+                </Table.Td>
+                <Table.Td w={130}>
+                  <Select
+                    clearable
+                    placeholder="–"
+                    value={player.role || null}
+                    data={ROLES.map((role: Role) => ({ value: role, label: ROLE_LABELS[role] }))}
+                    onChange={(value) => setPlayer(player.id, { role: value ?? '' })}
+                  />
+                </Table.Td>
+                {(['kills', 'deaths', 'assists'] as const).map((field) => (
+                  <Table.Td key={field} w={CELL}>
+                    <TextInput
+                      aria-label={field}
+                      value={player[field]}
+                      onChange={(event) =>
+                        setPlayer(player.id, { [field]: event.currentTarget.value })
+                      }
+                    />
+                  </Table.Td>
+                ))}
+                <Table.Td>
+                  <Select
+                    placeholder="Champion"
+                    searchable
+                    clearable
+                    value={player.opponentChampionId || null}
+                    data={championOptions}
+                    onChange={(value) => setPlayer(player.id, { opponentChampionId: value ?? '' })}
+                  />
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
 
-        <Group>
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            disabled={draft.players.length >= 5}
-            onClick={() =>
-              setDraft((current) => ({ ...current, players: [...current.players, emptyPlayer()] }))
-            }
-          >
-            Add player
-          </Button>
-        </Group>
-
-        <Divider label="Opponents — champions only, optional" labelPosition="left" />
-
-        {draft.opponents.map((opponent, index) => (
-          <Group key={opponent.id} align="flex-end" gap="xs">
-            <Select
-              label={`Opponent ${index + 1}`}
-              w={200}
-              searchable
-              clearable
-              value={opponent.championId || null}
-              data={championOptions}
-              onChange={(value) =>
-                setDraft((current) => ({
-                  ...current,
-                  opponents: current.opponents.map((existing) =>
-                    existing.id === opponent.id
-                      ? { ...existing, championId: value ?? '' }
-                      : existing,
-                  ),
-                }))
-              }
-            />
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              aria-label="Remove opponent"
-              onClick={() =>
-                setDraft((current) => ({
-                  ...current,
-                  opponents: current.opponents.filter((existing) => existing.id !== opponent.id),
-                }))
-              }
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Group>
-        ))}
-
-        <Group>
-          <Button
-            variant="subtle"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            disabled={draft.opponents.length >= 5}
-            onClick={() =>
-              setDraft((current) => ({
-                ...current,
-                opponents: [...current.opponents, emptyOpponent()],
-              }))
-            }
-          >
-            Add opponent
-          </Button>
-        </Group>
+        <Text size="xs" c="dimmed">
+          Rows nobody touched are not saved — a scrim can be four against five.
+        </Text>
 
         <Textarea
           label="Note"
