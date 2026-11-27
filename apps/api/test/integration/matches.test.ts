@@ -354,6 +354,41 @@ describe('a remake is marked, not hidden', () => {
   })
 })
 
+/**
+ * The player filter (match-history.md §9) — what the per-player game log reads.
+ *
+ * It filters **our** rows, never the match: asking for one player must not widen what the team may
+ * see, and an id that is not a member of this team must return nothing rather than somebody else's
+ * games.
+ */
+describe('the player filter narrows to one person', () => {
+  test('only that player’s rows come back', async () => {
+    const page = await games(`?player=${captainA}`)
+    expect(page.games.length).toBeGreaterThan(0)
+    expect(page.games.every((game) => game.player.userId === captainA)).toBe(true)
+  })
+
+  test('the accounting is per person, so a teammate’s rows are absent', async () => {
+    const mine = await games(`?player=${captainA}`)
+    const theirs = await games(`?player=${memberA}`)
+    const myMatches = new Set(mine.games.map((game) => game.matchId))
+    expect(
+      theirs.games.some((game) => myMatches.has(game.matchId) && game.player.userId === memberA),
+    ).toBe(theirs.games.length > 0)
+    expect(mine.games.every((game) => game.player.userId !== memberA)).toBe(true)
+  })
+
+  test('somebody outside the team is an empty list, not their games', async () => {
+    const page = await games(`?player=${outsiderA}`)
+    expect(page.games).toEqual([])
+  })
+
+  test('the filter still obeys the scope', async () => {
+    const page = await games(`?player=${captainA}&scope=solo`)
+    expect(page.games.every((game) => game.kind === 'solo')).toBe(true)
+  })
+})
+
 describe('the cursor pages over games, newest first', () => {
   test('the first page is the newest game and carries a cursor', async () => {
     const all = await games('')

@@ -61,7 +61,7 @@ describe('parseGamesQuery', () => {
   test('an empty query is "all", one page', () => {
     expect(parseGamesQuery({})).toEqual({
       ok: true,
-      value: { scope: 'all', cursor: null, limit: GAMES_PAGE_DEFAULT },
+      value: { scope: 'all', cursor: null, limit: GAMES_PAGE_DEFAULT, player: null },
     })
   })
 
@@ -90,6 +90,17 @@ describe('parseGamesQuery', () => {
     for (const limit of ['0', '-3', '1.5', 'lots']) {
       expect(parseGamesQuery({ limit }).ok).toBe(false)
     }
+  })
+
+  test('a player filter is passed through, and an empty one means everybody', () => {
+    const mine = parseGamesQuery({ player: ' u1 ' })
+    expect(mine.ok).toBe(true)
+    if (mine.ok) expect(mine.value.player).toBe('u1')
+
+    // `?player=` (the form serialising an empty select) must not become "the person with no id"
+    const everyone = parseGamesQuery({ player: '   ' })
+    expect(everyone.ok).toBe(true)
+    if (everyone.ok) expect(everyone.value.player).toBeNull()
   })
 
   test('an empty cursor is no cursor', () => {

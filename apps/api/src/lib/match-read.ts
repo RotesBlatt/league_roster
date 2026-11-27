@@ -42,6 +42,13 @@ export type ReadGamesInput = {
   /** Opaque to the client: produced by `encodeCursor`, never parsed by it. */
   cursor: string | null
   limit: number
+  /**
+   * Only this member's rows — what the per-player game log reads (§9).
+   *
+   * It **narrows** the team's rows; it never widens them. An id that is not a member of this team
+   * therefore answers an empty list, not somebody else's games.
+   */
+  player?: string | null
 }
 
 /**
@@ -76,7 +83,12 @@ export function decodeCursor(
 export const GAMES_PAGE_DEFAULT = 50
 export const GAMES_PAGE_MAX = 100
 
-export type GamesQuery = { scope: MatchScope; cursor: string | null; limit: number }
+export type GamesQuery = {
+  scope: MatchScope
+  cursor: string | null
+  limit: number
+  player: string | null
+}
 
 /**
  * The query string, parsed and judged in one pure place (unit-tested, no HTTP).
@@ -93,6 +105,7 @@ export function parseGamesQuery(query: {
   scope?: string
   cursor?: string
   limit?: string
+  player?: string
 }): { ok: true; value: GamesQuery } | { ok: false; message: string } {
   const scopes: readonly string[] = ['all', ...MATCH_KINDS]
   const scope = query.scope?.trim() || 'all'
@@ -112,6 +125,8 @@ export function parseGamesQuery(query: {
       scope: scope as MatchScope,
       cursor: query.cursor?.trim() || null,
       limit: Math.min(limit, GAMES_PAGE_MAX),
+      // an empty `?player=` is "everybody", not "the person with the empty id"
+      player: query.player?.trim() || null,
     },
   }
 }
@@ -185,6 +200,17 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
   // one shared definition of "ours", used by the games list and the champion stats alike (§5.2)
   const visible = ourRowsCondition(memberIds, puuids)
 
+  // the per-player view: their own rows, by account puuid or by hand-entered userId
+  const playerPuuids = input.player
+    ? accounts.filter((account) => account.userId === input.player).map((account) => account.puuid)
+    : []
+  const playerCondition = input.player
+    ? or(
+        eq(matchParticipants.userId, input.player),
+        ...(playerPuuids.length > 0 ? [inArray(matchParticipants.puuid, playerPuuids)] : []),
+      )
+    : undefined
+
   const cursor = decodeCursor(input.cursor)
   const cursorCondition = cursor
     ? or(
@@ -214,7 +240,7 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
       matchAnnotations,
       and(eq(matchAnnotations.matchId, matches.id), eq(matchAnnotations.teamId, input.teamId)),
     )
-    .where(and(visible, scopeCondition(filter, input.scope), cursorCondition))
+    .where(and(visible, playerCondition, scopeCondition(filter, input.scope), cursorCondition))
     .orderBy(desc(matches.gameStartAt), desc(matches.id))
     .limit(input.limit + 1)
 
@@ -296,6 +322,16 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
       if (!isOurs(row)) continue
 
       const account = row.puuid ? looking.accountByPuuid.get(row.puuid) : undefined
+      // with a player filter, the *match* list is already theirs; this keeps the emitted rows
+      // theirs too, so a teammate in the same game does not appear in one person's log
+      if (
+        input.player &&
+        row.userId !== input.player &&
+        !(row.puuid !== null && playerPuuids.includes(row.puuid))
+      ) {
+        continue
+      }
+
       const personId = account?.userId ?? row.userId ?? null
       const assignment = lanes.get(laneKey(row.side, row.slot))
 
