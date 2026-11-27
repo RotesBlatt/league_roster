@@ -21,7 +21,7 @@
     "@mantine/notifications": "^9.8.1",
     "@tabler/icons-react": "^3.52.0",
     "@tanstack/react-query": "^5.108.0",
-    "better-auth": "^1.7.25",
+    "better-auth": "^1.7.27",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^8.5.1"
