@@ -4,7 +4,9 @@ import {
   type LaneParticipant,
   laneKey,
   roleFromTeamPosition,
+  teamPositionFromRole,
 } from '../src/match-lanes.ts'
+import { ROLES } from '../src/team.ts'
 
 /**
  * The lane derivations (match-history.md §7) — inference, labelled as such.
@@ -159,5 +161,27 @@ describe('the pairing is deterministic', () => {
     const second = lanes(odd)
     expect(first.get(laneKey(200, 8))?.laneOpponent).toBe('a')
     expect([...first.entries()]).toEqual([...second.entries()])
+  })
+})
+
+/**
+ * The other direction, needed the moment something *writes* a position: a hand-entered row has our
+ * `Role` (what a person picked in a form) while `teamPosition` stores Riot's string, because that is
+ * what `assignLanes` matches on and what a Riot row will contain. Two mappings in two files would be
+ * the drift §5.4 forbids.
+ */
+describe('teamPositionFromRole', () => {
+  test('our five roles map onto Riot’s five strings', () => {
+    expect(teamPositionFromRole('TOP')).toBe('TOP')
+    expect(teamPositionFromRole('JGL')).toBe('JUNGLE')
+    expect(teamPositionFromRole('MID')).toBe('MIDDLE')
+    expect(teamPositionFromRole('ADC')).toBe('BOTTOM')
+    expect(teamPositionFromRole('SUP')).toBe('UTILITY')
+  })
+
+  test('the two directions agree for every role — one vocabulary, not two', () => {
+    for (const role of ROLES) {
+      expect(roleFromTeamPosition(teamPositionFromRole(role))).toBe(role)
+    }
   })
 })

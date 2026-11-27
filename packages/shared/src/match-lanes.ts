@@ -40,6 +40,27 @@ export function roleFromTeamPosition(teamPosition: string | null | undefined): R
   }
 }
 
+/**
+ * The inverse, for the **writer** side: a hand-entered row has our `Role` (what a person picked in a
+ * form) while the column stores Riot's string — because that is what `assignLanes` matches on and
+ * what a Riot row will contain. Kept beside `roleFromTeamPosition` so the two cannot drift; the
+ * round-trip test is what keeps them honest.
+ */
+export function teamPositionFromRole(role: Role): string {
+  switch (role) {
+    case 'TOP':
+      return 'TOP'
+    case 'JGL':
+      return 'JUNGLE'
+    case 'MID':
+      return 'MIDDLE'
+    case 'ADC':
+      return 'BOTTOM'
+    case 'SUP':
+      return 'UTILITY'
+  }
+}
+
 /** The one of our participants a row can describe: who, where. Both are nullable by design. */
 export type LaneParticipant = {
   /** Riot's puuid, or `null` for an opponent nobody typed in (a manual row, §5.8). */
