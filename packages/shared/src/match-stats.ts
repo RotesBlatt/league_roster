@@ -1,4 +1,4 @@
-import type { MatchKind, TaggableKind, TournamentKind } from './match.ts'
+import type { MatchKind, MatchScope, TaggableKind, TournamentKind } from './match.ts'
 
 /**
  * "What kind of game was this?" — the rules behind `MATCH_KINDS` (match-history.md §6, §7).
@@ -20,6 +20,9 @@ import type { MatchKind, TaggableKind, TournamentKind } from './match.ts'
  * is the product decision; the table is where it is written down.
  */
 const QUEUE_KINDS: Readonly<Record<number, MatchKind>> = {
+  // Custom games. In the table rather than a special case in `classifyQueue`, so the reverse map
+  // below knows it too: a queue reachable only by a branch would have no id for the SQL filter.
+  0: 'custom',
   400: 'normal', // Normal Draft Pick
   420: 'solo', // Ranked Solo/Duo
   430: 'normal', // Normal Blind Pick
@@ -52,10 +55,9 @@ export function classifyQueue(
   gameType?: string | null,
 ): MatchKind {
   // Riot is inconsistent about which of the two fields carries "this was a custom game", so both
-  // are honoured; `0` covers the rows where `gameType` is absent entirely
+  // are honoured; queue id 0 is in the table above (it is how almost every custom row looks)
   if (gameType === 'CUSTOM_GAME') return 'custom'
   if (queueId === null || queueId === undefined) return 'other'
-  if (queueId === 0) return 'custom'
   return QUEUE_KINDS[queueId] ?? 'other'
 }
 
@@ -102,4 +104,40 @@ export function isRemake(durationSeconds: number | null | undefined): boolean {
     durationSeconds !== undefined &&
     durationSeconds < REMAKE_MAX_SECONDS
   )
+}
+
+/**
+ * How a scope becomes a SQL predicate (§5, §8.1).
+ *
+ * Three answers, because there are three genuinely different situations:
+ *
+ * - `all` — no filter at all. Deliberately not "every id we know": an `IN` list is exactly how the
+ *   queue Riot ships next month becomes invisible;
+ * - `queues` — the ids that can produce this scope, derived from `QUEUE_KINDS` so the SQL and
+ *   `classifyQueue` cannot disagree;
+ * - `tagged` — a scope that **no queue id can produce**: `tournament` and `scrim` are a membership
+ *   row and a human tag, and `other` is the *absence* of a known id. Filtering these by queueId
+ *   would return the wrong games confidently, so the caller has to use the tag/membership join
+ *   instead. Until that join exists, such a scope is honestly empty.
+ */
+export type ScopeQueueFilter =
+  | { kind: 'all' }
+  | { kind: 'queues'; queueIds: readonly number[] }
+  | { kind: 'tagged' }
+
+/** Derives the reverse map once: kind → the queue ids that classify into it, ascending. */
+const QUEUE_IDS_BY_KIND: ReadonlyMap<MatchKind, readonly number[]> = (() => {
+  const byKind = new Map<MatchKind, number[]>()
+  for (const [queueId, kind] of Object.entries(QUEUE_KINDS)) {
+    byKind.set(kind, [...(byKind.get(kind) ?? []), Number(queueId)])
+  }
+  for (const ids of byKind.values()) ids.sort((a, b) => a - b)
+  return byKind
+})()
+
+export function scopeQueueFilter(scope: MatchScope): ScopeQueueFilter {
+  if (scope === 'all') return { kind: 'all' }
+  const queueIds = QUEUE_IDS_BY_KIND.get(scope) ?? []
+  if (queueIds.length === 0) return { kind: 'tagged' }
+  return { kind: 'queues', queueIds }
 }

@@ -71,3 +71,13 @@ export const MATCH_KINDS = [
   'other',
 ] as const
 export type MatchKind = (typeof MATCH_KINDS)[number]
+
+/**
+ * What the games list and the champion table are filtered to: `all`, or exactly one kind.
+ *
+ * Deliberately **not** a second vocabulary — a scope *is* a kind or "everything", so a filter and
+ * its label cannot drift apart (quick-wins B2) and adding a kind adds a selector for free. It lives
+ * here rather than beside the stats because the SQL filter and the pure functions both need it, and
+ * neither may own it.
+ */
+export type MatchScope = 'all' | MatchKind

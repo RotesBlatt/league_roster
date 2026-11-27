@@ -1,4 +1,4 @@
-import type { MatchKind, TaggableKind, TournamentKind } from './match.ts'
+import type { MatchScope, TaggableKind, TournamentKind } from './match.ts'
 import { isRemake, resolveKind } from './match-stats.ts'
 
 /**
@@ -14,15 +14,6 @@ import { isRemake, resolveKind } from './match-stats.ts'
  * the label is a lookup in the Hexserve cache at render time. A pure function that invented a name
  * would be the second source of truth that rule exists to prevent.
  */
-
-/**
- * What the toolbar selects (§9): `all`, or exactly one resolved kind.
- *
- * Not a second vocabulary on purpose — a scope *is* a kind or "everything", so a filter and its
- * label cannot drift apart (quick-wins B2). Adding `ranked5` to `MATCH_KINDS` therefore added it to
- * the scope selector for free, with no DB column involved.
- */
-export type MatchScope = 'all' | MatchKind
 
 /**
  * One of our participant rows, flattened for this function.
