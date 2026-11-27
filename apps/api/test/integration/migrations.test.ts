@@ -65,6 +65,14 @@ const SEED_OVERRIDES: Record<string, unknown> = {
   // pool_entry.kind, added by 0016 (champion-pools.md): same reason as the 0015 vocabularies — the
   // generic 'seed' literal is not one of the three kinds.
   'pool_entry.kind': 'main',
+  // 0018 (match-history.md): the seeder writes 'seed'/0 into every writable column, including the
+  // nullable ones, so each vocabulary guarded by a CHECK needs a legal literal here. `match.source =
+  // 'manual'` is also what satisfies `match_riot_id_check` (a 'riot' row would need a real id), and
+  // the participant's slot is 1 because `between 1 and 10` refuses the generic 0.
+  'match.source': 'manual',
+  'match_participant.side': 100,
+  'match_participant.slot': 1,
+  'match_annotation.taggedKind': 'scrim',
 }
 
 /**

@@ -1,4 +1,14 @@
-import { DIVISIONS, MEMBER_STATUSES, POOL_KINDS, ROLES, TIERS, USER_ROLES } from '@lol/shared'
+import {
+  DIVISIONS,
+  MATCH_SIDES,
+  MATCH_SOURCES,
+  MEMBER_STATUSES,
+  POOL_KINDS,
+  ROLES,
+  TAGGABLE_KINDS,
+  TIERS,
+  USER_ROLES,
+} from '@lol/shared'
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -15,7 +25,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
-import { sqlStringList } from './enum-list.ts'
+import { sqlNumberList, sqlStringList } from './enum-list.ts'
 
 /**
  * Postgres schema.
@@ -38,6 +48,10 @@ const updatedAt = timestamp('updatedAt', { withTimezone: true, mode: 'date' })
  */
 const enumCheck = (name: string, column: AnyPgColumn, values: readonly string[]) =>
   check(name, sql`${column} in ${sql.raw(sqlStringList(values))}`)
+
+/** The numeric twin of `enumCheck`, for a vocabulary whose values are numbers (`MATCH_SIDES`). */
+const enumNumberCheck = (name: string, column: AnyPgColumn, values: readonly number[]) =>
+  check(name, sql`${column} in ${sql.raw(sqlNumberList(values))}`)
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -579,6 +593,188 @@ export const champions = pgTable(
   ],
 )
 
+/**
+ * One **game**, whoever played it (match-history.md §5, §5.2, §5.3, §5.8, §6).
+ *
+ * Two rules are encoded here and nowhere else:
+ *
+ * 1. **Tenancy exemption.** There is deliberately no `teamId`. A game belongs to Riot, not to a
+ *    tenant; which team may see it is decided by the join `match_participant ⋈ riot_account` at
+ *    query time (§5.2). That is what makes a game already stored never fetched again, for anyone.
+ *    Every read must therefore start *from the team's accounts*, never `FROM match`.
+ * 2. **One row per game.** `UNIQUE ("riotMatchId")` is what lets the hourly loop insert with
+ *    `ON CONFLICT DO NOTHING` and stay idempotent however many of our accounts saw the same game
+ *    (§4.4). A `manual` row is the only kind allowed to carry no Riot id at all.
+ *
+ * `gameStartAt` is `timestamptz` (§5.3): a match happened at one instant, unlike the planner's wall
+ * clock. Do not "fix" one of the two to match the other.
+ *
+ * The Riot fact columns are nullable **for the manual writer**, not as a fallback: a hand-entered
+ * scrim has a date, our five and a win, and no `queueId`, no `gameVersion`, no `durationSeconds`
+ * (§5.8). The CHECK below is what keeps that from becoming an excuse: a row claiming `source =
+ * 'riot'` must carry the id it was fetched under.
+ */
+export const matches = pgTable(
+  'match',
+  {
+    id: text('id').primaryKey(),
+    source: text('source', { enum: MATCH_SOURCES }).notNull(),
+    /** Riot's `EUW1_7123456789` — NULL only on a manual row, and settable later when one is linked. */
+    riotMatchId: text('riotMatchId'),
+    platformId: text('platformId'),
+    gameStartAt: timestamp('gameStartAt', { withTimezone: true, mode: 'date' }).notNull(),
+    gameEndAt: timestamp('gameEndAt', { withTimezone: true, mode: 'date' }),
+    durationSeconds: integer('durationSeconds'),
+    queueId: integer('queueId'),
+    gameType: text('gameType'),
+    gameVersion: text('gameVersion'),
+    /** Who typed in a manual row — ownership, and "who may fix this typo?" (§5.8, §10.14). */
+    createdByTeamId: text('createdByTeamId').references(() => teams.id, { onDelete: 'set null' }),
+    createdBy: text('createdBy').references(() => user.id, { onDelete: 'set null' }),
+    fetchedAt: timestamp('fetchedAt', { withTimezone: true, mode: 'date' }),
+  },
+  (table) => [
+    // the loop's existence probe, and the reason a second account never re-fetches a game
+    unique('match_riotMatchId_idx').on(table.riotMatchId),
+    // the games list's default sort and its cursor (§9), and the scope filter's other half
+    index('match_gameStartAt_idx').on(table.gameStartAt),
+    index('match_queueId_idx').on(table.queueId),
+    index('match_source_idx').on(table.source),
+    enumCheck('match_source_check', table.source, MATCH_SOURCES),
+    check(
+      'match_riot_id_check',
+      sql`${table.source} <> 'riot' or ${table.riotMatchId} is not null`,
+    ),
+  ],
+)
+
+/**
+ * One participant of one game — **all ten of them, not just ours** (match-history.md §5.1).
+ *
+ * The lane partner / lane opponent columns of the sheet come from the *other* nine, so a
+ * participant-only store would need a second Riot request per game to render them; "how many of
+ * ours" becomes a join instead of a stored count. Volume is a non-issue: ~600 rows/day.
+ *
+ * Every fact column is nullable on purpose. A hand-entered row has "who + champion + won?" and
+ * nothing else, and an unknown opponent is a row with a slot and no puuid — **never a fake puuid**.
+ * Hence the *partial* unique: `(matchId, puuid)` must not collapse the NULLs of two unknown
+ * opponents into one conflict.
+ *
+ * `championId` carries no foreign key to `champion` (like `pool_entry`): a champion the dump does
+ * not know yet must not refuse the game. We store ids, we render labels.
+ */
+export const matchParticipants = pgTable(
+  'match_participant',
+  {
+    id: text('id').primaryKey(),
+    matchId: text('matchId')
+      .notNull()
+      .references(() => matches.id, { onDelete: 'cascade' }),
+    /** Riot's `teamId` of the participant: 100 or 200, stored verbatim (§5). */
+    side: integer('side').notNull(),
+    /** Riot's `participantId`, 1–10. Kept because it is the only stable ordering within a match. */
+    slot: integer('slot').notNull(),
+    /** Riot's identity of the player; no FK, because a puuid we hold no account for is legal (§5.6). */
+    puuid: text('puuid'),
+    /** `TOP`/`JUNGLE`/`MIDDLE`/`BOTTOM`/`UTILITY`, empty for non-SR — mapped in one shared function. */
+    teamPosition: text('teamPosition'),
+    championId: integer('championId'),
+    win: boolean('win'),
+    kills: integer('kills'),
+    deaths: integer('deaths'),
+    assists: integer('assists'),
+    cs: integer('cs'),
+    goldEarned: integer('goldEarned'),
+    visionScore: integer('visionScore'),
+  },
+  (table) => [
+    // one body per slot per side — a duplicate is a parsing bug, not a second player
+    unique('match_participant_match_side_slot_idx').on(table.matchId, table.side, table.slot),
+    // one row per person per game, but only where we know the person (see the class comment)
+    uniqueIndex('match_participant_match_puuid_idx')
+      .on(table.matchId, table.puuid)
+      .where(sql`${table.puuid} is not null`),
+    // the read side: "our participant rows" starts here, and champion stats group by the other
+    index('match_participant_puuid_idx').on(table.puuid),
+    index('match_participant_championId_idx').on(table.championId),
+    enumNumberCheck('match_participant_side_check', table.side, MATCH_SIDES),
+    check('match_participant_slot_check', sql`${table.slot} between 1 and 10`),
+  ],
+)
+
+/**
+ * Everything **human** about one match, per team (match-history.md §5.4, §5.5, §6, §10.7).
+ *
+ * Two fields, one reason: the sync's write path does not reach this table. A nullable `note` column
+ * on `match` would rest on a discipline ("never upsert this one") that a later `...spread` breaks
+ * silently — the bug `players.ts` already had. The safest manual field is one the background job
+ * cannot name.
+ *
+ * Per **team**, not per match: a note is the team's opinion, and two teams that played each other
+ * each keep their own. `taggedKind` is the single answer to "what kind of game was this?" for a
+ * row Riot cannot classify — a hand-entered scrim (§5.8) or a Riot game somebody re-tagged (§6).
+ * Precedence stays `tournament.kind → taggedKind → classifyQueue → 'other'`, decided in one shared
+ * function; this table only stores the human step.
+ */
+export const matchAnnotations = pgTable(
+  'match_annotation',
+  {
+    matchId: text('matchId')
+      .notNull()
+      .references(() => matches.id, { onDelete: 'cascade' }),
+    teamId: text('teamId')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    note: text('note'),
+    /** NULL means "nobody overrode this" — never a stored default, which would outrank `queueId`. */
+    taggedKind: text('taggedKind', { enum: TAGGABLE_KINDS }),
+    updatedBy: text('updatedBy').references(() => user.id, { onDelete: 'set null' }),
+    updatedAt: updatedAt.notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.matchId, table.teamId] }),
+    index('match_annotation_teamId_idx').on(table.teamId),
+    enumCheck('match_annotation_taggedKind_check', table.taggedKind, TAGGABLE_KINDS),
+  ],
+)
+
+/**
+ * A listed Riot match whose detail call never resolves (match-history.md §4.3).
+ *
+ * One row, because the retry *is* the bug: Riot has transient gaps and very old games get pruned, so
+ * without this the hourly cycle would re-request the same 404 forever and call it progress. Keyed by
+ * the Riot id itself: the skip exists before (or without) a `match` row.
+ */
+export const matchSkips = pgTable('match_skip', {
+  matchId: text('matchId').primaryKey(),
+  reason: text('reason').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  lastAttemptAt: timestamp('lastAttemptAt', { withTimezone: true, mode: 'date' }).notNull(),
+})
+
+/**
+ * The per-account sync cursor (match-history.md §4.1, §4.3) — the state that makes an hourly loop
+ * resumable after a deploy instead of "due" only in a timer that died with the process.
+ *
+ * `newestMatchStartAt` is a **cheap pre-filter, not the terminator**: the loop stops when it meets a
+ * `riotMatchId` it already holds, because Riot's timestamps and ours differ by seconds and a
+ * time-only boundary drops or re-fetches games forever (§4.3).
+ *
+ * History loading (§4.5) is deliberately absent: it is optional and undecided (§10.2), so its
+ * columns (`backfilledThrough`, `backfillRemaining`) wait for the patch that builds it.
+ */
+export const accountSyncs = pgTable('account_sync', {
+  riotAccountId: text('riotAccountId')
+    .primaryKey()
+    .references(() => riotAccounts.id, { onDelete: 'cascade' }),
+  lastAttemptAt: timestamp('lastAttemptAt', { withTimezone: true, mode: 'date' }),
+  lastSuccessAt: timestamp('lastSuccessAt', { withTimezone: true, mode: 'date' }),
+  newestMatchStartAt: timestamp('newestMatchStartAt', { withTimezone: true, mode: 'date' }),
+  /** Consecutive failures drive the back-off; a success resets it to 0, it never ratchets. */
+  consecutiveFailures: integer('consecutiveFailures').notNull().default(0),
+  lastError: text('lastError'),
+})
+
 export type UserRow = typeof user.$inferSelect
 export type ProfileRow = typeof profile.$inferSelect
 export type RosterEntryRow = typeof rosterEntries.$inferSelect
@@ -592,3 +788,8 @@ export type PoolRow = typeof pools.$inferSelect
 export type PoolEntryRow = typeof poolEntries.$inferSelect
 export type ChampionRow = typeof champions.$inferSelect
 export type ChampionPatchRow = typeof championPatches.$inferSelect
+export type MatchRow = typeof matches.$inferSelect
+export type MatchParticipantRow = typeof matchParticipants.$inferSelect
+export type MatchAnnotationRow = typeof matchAnnotations.$inferSelect
+export type MatchSkipRow = typeof matchSkips.$inferSelect
+export type AccountSyncRow = typeof accountSyncs.$inferSelect

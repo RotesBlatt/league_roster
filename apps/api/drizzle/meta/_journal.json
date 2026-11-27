@@ -127,6 +127,13 @@
       "when": 1795708683077,
       "tag": "0017_youthful_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795811862597,
+      "tag": "0018_safe_eternity",
+      "breakpoints": true
     }
   ]
 }
