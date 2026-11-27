@@ -1,14 +1,45 @@
 # Idea — match history + champion stats (automated, per team)
 
-**Status:** in progress — only the **vocabulary** has landed: `packages/shared/src/match.ts`
-(`MATCH_SOURCES`, `MATCH_SIDES`, `TAGGABLE_KINDS`, `MATCH_KINDS`, commit `5706735`). Schema, fetch
-path, refresh loop, manual entry and both views are still missing, so nothing here is visible to a
-member yet.
-**Decided 2026-11-27:** §10.4 merged per person (the account is shown per game row, never in the
-stats grouping); §10.5 team-visible — no `visibility` column, added later if it turns out to be
-wanted; §10.12 deferred with the tournament tables to step 7; step 1 creates `match`,
-`match_participant`, `match_annotation`, `match_skip`, `account_sync` — **not** `match_refresh`,
-which waits for the refresh button.
+**Status:** in progress — **the manual path is live end to end; the automated half is not.**
+
+*Landed:*
+- `packages/shared`: the match vocabulary (`MATCH_SOURCES`, `MATCH_SIDES`, `TAGGABLE_KINDS`,
+  `TOURNAMENT_KINDS`, `MATCH_KINDS` incl. `ranked5`), `classifyQueue` / `resolveKind` / `isRemake`,
+  `scopeQueueFilter`, `championStats` / `winrateTone`, `assignLanes` + `roleFromTeamPosition` /
+  `teamPositionFromRole`, `validateManualMatch`.
+- `apps/api`: the schema (`0018` creates `match`, `match_participant`, `match_annotation`,
+  `match_skip`, `account_sync`; `0019` adds `match_participant.userId`), `GET /api/teams/:slug/matches`
+  (scope, cursor, `player` filter), `POST …/matches` (manual entry), `GET …/stats` (per-player
+  champion stats), and the read honouring `match_annotation.taggedKind` — a tag outranks the queue id
+  in both the row's kind and the SQL filter.
+- `apps/web`: `/t/:slug/stats` (team overview, one column per player) and `/t/:slug/stats/:userId`
+  (KPI cards, champion table, game log with the lane opponent), plus the manual-entry modal prefilled
+  from the roster. `/games` and its scope selector are gone.
+
+*Not built:* the Riot fetch path (§12 step 3) and the hourly loop (step 4) — both blocked on §10.1,
+the production key — plus optional history loading (§4.5), tournament codes (§4.7/§10.12), the
+refresh button and its cooldown (§4.6), editing a note, the pool / "WR-Basis" split (§13), and the
+pool grouping the target screenshot shows in the champion table.
+
+**Decided while implementing (2026-11-27):**
+- §10.4 **merged per person** — a champion row never splits by account; the account stays visible on
+  the game row.
+- §10.5 **team-visible**, no `visibility` column. Add one only if it turns out to be wanted.
+- §10.14 **any member may enter, edit and delete** a hand-entered match.
+- §10.12 deferred with the tournament tables (§4.7); `match_refresh` too — it waits for the button.
+- **No scope selector** on the stats page: all games count. The toolbar of §9 is dropped by product
+  decision, so `?scope=` stays an API capability the UI does not use.
+- **`/games` replaced** by `/stats` + `/stats/:userId`: the flat list is gone, the game log lives
+  inside a player's view (product decision).
+- **Champion table is flat** (games, W/L, WR, last). Pool grouping stays §13's job.
+- **`ranked5` is queue id 710**, taken from the product owner and **unconfirmed**: Riot's published
+  `queues.json` has no 710 (only 700/720, both Clash). One recorded payload settles it.
+- **A hand-entered row names a person** (`match_participant.userId`), never a guessed account.
+- **A lane is identified by `(side, slot)`, not by puuid** — a typed enemy has no puuid, so a
+  puuid-keyed lane could never name the opponent a human entered.
+- **An enemy is paired to our player** (`players[].opponentChampionId`), and the writer stores it in
+  the player's slot with that player's Riot position.
+
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md`
 (`riot_account` with a required `platform` and a stable `puuid` — the whole feature hangs off it).
 **Companion, later:** the *champion pool* idea (pool vs. "sonst gespielt", the "WR-Basis" filter).
