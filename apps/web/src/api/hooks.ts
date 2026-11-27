@@ -410,3 +410,39 @@ export function useCreateManualMatch(slug: string) {
     },
   })
 }
+
+export const STATS_KEY = ['stats'] as const
+
+/**
+ * `GET /api/teams/:slug/stats` — every player's champion stats (match-history.md §8).
+ *
+ * No scope in the key because there is no scope: the page shows all games by product decision, and
+ * the API takes no such parameter.
+ */
+export function useTeamStats(slug: string) {
+  return useQuery({
+    queryKey: [...STATS_KEY, slug],
+    queryFn: () => unwrap(api.teams({ slug }).stats.get()),
+    enabled: slug.length > 0,
+  })
+}
+
+/**
+ * One player's games, newest first — the log beside their champion table (§9).
+ *
+ * Reuses the games endpoint with `player` set: the filter narrows the team's rows to this person, so
+ * a teammate in the same match does not appear in somebody else's log.
+ */
+export function usePlayerGames(slug: string, userId: string) {
+  return useInfiniteQuery({
+    queryKey: [...GAMES_KEY, slug, 'player', userId],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const query: { player: string; cursor?: string } = { player: userId }
+      if (pageParam) query.cursor = pageParam
+      return unwrap(api.teams({ slug }).matches.get({ query }))
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: slug.length > 0 && userId.length > 0,
+  })
+}
