@@ -1,6 +1,14 @@
 # Idea — match history + champion stats (automated, per team)
 
-**Status:** idea, nothing implemented.
+**Status:** in progress — only the **vocabulary** has landed: `packages/shared/src/match.ts`
+(`MATCH_SOURCES`, `MATCH_SIDES`, `TAGGABLE_KINDS`, `MATCH_KINDS`, commit `5706735`). Schema, fetch
+path, refresh loop, manual entry and both views are still missing, so nothing here is visible to a
+member yet.
+**Decided 2026-11-27:** §10.4 merged per person (the account is shown per game row, never in the
+stats grouping); §10.5 team-visible — no `visibility` column, added later if it turns out to be
+wanted; §10.12 deferred with the tournament tables to step 7; step 1 creates `match`,
+`match_participant`, `match_annotation`, `match_skip`, `account_sync` — **not** `match_refresh`,
+which waits for the refresh button.
 **Depends on:** `multi-team.md` (everything is team-scoped) and `player-profiles.md`
 (`riot_account` with a required `platform` and a stable `puuid` — the whole feature hangs off it).
 **Companion, later:** the *champion pool* idea (pool vs. "sonst gespielt", the "WR-Basis" filter).
