@@ -7,8 +7,9 @@ import {
   resolveKind,
   roleFromTeamPosition,
   scopeQueueFilter,
+  type TaggableKind,
 } from '@lol/shared'
-import { and, desc, eq, inArray, lt, or, type SQL } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm'
 import type { Db } from '../db/index.ts'
 import {
   matchAnnotations,
@@ -125,10 +126,13 @@ type Looking = {
 export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGamesPage> {
   const empty: MatchGamesPage = { games: [], nextCursor: null, scope: input.scope }
 
-  // `tournament` / `scrim` / `other` are not decidable from a queue id (§6), and no route writes
-  // `match_annotation` yet, so they are honestly empty rather than filtered by a guess.
   const filter = scopeQueueFilter(input.scope)
-  if (filter.kind === 'tagged') return empty
+  // `tournament` and `scrim` are a per-team tag, and become a join below (§6). `other` is the
+  // *absence* of a known id — no filter can express it, so it stays honestly empty instead of
+  // pretending to be "everything we do not classify".
+  if (filter.kind === 'tagged' && input.scope !== 'scrim' && input.scope !== 'tournament') {
+    return empty
+  }
 
   const memberRows = await db
     .select({ userId: memberships.userId })
@@ -174,10 +178,18 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
       queueId: matches.queueId,
       gameType: matches.gameType,
       source: matches.source,
+      // this **team's** tag, joined rather than fetched separately: it decides the kind and it
+      // filters the tagged scopes, and a second query could disagree with the page
+      taggedKind: matchAnnotations.taggedKind,
+      note: matchAnnotations.note,
     })
     .from(matchParticipants)
     .innerJoin(matches, eq(matchParticipants.matchId, matches.id))
-    .where(and(visible, queueCondition(filter, input.scope), cursorCondition))
+    .leftJoin(
+      matchAnnotations,
+      and(eq(matchAnnotations.matchId, matches.id), eq(matchAnnotations.teamId, input.teamId)),
+    )
+    .where(and(visible, scopeCondition(filter, input.scope), cursorCondition))
     .orderBy(desc(matches.gameStartAt), desc(matches.id))
     .limit(input.limit + 1)
 
@@ -188,15 +200,11 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
 
   const matchIds = pageMatches.map((match) => match.id)
 
-  const [participants, annotations, profiles, users] = await Promise.all([
+  // the team's annotation is already joined into `page` above, so it is not fetched again here —
+  // two sources for the same tag is exactly how a row's kind and its note end up disagreeing
+  const [participants, profiles, users] = await Promise.all([
     // *all ten* participants of those matches: the lane columns need the other nine (§5.1)
     db.select().from(matchParticipants).where(inArray(matchParticipants.matchId, matchIds)),
-    db
-      .select()
-      .from(matchAnnotations)
-      .where(
-        and(inArray(matchAnnotations.matchId, matchIds), eq(matchAnnotations.teamId, input.teamId)),
-      ),
     db
       .select({ userId: profile.userId, displayName: profile.displayName })
       .from(profile)
@@ -225,17 +233,18 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
     (row.userId !== null && memberSet.has(row.userId))
 
   const participantsByMatch = groupBy(participants, (row) => row.matchId)
-  const noteByMatch = new Map(
-    annotations.map((annotation) => [annotation.matchId, annotation.note] as const),
-  )
 
   const games: MatchGameDto[] = []
   for (const match of pageMatches) {
     const rows = participantsByMatch.get(match.id) ?? []
     const lanes = assignLanes(rows)
-    // `taggedKind` and the tournament membership arrive with their writers (§5.5, §4.7); until then
-    // the queue step is the whole answer for a Riot row and "manual" is decided by the source.
-    const kind = resolveKind({ queueId: match.queueId, gameType: match.gameType })
+    // the fixed precedence (§6): the tournament membership is still to come (§4.7), then this
+    // team's tag, then Riot's queue id
+    const kind = resolveKind({
+      queueId: match.queueId,
+      gameType: match.gameType,
+      taggedKind: match.taggedKind,
+    })
 
     /** A lane reference, by puuid: unique per match, so no side is needed to find the row. */
     const refOf = (puuid: string | null): MatchLaneRefDto | null => {
@@ -289,7 +298,7 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
           laneOpponent: refOf(assignment?.laneOpponent ?? null),
           opponentPartner: refOf(assignment?.opponentPartner ?? null),
         },
-        note: noteByMatch.get(match.id) ?? null,
+        note: match.note,
       })
     }
   }
@@ -297,17 +306,38 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
   return { games, nextCursor: hasMore ? encodeCursor(last) : null, scope: input.scope }
 }
 
-/** The scope's SQL half, built from the same table the classifier uses (§5, §8.1). */
-function queueCondition(
+/**
+ * The scope's SQL half, from the same tables the classifier reads (§5, §8.1).
+ *
+ * Three shapes, matching `scopeQueueFilter`'s three answers: a queue-id list, this team's tag, or
+ * nothing at all. Writing any of them twice — here and in the pure function — is what `scopeQueueFilter`
+ * exists to prevent.
+ */
+function scopeCondition(
   filter: ReturnType<typeof scopeQueueFilter>,
   scope: MatchScope,
 ): SQL | undefined {
-  if (filter.kind !== 'queues') return undefined
+  if (filter.kind === 'all') return undefined
+
+  if (filter.kind === 'tagged') {
+    // only reached for `scrim` / `tournament`; `other` returned before the query. The cast is the
+    // narrow one: both are members of the column's own union, which `MatchScope` is not.
+    return eq(matchAnnotations.taggedKind, scope as TaggableKind)
+  }
+
   const inIds = inArray(matches.queueId, [...filter.queueIds])
   // custom games are usually queue id 0, but Riot has also sent a real id with CUSTOM_GAME —
   // `classifyQueue` honours both, so the SQL must as well or the two would disagree
-  if (scope === 'custom') return or(inIds, eq(matches.gameType, 'CUSTOM_GAME'))
-  return inIds
+  const byQueue = scope === 'custom' ? or(inIds, eq(matches.gameType, 'CUSTOM_GAME')) : inIds
+
+  // **a tag outranks the queue id** (§6), so a queue scope only holds games this team has not
+  // re-tagged. Without this, a scrim-tagged Flex game keeps appearing under Flex while its row says
+  // "Scrim" — the half-applied filter §8.1 warns about. A `custom` tag lands in the custom scope.
+  const untagged = and(isNull(matchAnnotations.taggedKind), byQueue)
+  if (scope === 'custom') {
+    return or(untagged, eq(matchAnnotations.taggedKind, 'custom'))
+  }
+  return untagged
 }
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
