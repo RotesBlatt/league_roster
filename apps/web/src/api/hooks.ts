@@ -1,5 +1,5 @@
 import type { Me, ProfileDto } from '@lol/api/schema-types'
-import type { MatchScope, PoolLists, Role } from '@lol/shared'
+import type { PoolLists, Role } from '@lol/shared'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { DayIntervals } from '../lib/planner/availability-grid.ts'
 import type { AccountBody, ProfileBody } from '../lib/profile/profile-form.ts'
@@ -367,31 +367,6 @@ export function useUnlockWeek(slug: string) {
 }
 
 export const GAMES_KEY = ['games'] as const
-
-/**
- * A team's games, one page at a time (match-history.md §9).
- *
- * `useInfiniteQuery` rather than a growing local array: the cursor is the server's, and "load more"
- * must not become "re-fetch everything and append" — an 18-month history is thousands of rows, which
- * is exactly why the API pages over matches instead of returning it all.
- *
- * The scope is part of the key, so switching tabs is a different query rather than a mutation of the
- * current one: flipping scope twice must not leave Flex rows under the SoloQ label. The query string
- * is validated on the server (`parseGamesQuery`) — a bad scope is a 400, never a silent fallback.
- */
-export function useGames(slug: string, scope: MatchScope) {
-  return useInfiniteQuery({
-    queryKey: [...GAMES_KEY, slug, scope],
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      const query: { scope: MatchScope; cursor?: string } = { scope }
-      if (pageParam) query.cursor = pageParam
-      return unwrap(api.teams({ slug }).matches.get({ query }))
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled: slug.length > 0,
-  })
-}
 
 /**
  * `POST /api/teams/:slug/matches` — enter a scrim by hand (match-history.md §5.8).
