@@ -1,26 +1,14 @@
 import { ROLE_LABELS } from '@lol/shared'
-import {
-  Badge,
-  Button,
-  Group,
-  Loader,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core'
+import { Button, Group, Loader, Paper, SimpleGrid, Stack, Table, Text, Title } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { usePlayerGames, useTeamStats } from '../api/hooks.ts'
 import { messageOf } from '../api/result.ts'
-import { ChampionLabel } from '../components/champions/ChampionIcon.tsx'
 import { ChampionStatsTable } from '../components/matches/ChampionStatsTable.tsx'
+import { GameLogRow } from '../components/matches/GameLogRow.tsx'
 import { ManualMatchForm } from '../components/matches/ManualMatchForm.tsx'
-import { kindLabel, resultText, resultTone } from '../lib/matches/games-view.ts'
-import { formatStatsDate, formatWinrate, gameLine, playerKpis } from '../lib/matches/stats-view.ts'
+import { formatWinrate, playerKpis } from '../lib/matches/stats-view.ts'
 
 /**
  * One player's season (match-history.md §9) — the target screenshot.
@@ -114,45 +102,15 @@ export function PlayerStatsPage() {
                     <Table.Th>Champion</Table.Th>
                     <Table.Th>W/L</Table.Th>
                     <Table.Th>Stats</Table.Th>
+                    {/* the champion you were against: the first thing a reader looks for (§7) */}
+                    <Table.Th>Opponent</Table.Th>
                     <Table.Th>Account</Table.Th>
                     <Table.Th>Note</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
                   {rows.map((game) => (
-                    <Table.Tr key={`${game.matchId}:${game.championId ?? 'x'}`}>
-                      <Table.Td>{formatStatsDate(game.gameStartAt)}</Table.Td>
-                      <Table.Td>
-                        <Badge size="xs" variant="light">
-                          {kindLabel(game.kind)}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        {game.championId === null ? (
-                          '–'
-                        ) : (
-                          <ChampionLabel championId={game.championId} size={18} />
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <Text c={resultTone(game.win)} inherit>
-                          {resultText(game.win)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs">{gameLine(game)}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs" c="dimmed">
-                          {game.player.account ?? '–'}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs" c="dimmed">
-                          {game.note ?? '–'}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
+                    <GameLogRow key={`${game.matchId}:${game.championId ?? 'x'}`} game={game} />
                   ))}
                 </Table.Tbody>
               </Table>
