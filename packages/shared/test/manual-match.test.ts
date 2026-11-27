@@ -199,3 +199,54 @@ describe('the note', () => {
     expect(result.ok).toBe(false)
   })
 })
+
+/**
+ * A player's own lane opponent (match-history.md §7).
+ *
+ * The form shows our five in a row and the enemy champion **beside each one**, because that is the
+ * only way a human can say "this is the champion I was against". A bare list of opponents could not
+ * express it: `opponents[2]` means nothing without the row it belongs to.
+ */
+describe('an opponent can belong to one of our players', () => {
+  test('a player may name the champion they were against', () => {
+    const result = validateManualMatch(
+      { ...minimal, players: [{ userId: 'u1', championId: 103, opponentChampionId: 24 }] },
+      { now },
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.players[0]?.opponentChampionId).toBe(24)
+  })
+
+  test('no opponent is null, not zero', () => {
+    const result = validateManualMatch(minimal, { now })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.value.players[0]?.opponentChampionId).toBeNull()
+  })
+
+  test('an opponent that is not a champion id is refused', () => {
+    for (const opponentChampionId of [0, -3, 1.5, 'Vayne']) {
+      const result = validateManualMatch(
+        { ...minimal, players: [{ userId: 'u1', championId: 103, opponentChampionId }] },
+        { now },
+      )
+      expect(result.ok).toBe(false)
+    }
+  })
+
+  test('the two ways to name an enemy can be used together', () => {
+    // per-player for the lanes we know, the plain list for a fifth enemy nobody paired
+    const result = validateManualMatch(
+      {
+        ...minimal,
+        players: [{ userId: 'u1', championId: 103, opponentChampionId: 24 }],
+        opponents: [{ championId: 121 }],
+      },
+      { now },
+    )
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.players[0]?.opponentChampionId).toBe(24)
+      expect(result.value.opponents[0]?.championId).toBe(121)
+    }
+  })
+})

@@ -24,6 +24,13 @@ const FUTURE_SKEW_MS = 5 * 60_000
 export type ManualMatchPlayer = {
   userId: string
   championId: number
+  /**
+   * The champion this player was against, when the form knew it (§7).
+   *
+   * A plain `opponents` list cannot say *whose* enemy an entry is, and the games list needs exactly
+   * that to put a name in the "lane opponent" column. `null` means "not entered", not "no enemy".
+   */
+  opponentChampionId: number | null
   /** Our role vocabulary, or `null` when nobody said — a scrim often has no assigned roles. */
   role: Role | null
   kills: number | null
@@ -142,6 +149,14 @@ export function validateManualMatch(
       players.push({
         userId,
         championId: id ?? 0, // an error was recorded; the row is unusable either way
+        opponentChampionId:
+          raw.opponentChampionId === undefined || raw.opponentChampionId === null
+            ? null
+            : championId(
+                raw.opponentChampionId,
+                `player ${index + 1}'s opponentChampionId`,
+                errors,
+              ),
         role,
         kills: optionalCount(raw.kills, `player ${index + 1}'s kills`, errors),
         deaths: optionalCount(raw.deaths, `player ${index + 1}'s deaths`, errors),
