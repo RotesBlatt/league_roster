@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { MATCH_KINDS, MATCH_SIDES, MATCH_SOURCES, TAGGABLE_KINDS } from '../src/match.ts'
+import {
+  MATCH_KINDS,
+  MATCH_SIDES,
+  MATCH_SOURCES,
+  TAGGABLE_KINDS,
+  TOURNAMENT_KINDS,
+} from '../src/match.ts'
 
 /**
  * The match vocabulary (match-history.md §5, §6). It is exported from `@lol/shared` because the DB
@@ -38,11 +44,30 @@ describe('TAGGABLE_KINDS', () => {
   })
 })
 
+describe('TOURNAMENT_KINDS', () => {
+  test('the label a tournament row carries, decided once by a human (§4.7)', () => {
+    expect([...TOURNAMENT_KINDS]).toEqual(['tournament', 'scrim', 'practice'])
+  })
+
+  test('`practice` is not a resolved kind — it inherits `scrim` (§6)', () => {
+    // the distinction exists on the code, not on the game: a practice block is still practice
+    expect(MATCH_KINDS).not.toContain('practice')
+    expect(TAGGABLE_KINDS).not.toContain('practice')
+  })
+
+  test('a ranked queue is never something a human tags', () => {
+    // `ranked5` is a queue fact like solo/flex: re-tagging a game into a ladder it was not played
+    // on would be a lie about data we hold
+    expect(TAGGABLE_KINDS).not.toContain('ranked5')
+  })
+})
+
 describe('MATCH_KINDS', () => {
   test('the resolved kinds of one game, derived or tagged', () => {
     expect([...MATCH_KINDS]).toEqual([
       'solo',
       'flex',
+      'ranked5',
       'normal',
       'custom',
       'tournament',

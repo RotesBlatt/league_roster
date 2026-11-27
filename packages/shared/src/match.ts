@@ -39,14 +39,31 @@ export const TAGGABLE_KINDS = ['tournament', 'scrim', 'custom'] as const
 export type TaggableKind = (typeof TAGGABLE_KINDS)[number]
 
 /**
+ * What a `tournament` row is *for* — one human decision per tournament or code block (§4.7, §6).
+ *
+ * Deliberately not the same set as `MATCH_KINDS`: this label lives on the **code**, not on the game.
+ * `practice` exists here and nowhere else, because a game played on a practice block is a `scrim` —
+ * the narrower word would tell a reader nothing useful about the game itself. `resolveKind` is the
+ * one place that translation happens.
+ */
+export const TOURNAMENT_KINDS = ['tournament', 'scrim', 'practice'] as const
+export type TournamentKind = (typeof TOURNAMENT_KINDS)[number]
+
+/**
  * The resolved kind of one game, from the single precedence
  * `tournament.kind → annotation.taggedKind → classifyQueue → 'other'` (§6). One set for the whole
  * app: the games list, the champion-stats scope and the SQL filter all read from it, so a filter and
  * its label cannot disagree.
+ *
+ * `ranked5` is the premade-five ladder (queue id 710): ranked, like `solo` and `flex`, but its own
+ * ladder and therefore its own data set — folding it into `flex` would put two ratings' games into
+ * one winrate. **No column stores a resolved kind** (§5 bucket table: it is a derivation), so this
+ * list is free to grow without a migration; only `TAGGABLE_KINDS` and `MATCH_SOURCES` reach the DB.
  */
 export const MATCH_KINDS = [
   'solo',
   'flex',
+  'ranked5',
   'normal',
   'custom',
   'tournament',
