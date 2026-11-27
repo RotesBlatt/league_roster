@@ -65,15 +65,15 @@ describe('a full Summoner’s Rift game', () => {
   test('the bot lane is a pair on each side, not "the enemy"', () => {
     const result = lanes(sr())
     expect(result.get(laneKey(100, 4))).toEqual({
-      partner: 'b-sup',
-      laneOpponent: 'r-adc',
-      opponentPartner: 'r-sup',
+      partner: laneKey(100, 5),
+      laneOpponent: laneKey(200, 9),
+      opponentPartner: laneKey(200, 10),
     })
     // and the support reads the same triangle from the other end (red: BOTTOM=9, UTILITY=10)
     expect(result.get(laneKey(200, 10))).toEqual({
-      partner: 'r-adc',
-      laneOpponent: 'b-sup',
-      opponentPartner: 'b-adc',
+      partner: laneKey(200, 9),
+      laneOpponent: laneKey(100, 5),
+      opponentPartner: laneKey(100, 4),
     })
   })
 
@@ -81,15 +81,15 @@ describe('a full Summoner’s Rift game', () => {
     const result = lanes(sr())
     expect(result.get(laneKey(100, 1))).toEqual({
       partner: null,
-      laneOpponent: 'r-top',
+      laneOpponent: laneKey(200, 6),
       opponentPartner: null,
     })
     expect(result.get(laneKey(100, 2))).toEqual({
       partner: null,
-      laneOpponent: 'r-jgl',
+      laneOpponent: laneKey(200, 7),
       opponentPartner: null,
     })
-    expect(result.get(laneKey(100, 3))?.laneOpponent).toBe('r-mid')
+    expect(result.get(laneKey(100, 3))?.laneOpponent).toBe(laneKey(200, 8))
   })
 })
 
@@ -115,7 +115,7 @@ describe('games where the answer is unknown', () => {
     })
     // its opponent loses the lane opponent too, because there is no lane to match
     expect(result.get(laneKey(200, 8))?.laneOpponent).toBeNull()
-    expect(result.get(laneKey(100, 1))?.laneOpponent).toBe('r-top')
+    expect(result.get(laneKey(100, 1))?.laneOpponent).toBe(laneKey(200, 6))
   })
 
   test('an unknown opponent (no puuid) is still a lane, just an unnamed one', () => {
@@ -127,11 +127,12 @@ describe('games where the answer is unknown', () => {
       { puuid: null, side: 200, slot: 7, teamPosition: 'UTILITY' },
     ]
     const result = lanes(manual)
-    // the key is the slot, so a NULL puuid cannot silently drop the row
+    // **the reason this is keyed by slot**: a hand-entered enemy has no puuid at all, and an
+    // assignment that named people by puuid would answer `null` for every such lane
     expect(result.get(laneKey(100, 1))).toEqual({
-      partner: null,
-      laneOpponent: null,
-      opponentPartner: null,
+      partner: laneKey(100, 2),
+      laneOpponent: laneKey(200, 6),
+      opponentPartner: laneKey(200, 7),
     })
     expect(result.size).toBe(4)
   })
@@ -143,7 +144,7 @@ describe('games where the answer is unknown', () => {
     const result = lanes(fourVfour)
     expect(result.get(laneKey(100, 4))).toEqual({
       partner: null,
-      laneOpponent: 'r-adc',
+      laneOpponent: laneKey(200, 9),
       opponentPartner: null,
     })
   })
@@ -159,7 +160,7 @@ describe('the pairing is deterministic', () => {
     ]
     const first = lanes(odd)
     const second = lanes(odd)
-    expect(first.get(laneKey(200, 8))?.laneOpponent).toBe('a')
+    expect(first.get(laneKey(200, 8))?.laneOpponent).toBe(laneKey(100, 3))
     expect([...first.entries()]).toEqual([...second.entries()])
   })
 })

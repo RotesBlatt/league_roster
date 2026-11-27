@@ -72,6 +72,14 @@ export type LaneParticipant = {
   teamPosition?: string | null
 }
 
+/**
+ * Who stands where, named by `laneKey(side, slot)` — **not by puuid**.
+ *
+ * The doc sketched "per puuid", but a hand-entered enemy has no puuid at all (§5.8), and an
+ * assignment that named people by puuid would answer `null` for exactly the lanes somebody bothered
+ * to type in. `(side, slot)` is unique in the schema and present on every row, so the caller can
+ * look the participant up and decide what to render (a name for ours, a champion for theirs).
+ */
 export type LaneAssignment = {
   /** Same team, the paired lane: only the bot duo has one (`BOTTOM ↔ UTILITY`). */
   partner: string | null
@@ -133,19 +141,23 @@ export function assignLanes(participants: readonly LaneParticipant[]): Map<strin
     const enemySide = participant.side === 100 ? 200 : 100
 
     const pairedPosition = PAIRED_LANE[position]
-    const partner = pairedPosition
-      ? (find(participant.side, pairedPosition, participant)?.puuid ?? null)
-      : null
+    const partnerRow = pairedPosition
+      ? find(participant.side, pairedPosition, participant)
+      : undefined
+    const partner = partnerRow ? laneKey(partnerRow.side, partnerRow.slot) : null
 
     // an empty or unknown position has no lane to match, so it has no opponent either
     const opponent = position ? find(enemySide, position) : undefined
     const opponentPaired = opponent?.teamPosition ? PAIRED_LANE[opponent.teamPosition] : undefined
-    const opponentPartner =
-      opponent && opponentPaired ? (find(enemySide, opponentPaired, opponent)?.puuid ?? null) : null
+    const opponentPartnerRow =
+      opponent && opponentPaired ? find(enemySide, opponentPaired, opponent) : undefined
+    const opponentPartner = opponentPartnerRow
+      ? laneKey(opponentPartnerRow.side, opponentPartnerRow.slot)
+      : null
 
     assignments.set(laneKey(participant.side, participant.slot), {
       partner,
-      laneOpponent: opponent?.puuid ?? null,
+      laneOpponent: opponent ? laneKey(opponent.side, opponent.slot) : null,
       opponentPartner,
     })
   }

@@ -246,17 +246,24 @@ export async function readGames(db: Db, input: ReadGamesInput): Promise<MatchGam
       taggedKind: match.taggedKind,
     })
 
-    /** A lane reference, by puuid: unique per match, so no side is needed to find the row. */
-    const refOf = (puuid: string | null): MatchLaneRefDto | null => {
-      if (!puuid) return null
-      const row = rows.find((candidate) => candidate.puuid === puuid)
-      const account = looking.accountByPuuid.get(puuid)
-      const userId = row?.userId ?? account?.userId ?? null
+    /**
+     * A lane reference, by **`laneKey(side, slot)`** — the key `assignLanes` answers with (§7).
+     *
+     * Not by puuid: an enemy somebody typed into a scrim has no puuid, so a puuid-keyed lookup would
+     * answer `null` for exactly the opponents a human took the trouble to name.
+     */
+    const refOf = (key: string | null): MatchLaneRefDto | null => {
+      if (!key) return null
+      const row = rows.find((candidate) => laneKey(candidate.side, candidate.slot) === key)
+      if (!row) return null
+
+      const account = row.puuid ? looking.accountByPuuid.get(row.puuid) : undefined
+      const userId = row.userId ?? account?.userId ?? null
       return {
-        puuid,
+        puuid: row.puuid,
         userId,
         displayName: userId ? (looking.displayNameByUserId.get(userId) ?? null) : null,
-        championId: row?.championId ?? null,
+        championId: row.championId,
       }
     }
 
