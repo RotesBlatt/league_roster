@@ -134,6 +134,13 @@
       "when": 1795811862597,
       "tag": "0018_safe_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795814662014,
+      "tag": "0019_military_lightspeed",
+      "breakpoints": true
     }
   ]
 }

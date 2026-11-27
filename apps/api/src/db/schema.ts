@@ -660,6 +660,15 @@ export const matches = pgTable(
  * Hence the *partial* unique: `(matchId, puuid)` must not collapse the NULLs of two unknown
  * opponents into one conflict.
  *
+ * **Two ways to say who played**, and every row uses one of them:
+ *
+ * - `puuid` — a Riot row, attributed by the join `⋈ riot_account` at query time (§5.2, §5.6);
+ * - `userId` — a hand-entered row, where the honest fact is *which member* played, not which of
+ *   their accounts was in the game hours ago (§5.8).
+ *
+ * There is deliberately **no** unique on `(matchId, userId)`: the same person in one game on two of
+ * their own accounts, or two of ours on opposing sides, are both legal (§5.2).
+ *
  * `championId` carries no foreign key to `champion` (like `pool_entry`): a champion the dump does
  * not know yet must not refuse the game. We store ids, we render labels.
  */
@@ -676,6 +685,12 @@ export const matchParticipants = pgTable(
     slot: integer('slot').notNull(),
     /** Riot's identity of the player; no FK, because a puuid we hold no account for is legal (§5.6). */
     puuid: text('puuid'),
+    /**
+     * The **person** — set only on a hand-entered row, where "which member played" is the fact
+     * somebody actually knows. `set null` rather than `cascade`: an account we delete must not take
+     * a game with it, because other people's champion stats are computed from that row (§5.6).
+     */
+    userId: text('userId').references(() => user.id, { onDelete: 'set null' }),
     /** `TOP`/`JUNGLE`/`MIDDLE`/`BOTTOM`/`UTILITY`, empty for non-SR — mapped in one shared function. */
     teamPosition: text('teamPosition'),
     championId: integer('championId'),

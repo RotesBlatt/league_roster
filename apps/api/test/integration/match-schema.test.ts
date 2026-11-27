@@ -59,6 +59,7 @@ async function expectCode(run: PromiseLike<unknown>, code: string): Promise<void
 /** 23505 = unique violation, 23514 = check violation, 23503 = foreign key violation. */
 const UNIQUE = '23505'
 const CHECK = '23514'
+const FOREIGN_KEY = '23503'
 
 /** A Riot row with only the columns Riot always gives us. */
 async function insertRiotMatch(riotMatchId: string): Promise<string> {
@@ -73,24 +74,37 @@ async function insertRiotMatch(riotMatchId: string): Promise<string> {
 
 /**
  * Riot's participant shape: slot 1-10, a side, and a champion. `puuid` is optional so the same
- * helper can write the unknown-opponent row a manual match has.
+ * helper can write the unknown-opponent row a manual match has; `userId` is optional because only a
+ * hand-entered row knows *which member* played without claiming which account (§5.8).
  */
 async function insertParticipant(input: {
   matchId: string
   side: number
   slot: number
   puuid?: string | null
+  userId?: string | null
   championId?: number | null
   win?: boolean | null
 }): Promise<void> {
   await ctx.db.execute(sql`
     insert into match_participant
-      ("id", "matchId", "side", "slot", "puuid", "championId", "win")
+      ("id", "matchId", "side", "slot", "puuid", "userId", "championId", "win")
     values (
       ${crypto.randomUUID()}, ${input.matchId}, ${input.side}, ${input.slot},
-      ${input.puuid ?? null}, ${input.championId ?? null}, ${input.win ?? null}
+      ${input.puuid ?? null}, ${input.userId ?? null}, ${input.championId ?? null},
+      ${input.win ?? null}
     )
   `)
+}
+
+/** A hand-entered scrim: a date, a team and a person — and no Riot fact at all (§5.8). */
+async function insertManualMatch(): Promise<string> {
+  const id = crypto.randomUUID()
+  await ctx.db.execute(sql`
+    insert into "match" ("id", "source", "gameStartAt", "createdByTeamId", "createdBy")
+    values (${id}, 'manual', now(), ${teamId}, ${userId})
+  `)
+  return id
 }
 
 describe('one game is one row', () => {
@@ -314,6 +328,93 @@ describe('process state', () => {
         values ('EUW1_404', 'not found', now())
       `),
       UNIQUE,
+    )
+  })
+})
+
+/**
+ * A hand-entered game names a **person**, not an account (§5.8).
+ *
+ * Riot rows are attributed by the join `match_participant.puuid ⋈ riot_account` (§5.2) — and that
+ * join is exactly what a scrim cannot use: nobody knows, hours later, which of their accounts was in
+ * the game, and demanding it would make the form unfillable. So `userId` is the manual row's honest
+ * answer, and it is NULL on every Riot row.
+ */
+describe('a hand-entered game names a person', () => {
+  test('a manual participant carries the member, and no puuid', async () => {
+    const matchId = await insertManualMatch()
+    const memberId = await createUser(ctx, { name: 'Scrim Player' })
+    await insertParticipant({
+      matchId,
+      side: 100,
+      slot: 1,
+      userId: memberId,
+      championId: 103,
+      win: true,
+    })
+
+    const [row] = [
+      ...(await ctx.db.execute<{ userId: string | null; puuid: string | null }>(sql`
+        select "userId", "puuid" from match_participant
+        where "matchId" = ${matchId} and "slot" = 1
+      `)),
+    ]
+    expect(row?.userId).toBe(memberId)
+    expect(row?.puuid).toBeNull()
+  })
+
+  test('a Riot participant has no userId — the puuid join is what says who played', async () => {
+    const matchId = await insertRiotMatch('EUW1_1000000010')
+    await insertParticipant({ matchId, side: 100, slot: 1, puuid: 'riot-puuid' })
+
+    const [row] = [
+      ...(await ctx.db.execute<{ userId: string | null }>(sql`
+        select "userId" from match_participant where "matchId" = ${matchId}
+      `)),
+    ]
+    expect(row?.userId).toBeNull()
+  })
+
+  test('one person on two of their own accounts in one game stays two rows (§5.2)', async () => {
+    // legal, and the reason there is deliberately **no** unique on (matchId, userId): the same
+    // person can be in a game twice on two smurfs, and a custom game can split the roster
+    const matchId = await insertRiotMatch('EUW1_1000000011')
+    const memberId = await createUser(ctx)
+    await insertParticipant({ matchId, side: 100, slot: 1, puuid: 'smurf-a', userId: memberId })
+    await insertParticipant({ matchId, side: 200, slot: 6, puuid: 'smurf-b', userId: memberId })
+  })
+
+  test('deleting the account does not delete the game — history is not rewritten (§5.6)', async () => {
+    const matchId = await insertManualMatch()
+    const leaving = await createUser(ctx)
+    await insertParticipant({
+      matchId,
+      side: 100,
+      slot: 1,
+      userId: leaving,
+      championId: 1,
+      win: true,
+    })
+
+    await ctx.db.execute(sql`delete from "user" where "id" = ${leaving}`)
+
+    const [row] = [
+      ...(await ctx.db.execute<{ userId: string | null }>(sql`
+        select "userId" from match_participant where "matchId" = ${matchId}
+      `)),
+    ]
+    expect(row).toBeDefined()
+    expect(row?.userId).toBeNull()
+  })
+
+  test('an unknown user id is refused by the database, not trusted to a route', async () => {
+    const matchId = await insertManualMatch()
+    await expectCode(
+      ctx.db.execute(sql`
+        insert into match_participant ("id", "matchId", "side", "slot", "userId")
+        values (${crypto.randomUUID()}, ${matchId}, 100, 2, ${crypto.randomUUID()})
+      `),
+      FOREIGN_KEY,
     )
   })
 })
