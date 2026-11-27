@@ -19,7 +19,7 @@ import { useGames } from '../api/hooks.ts'
 // from `result.ts`, not `api.ts`: the app-wide UI tests mock `api.ts` wholesale, and a named import
 // the mock does not provide fails at module load instead of at the call site
 import { messageOf } from '../api/result.ts'
-import { ChampionIcon, ChampionLabel } from '../components/champions/ChampionIcon.tsx'
+import { ChampionLabel } from '../components/champions/ChampionIcon.tsx'
 import { ManualMatchForm } from '../components/matches/ManualMatchForm.tsx'
 import {
   formatGameTime,
@@ -168,13 +168,11 @@ function GameRow({ row }: { row: MatchGameDto }) {
         </Stack>
       </Table.Td>
       <Table.Td>
+        {/* `ChampionLabel` is icon **plus** name — wrapping it in another icon drew it twice */}
         {row.championId === null ? (
           <Text size="sm">–</Text>
         ) : (
-          <Group gap={6} wrap="nowrap">
-            <ChampionIcon championId={row.championId} size={22} />
-            <ChampionLabel championId={row.championId} size={14} />
-          </Group>
+          <ChampionLabel championId={row.championId} size={22} />
         )}
       </Table.Td>
       <Table.Td>{row.role ? ROLE_LABELS[row.role] : '–'}</Table.Td>
@@ -215,10 +213,6 @@ function LaneCellView({ ref }: { ref: MatchLaneRefDto | null }) {
   if (cell.kind === 'name') return <Text size="sm">{cell.name}</Text>
   if (cell.kind === 'none') return <Text size="sm">–</Text>
 
-  return (
-    <Group gap={6} wrap="nowrap">
-      <ChampionIcon championId={cell.championId} size={20} />
-      <ChampionLabel championId={cell.championId} size={13} />
-    </Group>
-  )
+  // `ChampionLabel` already renders the icon and the name together (§7: id in, label out)
+  return <ChampionLabel championId={cell.championId} size={18} />
 }
