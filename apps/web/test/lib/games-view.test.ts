@@ -6,7 +6,7 @@ import {
   GAMES_SCOPE_OPTIONS,
   groupByMatch,
   kindLabel,
-  laneLabel,
+  laneCell,
   provenanceLabel,
   RESULT_TONE,
   resultText,
@@ -130,7 +130,7 @@ describe('provenanceLabel and kindLabel', () => {
   })
 })
 
-describe('laneLabel', () => {
+describe('laneCell', () => {
   const ref = (overrides: Partial<MatchLaneRefDto> = {}): MatchLaneRefDto => ({
     puuid: 'p1',
     userId: null,
@@ -139,21 +139,25 @@ describe('laneLabel', () => {
     ...overrides,
   })
 
-  test('a teammate is named', () => {
-    expect(laneLabel(ref({ displayName: 'Member A' }))).toBe('Member A')
+  test('a teammate is a name', () => {
+    expect(laneCell(ref({ displayName: 'Member A' }))).toEqual({ kind: 'name', name: 'Member A' })
   })
 
-  test('an enemy is shown by champion, because that is all we hold about them', () => {
-    expect(laneLabel(ref({ championId: 24 }))).toBe('Champion 24')
+  test('an enemy is a champion **id**, so the page can render its real name', () => {
+    // it used to be the string "Champion 24": the id is not a label, and the cache has the label
+    expect(laneCell(ref({ championId: 24 }))).toEqual({ kind: 'champion', championId: 24 })
   })
 
-  test('a name wins over the champion id', () => {
-    expect(laneLabel(ref({ displayName: 'Member A', championId: 24 }))).toBe('Member A')
+  test('a name wins over a champion id', () => {
+    expect(laneCell(ref({ displayName: 'Member A', championId: 24 }))).toEqual({
+      kind: 'name',
+      name: 'Member A',
+    })
   })
 
-  test('nothing known is a dash, not an empty cell', () => {
-    expect(laneLabel(null)).toBe('–')
-    expect(laneLabel(ref())).toBe('–')
+  test('nothing known is an empty cell, not an invented champion', () => {
+    expect(laneCell(null)).toEqual({ kind: 'none' })
+    expect(laneCell(ref())).toEqual({ kind: 'none' })
   })
 })
 

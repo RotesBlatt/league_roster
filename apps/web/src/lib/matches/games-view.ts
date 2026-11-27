@@ -77,17 +77,25 @@ export function resultText(win: boolean | null): string {
 }
 
 /**
- * The three lane columns, from what the API could resolve.
+ * What a lane cell should render — a decision, not a string.
+ *
+ * It used to return `"Champion 24"` for an enemy, which is a placeholder, not a label: the page has
+ * the champion cache and can render the real name and icon. Returning the **id** keeps that decision
+ * in the component (where the cache lives) while this stays pure and testable.
  *
  * A teammate has a name; an enemy usually has only a champion, because we store puuids and hold no
- * account for them (§5.6). Showing `Champion 24` is honest — inventing a summoner name from a puuid
- * is not possible, and leaving the cell empty would look like "no opponent".
+ * account for them (§5.6). Nothing known is an empty cell — never an invented champion.
  */
-export function laneLabel(ref: MatchLaneRefDto | null): string {
-  if (!ref) return '–'
-  if (ref.displayName) return ref.displayName
-  if (ref.championId !== null) return `Champion ${ref.championId}`
-  return '–'
+export type LaneCell =
+  | { kind: 'none' }
+  | { kind: 'name'; name: string }
+  | { kind: 'champion'; championId: number }
+
+export function laneCell(ref: MatchLaneRefDto | null): LaneCell {
+  if (!ref) return { kind: 'none' }
+  if (ref.displayName) return { kind: 'name', name: ref.displayName }
+  if (ref.championId !== null) return { kind: 'champion', championId: ref.championId }
+  return { kind: 'none' }
 }
 
 /** `3/5` of **our** side, never `5/10` of the lobby (§7). */

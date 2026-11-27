@@ -1,4 +1,4 @@
-import type { MatchGameDto } from '@lol/api/schema-types'
+import type { MatchGameDto, MatchLaneRefDto } from '@lol/api/schema-types'
 import { type MatchScope, ROLE_LABELS } from '@lol/shared'
 import {
   Badge,
@@ -27,7 +27,7 @@ import {
   GAMES_SCOPE_OPTIONS,
   groupByMatch,
   kindLabel,
-  laneLabel,
+  laneCell,
   provenanceLabel,
   resultText,
   resultTone,
@@ -184,14 +184,41 @@ function GameRow({ row }: { row: MatchGameDto }) {
       </Table.Td>
       <Table.Td>{formatKda(row)}</Table.Td>
       <Table.Td>{teamCountText(row.teamCount)}</Table.Td>
-      <Table.Td>{laneLabel(row.lane.partner)}</Table.Td>
-      <Table.Td>{laneLabel(row.lane.laneOpponent)}</Table.Td>
-      <Table.Td>{laneLabel(row.lane.opponentPartner)}</Table.Td>
+      <Table.Td>
+        <LaneCellView ref={row.lane.partner} />
+      </Table.Td>
+      <Table.Td>
+        <LaneCellView ref={row.lane.laneOpponent} />
+      </Table.Td>
+      <Table.Td>
+        <LaneCellView ref={row.lane.opponentPartner} />
+      </Table.Td>
       <Table.Td>
         <Text size="sm" c="dimmed">
           {row.note ?? '–'}
         </Text>
       </Table.Td>
     </Table.Tr>
+  )
+}
+
+/**
+ * One lane cell: a teammate by name, an enemy by **the champion's real name and icon** (§7, §9).
+ *
+ * It used to print `Champion 24` — an id pretending to be a label. The id is what the API can give
+ * us for a player we hold no account for, but the page has the champion cache, so the *cached* label
+ * is what a reader gets. A name still wins over a champion: ours are people first.
+ */
+function LaneCellView({ ref }: { ref: MatchLaneRefDto | null }) {
+  const cell = laneCell(ref)
+
+  if (cell.kind === 'name') return <Text size="sm">{cell.name}</Text>
+  if (cell.kind === 'none') return <Text size="sm">–</Text>
+
+  return (
+    <Group gap={6} wrap="nowrap">
+      <ChampionIcon championId={cell.championId} size={20} />
+      <ChampionLabel championId={cell.championId} size={13} />
+    </Group>
   )
 }
