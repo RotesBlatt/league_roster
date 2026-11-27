@@ -12,7 +12,7 @@ import {
   Textarea,
   TextInput,
 } from '@mantine/core'
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useChampions, useCreateManualMatch, useMembers, useRoster } from '../../api/hooks.ts'
 import { messageOf } from '../../api/result.ts'
 import {
@@ -20,6 +20,7 @@ import {
   formErrors,
   type ManualPlayerDraft,
   prefillPlayers,
+  type RosterPerson,
   roleForMember,
   toBody,
 } from '../../lib/matches/manual-form.ts'
@@ -81,17 +82,30 @@ export function ManualMatchForm({
     })
   }, [rosterPeople, pristine])
 
-  const errors = formErrors(draft)
-  const memberOptions = (members.data ?? []).map((member) => ({
-    value: member.id,
-    label: member.name,
-  }))
-  const championOptions = (champions.data?.champions ?? []).map((champion) => ({
-    value: String(champion.championId),
-    label: champion.name,
-  }))
+  const memberData = members.data
+  const championData = champions.data?.champions
 
-  const setPlayer = (id: string, patch: Partial<ManualPlayerDraft>) => {
+  // **memoised**: these arrays are handed to ten searchable selects. Rebuilding them per render made
+  // every keystroke re-filter 170 champion options five times over — the lag was in the options,
+  // not in the typing.
+  const memberOptions = useMemo(
+    () => (memberData ?? []).map((member) => ({ value: member.id, label: member.name })),
+    [memberData],
+  )
+  const championOptions = useMemo(
+    () =>
+      (championData ?? []).map((champion) => ({
+        value: String(champion.championId),
+        label: champion.name,
+      })),
+    [championData],
+  )
+
+  // Validation runs the whole shared validator; it only has to run when its answer is *visible*,
+  // which is from the first submit attempt on. Before that the form is simply allowed to be empty.
+  const errors = useMemo(() => (attempted ? formErrors(draft) : []), [attempted, draft])
+
+  const setPlayer = useCallback((id: string, patch: Partial<ManualPlayerDraft>) => {
     setPristine(false)
     setDraft((current) => ({
       ...current,
@@ -99,11 +113,12 @@ export function ManualMatchForm({
         player.id === id ? { ...player, ...patch } : player,
       ),
     }))
-  }
+  }, [])
 
   const submit = () => {
     setAttempted(true)
-    if (errors.length > 0) return
+    // read the answer directly: `errors` is memoised for the *rendered* attempt, not this one
+    if (formErrors(draft).length > 0) return
 
     create.mutate(toBody(draft), {
       onSuccess: () => {
@@ -179,62 +194,14 @@ export function ManualMatchForm({
           </Table.Thead>
           <Table.Tbody>
             {draft.players.map((player) => (
-              <Table.Tr key={player.id}>
-                <Table.Td>
-                  <Select
-                    placeholder="Pick a player"
-                    searchable
-                    value={player.userId || null}
-                    data={memberOptions}
-                    onChange={(value) =>
-                      // picking a teammate brings their lane with them; still editable below
-                      setPlayer(player.id, {
-                        userId: value ?? '',
-                        role: value ? roleForMember(rosterPeople, value) : '',
-                      })
-                    }
-                  />
-                </Table.Td>
-                <Table.Td>
-                  <Select
-                    placeholder="Champion"
-                    searchable
-                    value={player.championId || null}
-                    data={championOptions}
-                    onChange={(value) => setPlayer(player.id, { championId: value ?? '' })}
-                  />
-                </Table.Td>
-                <Table.Td w={130}>
-                  <Select
-                    clearable
-                    placeholder="–"
-                    value={player.role || null}
-                    data={ROLES.map((role: Role) => ({ value: role, label: ROLE_LABELS[role] }))}
-                    onChange={(value) => setPlayer(player.id, { role: value ?? '' })}
-                  />
-                </Table.Td>
-                {(['kills', 'deaths', 'assists'] as const).map((field) => (
-                  <Table.Td key={field} w={CELL}>
-                    <TextInput
-                      aria-label={field}
-                      value={player[field]}
-                      onChange={(event) =>
-                        setPlayer(player.id, { [field]: event.currentTarget.value })
-                      }
-                    />
-                  </Table.Td>
-                ))}
-                <Table.Td>
-                  <Select
-                    placeholder="Champion"
-                    searchable
-                    clearable
-                    value={player.opponentChampionId || null}
-                    data={championOptions}
-                    onChange={(value) => setPlayer(player.id, { opponentChampionId: value ?? '' })}
-                  />
-                </Table.Td>
-              </Table.Tr>
+              <PlayerRow
+                key={player.id}
+                player={player}
+                memberOptions={memberOptions}
+                championOptions={championOptions}
+                rosterPeople={rosterPeople}
+                onChange={setPlayer}
+              />
             ))}
           </Table.Tbody>
         </Table>
@@ -284,3 +251,82 @@ export function ManualMatchForm({
     </Modal>
   )
 }
+
+/**
+ * One row of the line-up: the player, their champion, their lane, the KDA and **the enemy champion
+ * they faced** (§7).
+ *
+ * Memoised on purpose. Every keystroke used to re-render all five rows — 35 Mantine inputs, ten of
+ * them searchable selects — which is what made typing feel laggy. With a stable `onChange` and
+ * memoised option lists, typing in one cell now re-renders exactly one row.
+ */
+const PlayerRow = memo(function PlayerRow({
+  player,
+  memberOptions,
+  championOptions,
+  rosterPeople,
+  onChange,
+}: {
+  player: ManualPlayerDraft
+  memberOptions: { value: string; label: string }[]
+  championOptions: { value: string; label: string }[]
+  rosterPeople: RosterPerson[]
+  onChange: (id: string, patch: Partial<ManualPlayerDraft>) => void
+}) {
+  return (
+    <Table.Tr>
+      <Table.Td>
+        <Select
+          placeholder="Pick a player"
+          searchable
+          value={player.userId || null}
+          data={memberOptions}
+          onChange={(value) =>
+            // picking a teammate brings their lane with them; still editable in the next cell
+            onChange(player.id, {
+              userId: value ?? '',
+              role: value ? roleForMember(rosterPeople, value) : '',
+            })
+          }
+        />
+      </Table.Td>
+      <Table.Td>
+        <Select
+          placeholder="Champion"
+          searchable
+          value={player.championId || null}
+          data={championOptions}
+          onChange={(value) => onChange(player.id, { championId: value ?? '' })}
+        />
+      </Table.Td>
+      <Table.Td w={130}>
+        <Select
+          clearable
+          placeholder="–"
+          value={player.role || null}
+          data={ROLES.map((role: Role) => ({ value: role, label: ROLE_LABELS[role] }))}
+          onChange={(value) => onChange(player.id, { role: value ?? '' })}
+        />
+      </Table.Td>
+      {(['kills', 'deaths', 'assists'] as const).map((field) => (
+        <Table.Td key={field} w={CELL}>
+          <TextInput
+            aria-label={field}
+            value={player[field]}
+            onChange={(event) => onChange(player.id, { [field]: event.currentTarget.value })}
+          />
+        </Table.Td>
+      ))}
+      <Table.Td>
+        <Select
+          placeholder="Champion"
+          searchable
+          clearable
+          value={player.opponentChampionId || null}
+          data={championOptions}
+          onChange={(value) => onChange(player.id, { opponentChampionId: value ?? '' })}
+        />
+      </Table.Td>
+    </Table.Tr>
+  )
+})
