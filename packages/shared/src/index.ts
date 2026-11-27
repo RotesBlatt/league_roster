@@ -10,6 +10,7 @@
 export * from './availability.ts'
 export * from './champion-stats.ts'
 export * from './hexserve.ts'
+export * from './manual-match.ts'
 export * from './match.ts'
 export * from './match-lanes.ts'
 export * from './match-stats.ts'
