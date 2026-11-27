@@ -11,7 +11,7 @@
     "typecheck": "bun check"
   },
   "dependencies": {
-    "@better-auth/drizzle-adapter": "^1.7.25",
+    "@better-auth/drizzle-adapter": "^1.7.27",
     "@lol/shared": "workspace:*",
     "better-auth": "^1.7.25",
     "drizzle-orm": "^0.45.4",
