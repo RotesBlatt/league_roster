@@ -12,6 +12,7 @@ import {
   Text,
   Title,
 } from '@mantine/core'
+import { IconPlus } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useGames } from '../api/hooks.ts'
@@ -19,6 +20,7 @@ import { useGames } from '../api/hooks.ts'
 // the mock does not provide fails at module load instead of at the call site
 import { messageOf } from '../api/result.ts'
 import { ChampionIcon, ChampionLabel } from '../components/champions/ChampionIcon.tsx'
+import { ManualMatchForm } from '../components/matches/ManualMatchForm.tsx'
 import {
   formatGameTime,
   formatKda,
@@ -46,6 +48,7 @@ import {
 export function GamesPage() {
   const { slug = '' } = useParams()
   const [scope, setScope] = useState<MatchScope>('all')
+  const [formOpen, setFormOpen] = useState(false)
   const games = useGames(slug, scope)
 
   const rows = games.data?.pages.flatMap((page) => page.games) ?? []
@@ -55,12 +58,23 @@ export function GamesPage() {
     <Stack gap="md">
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
         <Title order={2}>Games</Title>
-        <SegmentedControl
-          size="xs"
-          value={scope}
-          onChange={(value) => setScope(value as MatchScope)}
-          data={GAMES_SCOPE_OPTIONS.map((option) => ({ ...option }))}
-        />
+        <Group gap="sm" wrap="wrap">
+          <SegmentedControl
+            size="xs"
+            value={scope}
+            onChange={(value) => setScope(value as MatchScope)}
+            data={GAMES_SCOPE_OPTIONS.map((option) => ({ ...option }))}
+          />
+          {/* the games Riot cannot see: entered by hand, which is the normal path for a scrim */}
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => setFormOpen(true)}
+          >
+            Add game
+          </Button>
+        </Group>
       </Group>
 
       {games.isPending ? <Loader size="sm" /> : null}
@@ -125,6 +139,8 @@ export function GamesPage() {
           </Paper>
         )
       })}
+
+      <ManualMatchForm opened={formOpen} onClose={() => setFormOpen(false)} slug={slug} />
 
       {games.hasNextPage ? (
         <Button

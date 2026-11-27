@@ -392,3 +392,21 @@ export function useGames(slug: string, scope: MatchScope) {
     enabled: slug.length > 0,
   })
 }
+
+/**
+ * `POST /api/teams/:slug/matches` — enter a scrim by hand (match-history.md §5.8).
+ *
+ * Invalidates the whole games key for this team, not just the current scope: the new row belongs to
+ * whichever tabs its kind puts it in, and a second tab open on "Scrim" must see it too. The body is
+ * built by `toBody` from the form's draft — the same shape the route validates.
+ */
+export function useCreateManualMatch(slug: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      unwrap(api.teams({ slug }).matches.post(body as never)),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...GAMES_KEY, slug] })
+    },
+  })
+}
